@@ -78,9 +78,11 @@ mingsui-relay config path
 ```bash
 mingsui doctor -config ./client.json
 mingsui-relay check -config ./relay.json
+mingsui doctor -json -config ./client.json
+mingsui-relay check -json -config ./relay.json
 ```
 
-`mingsui doctor` 会检查本地监听地址是否可用，并通过协议级 `health` 指令验证 relay 地址和 token；如果 relay 版本支持，还会打印服务端活跃连接、累计连接和上下行字节数。`mingsui-relay check` 会检查 relay 配置、TLS 证书和监听地址是否可用。
+`mingsui doctor` 会检查本地监听地址是否可用，并通过协议级 `health` 指令验证 relay 地址和 token；如果 relay 版本支持，还会打印服务端活跃连接、累计连接和上下行字节数。`mingsui-relay check` 会检查 relay 配置、TLS 证书和监听地址是否可用。两个诊断命令都支持 `-json`，方便桌面端、部署脚本或监控系统读取结果。
 
 生成 token：
 

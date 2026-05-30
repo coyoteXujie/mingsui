@@ -9,7 +9,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
 
-func TestPrintTLSCheckAcceptsValidCertificate(t *testing.T) {
+func TestCheckTLSAcceptsValidCertificate(t *testing.T) {
 	certPath, keyPath := writeTestCertificate(t)
 	cfg := config.RelayTLSConfig{
 		Enabled:  true,
@@ -17,12 +17,16 @@ func TestPrintTLSCheckAcceptsValidCertificate(t *testing.T) {
 		KeyFile:  keyPath,
 	}
 
-	if !printTLSCheck(cfg, time.Now()) {
-		t.Fatal("printTLSCheck() = false, want true")
+	got := checkTLS(cfg, time.Now())
+	if !got.OK {
+		t.Fatalf("checkTLS().OK = false, error = %q", got.Error)
+	}
+	if got.Certificate == nil {
+		t.Fatal("checkTLS().Certificate = nil, want certificate summary")
 	}
 }
 
-func TestPrintTLSCheckRejectsExpiredCertificate(t *testing.T) {
+func TestCheckTLSRejectsExpiredCertificate(t *testing.T) {
 	certPath, keyPath := writeTestCertificate(t)
 	cfg := config.RelayTLSConfig{
 		Enabled:  true,
@@ -30,8 +34,12 @@ func TestPrintTLSCheckRejectsExpiredCertificate(t *testing.T) {
 		KeyFile:  keyPath,
 	}
 
-	if printTLSCheck(cfg, time.Now().Add(2*time.Hour)) {
-		t.Fatal("printTLSCheck() = true, want false")
+	got := checkTLS(cfg, time.Now().Add(2*time.Hour))
+	if got.OK {
+		t.Fatal("checkTLS().OK = true, want false")
+	}
+	if got.Error != "TLS 证书已过期" {
+		t.Fatalf("checkTLS().Error = %q, want expired error", got.Error)
 	}
 }
 

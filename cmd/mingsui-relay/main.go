@@ -17,6 +17,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/deploy"
+	"github.com/coyoteXujie/mingsui/internal/diagnostic"
 	"github.com/coyoteXujie/mingsui/internal/relay"
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
@@ -157,80 +158,147 @@ func runCheck(args []string) int {
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
 	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
 	skipListen := fs.Bool("skip-listen", false, "跳过监听端口可用性检查")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出诊断结果")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
+	report := diagnostic.NewReport(*cfgPath)
 	cfg, err := loadRelayOrDefault(*cfgPath)
 	if err != nil {
+		report.Fail(fmt.Sprintf("加载配置失败: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
 	applyRelayOverrides(&cfg, *listenAddr, *token, *allowPrivate)
 	if err := cfg.Validate(); err != nil {
+		report.Fail(fmt.Sprintf("配置不正确: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
 		fmt.Fprintf(os.Stderr, "配置不正确: %v\n", err)
 		return 1
 	}
 
-	failed := false
-	fmt.Fprintf(os.Stdout, "配置文件: %s\n", *cfgPath)
-	if cfg.Token == "change-me" {
-		fmt.Fprintln(os.Stdout, "警告: 当前使用默认 token，生产环境必须修改")
+	if !*jsonOutput {
+		fmt.Fprintf(os.Stdout, "配置文件: %s\n", *cfgPath)
 	}
-	if !printTLSCheck(cfg.TLS, time.Now()) {
-		failed = true
+	if cfg.Token == "change-me" {
+		warning := "当前使用默认 token，生产环境必须修改"
+		report.AddWarning(warning)
+		if !*jsonOutput {
+			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
+		}
+	}
+	tlsCheck := checkTLS(cfg.TLS, time.Now())
+	report.AddCheck(tlsCheck)
+	if !*jsonOutput {
+		printTLSResult(tlsCheck)
 	}
 	if !*skipListen {
-		if !printListenCheck("relay 监听地址", cfg.ListenAddr) {
-			failed = true
+		check := checkListen("relay_listen", "relay 监听地址", cfg.ListenAddr)
+		report.AddCheck(check)
+		if !*jsonOutput {
+			printListenResult(check)
 		}
 	}
 
-	if failed {
-		return 1
+	if *jsonOutput {
+		return writeDiagnosticReport(report)
 	}
-	return 0
+	return report.ExitCode()
 }
 
 func printTLSCheck(cfg config.RelayTLSConfig, now time.Time) bool {
-	if !cfg.Enabled {
-		fmt.Fprintf(os.Stdout, "[正常] TLS 未启用\n")
-		return true
-	}
+	check := checkTLS(cfg, now)
+	printTLSResult(check)
+	return check.OK
+}
 
-	if _, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile); err != nil {
-		fmt.Fprintf(os.Stdout, "[失败] TLS 证书加载失败: %v\n", err)
-		return false
+func checkTLS(cfg config.RelayTLSConfig, now time.Time) diagnostic.Check {
+	check := diagnostic.Check{
+		Name:  "tls",
+		Label: "TLS",
+		OK:    true,
 	}
-	fmt.Fprintf(os.Stdout, "[正常] TLS 证书可以加载\n")
+	if !cfg.Enabled {
+		check.Skipped = true
+		return check
+	}
+	check.Target = cfg.CertFile
+	if _, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile); err != nil {
+		check.OK = false
+		check.Error = fmt.Sprintf("TLS 证书加载失败: %v", err)
+		return check
+	}
 
 	info, err := security.LoadCertificateInfo(cfg.CertFile)
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "[失败] TLS 证书解析失败: %v\n", err)
-		return false
-	}
-	if hosts := info.Hosts(); len(hosts) > 0 {
-		fmt.Fprintf(os.Stdout, "  TLS 证书主机: %s\n", strings.Join(hosts, ", "))
-	}
-	fmt.Fprintf(os.Stdout, "  TLS 证书有效期: %s 至 %s\n", formatCertificateTime(info.NotBefore), formatCertificateTime(info.NotAfter))
-
-	if now.Before(info.NotBefore) {
-		fmt.Fprintf(os.Stdout, "[失败] TLS 证书尚未生效\n")
-		return false
-	}
-	if !now.Before(info.NotAfter) {
-		fmt.Fprintf(os.Stdout, "[失败] TLS 证书已过期\n")
-		return false
+		check.OK = false
+		check.Error = fmt.Sprintf("TLS 证书解析失败: %v", err)
+		return check
 	}
 	remaining := info.NotAfter.Sub(now)
-	if remaining <= certificateExpiryWarning {
-		fmt.Fprintf(os.Stdout, "[警告] TLS 证书将在 %s 后过期\n", formatRemaining(remaining))
+	check.Certificate = &diagnostic.CertificateSummary{
+		Hosts:            info.Hosts(),
+		NotBefore:        info.NotBefore.Format(time.RFC3339),
+		NotAfter:         info.NotAfter.Format(time.RFC3339),
+		ExpiresInSeconds: int64(remaining.Seconds()),
 	}
-	return true
+	if now.Before(info.NotBefore) {
+		check.OK = false
+		check.Error = "TLS 证书尚未生效"
+		return check
+	}
+	if !now.Before(info.NotAfter) {
+		check.OK = false
+		check.Error = "TLS 证书已过期"
+		return check
+	}
+	if remaining <= certificateExpiryWarning {
+		check.Warning = fmt.Sprintf("TLS 证书将在 %s 后过期", formatRemaining(remaining))
+	}
+	return check
+}
+
+func printTLSResult(check diagnostic.Check) {
+	if check.Skipped {
+		fmt.Fprintf(os.Stdout, "[正常] TLS 未启用\n")
+		return
+	}
+	if !check.OK {
+		fmt.Fprintf(os.Stdout, "[失败] %s\n", check.Error)
+		return
+	}
+	fmt.Fprintf(os.Stdout, "[正常] TLS 证书可以加载\n")
+	if check.Certificate == nil {
+		return
+	}
+	if len(check.Certificate.Hosts) > 0 {
+		fmt.Fprintf(os.Stdout, "  TLS 证书主机: %s\n", strings.Join(check.Certificate.Hosts, ", "))
+	}
+	fmt.Fprintf(os.Stdout, "  TLS 证书有效期: %s 至 %s\n",
+		formatCertificateTimeString(check.Certificate.NotBefore),
+		formatCertificateTimeString(check.Certificate.NotAfter),
+	)
+	if check.Warning != "" {
+		fmt.Fprintf(os.Stdout, "[警告] %s\n", check.Warning)
+	}
 }
 
 func formatCertificateTime(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04:05 MST")
+}
+
+func formatCertificateTimeString(value string) string {
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return value
+	}
+	return formatCertificateTime(t)
 }
 
 func formatRemaining(d time.Duration) string {
@@ -301,15 +369,40 @@ func applyRelayOverrides(cfg *config.RelayConfig, listenAddr, token string, allo
 	}
 }
 
-func printListenCheck(label, addr string) bool {
+func checkListen(name, label, addr string) diagnostic.Check {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "[失败] %s不可用: %s (%v)\n", label, addr, err)
-		return false
+		return diagnostic.Check{
+			Name:   name,
+			Label:  label,
+			Target: addr,
+			OK:     false,
+			Error:  err.Error(),
+		}
 	}
 	_ = listener.Close()
-	fmt.Fprintf(os.Stdout, "[正常] %s可用: %s\n", label, addr)
-	return true
+	return diagnostic.Check{
+		Name:   name,
+		Label:  label,
+		Target: addr,
+		OK:     true,
+	}
+}
+
+func printListenResult(check diagnostic.Check) {
+	if check.OK {
+		fmt.Fprintf(os.Stdout, "[正常] %s可用: %s\n", check.Label, check.Target)
+		return
+	}
+	fmt.Fprintf(os.Stdout, "[失败] %s不可用: %s (%s)\n", check.Label, check.Target, check.Error)
+}
+
+func writeDiagnosticReport(report diagnostic.Report) int {
+	if err := diagnostic.WriteJSON(os.Stdout, report); err != nil {
+		fmt.Fprintf(os.Stderr, "输出 JSON 诊断结果失败: %v\n", err)
+		return 1
+	}
+	return report.ExitCode()
 }
 
 func runConfig(args []string) int {
@@ -402,9 +495,10 @@ func printUsage() {
   mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
   mingsui-relay systemd -output mingsui-relay.service
   mingsui-relay check -config %s
+  mingsui-relay check -json -config %s
   mingsui-relay serve -config %s
 
-`, config.DefaultRelayPath(), config.DefaultRelayPath())
+`, config.DefaultRelayPath(), config.DefaultRelayPath(), config.DefaultRelayPath())
 }
 
 func printConfigUsage() {

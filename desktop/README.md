@@ -12,6 +12,8 @@
 
 当前仓库先实现 CLI、relay 和核心代理逻辑。桌面端接入时应避免重新实现网络层，只调用 `internal/client` 暴露的服务接口。
 
+CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
+
 后续 Wails 后端建议用 `client.Controller`：
 
 - `Start(ctx)`：启动本地 SOCKS5/HTTP 代理。
