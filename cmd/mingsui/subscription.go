@@ -15,11 +15,20 @@ import (
 )
 
 func importClientProfiles(args []string) int {
-	fs := flag.NewFlagSet("config profile import", flag.ContinueOnError)
+	return importClientProfilesCommand("config profile import", args, false, false)
+}
+
+func importClientProfilesProduct(args []string) int {
+	return importClientProfilesCommand("import", args, true, true)
+}
+
+func importClientProfilesCommand(name string, args []string, forceDefault, selectFirstDefault bool) int {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	source := fs.String("source", "", "订阅来源：本地 JSON 文件、HTTP(S) URL 或 - 表示 stdin")
-	force := fs.Bool("force", false, "覆盖同名 profile")
+	force := fs.Bool("force", forceDefault, "覆盖同名 profile")
 	selectName := fs.String("select", "", "导入后选择指定 profile")
+	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个 profile")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -42,8 +51,12 @@ func importClientProfiles(args []string) int {
 		fmt.Fprintf(os.Stderr, "导入 profile 失败: %v\n", err)
 		return 1
 	}
-	if strings.TrimSpace(*selectName) != "" {
-		if err := cfg.SelectRelayProfile(*selectName); err != nil {
+	selectedName := strings.TrimSpace(*selectName)
+	if selectedName == "" && *selectFirst && len(profiles) > 0 {
+		selectedName = profiles[0].Name
+	}
+	if selectedName != "" {
+		if err := cfg.SelectRelayProfile(selectedName); err != nil {
 			fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 			return 1
 		}

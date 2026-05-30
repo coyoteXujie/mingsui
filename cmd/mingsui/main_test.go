@@ -93,6 +93,65 @@ func TestImportClientProfilesFromFile(t *testing.T) {
 	}
 }
 
+func TestTopLevelImportSelectsFirstProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "nodes.json")
+	data := []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`)
+	if err := os.WriteFile(sourcePath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath})
+	if code != 0 {
+		t.Fatalf("run(import) = %d, want 0", code)
+	}
+	code = run([]string{"import", "-path", cfgPath, "-source", sourcePath})
+	if code != 0 {
+		t.Fatalf("run(import duplicate) = %d, want 0 because top-level import overwrites by default", code)
+	}
+
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProfile != "tokyo" {
+		t.Fatalf("ActiveProfile = %q, want tokyo", cfg.ActiveProfile)
+	}
+}
+
+func TestResolveClientProfileAutoSelectsFirst(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "osaka-secret"},
+	}
+
+	got, selected, err := resolveClientProfile(cfg, "", true)
+	if err != nil {
+		t.Fatalf("resolveClientProfile() error = %v", err)
+	}
+	if selected != "tokyo" {
+		t.Fatalf("selected = %q, want tokyo", selected)
+	}
+	if got.RelayAddr != "tokyo.example.com:9443" || got.Token != "secret" {
+		t.Fatalf("resolved = %+v, want tokyo relay and token", got)
+	}
+}
+
+func TestRunStatusDoesNotRequireRelayDial(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+	cfg := config.DefaultClient()
+	cfg.RelayAddr = "127.0.0.1:1"
+	if err := config.WriteClient(path, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	if code := run([]string{"status", "-config", path}); code != 0 {
+		t.Fatalf("run(status) = %d, want 0", code)
+	}
+}
+
 func TestConfigSubscriptionAddAndRemove(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "client.json")
 
