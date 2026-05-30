@@ -9,6 +9,7 @@ import (
 
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/subscription"
 )
 
 type App struct {
@@ -109,6 +110,66 @@ func (a *App) RenameRelayProfile(oldName, newName string) error {
 		return err
 	}
 	return a.SaveConfig(cfg)
+}
+
+func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) (int, error) {
+	profiles, err := subscription.ParseRelayProfiles(data)
+	if err != nil {
+		return 0, err
+	}
+	cfg := a.Config()
+	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
+		return 0, err
+	}
+	if selectName != "" {
+		if err := cfg.SelectRelayProfile(selectName); err != nil {
+			return 0, err
+		}
+	}
+	if err := a.SaveConfig(cfg); err != nil {
+		return 0, err
+	}
+	return len(profiles), nil
+}
+
+func (a *App) UpsertRelaySubscription(sub config.RelaySubscription, replace bool) error {
+	cfg := a.Config()
+	if err := cfg.UpsertRelaySubscription(sub, replace); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
+func (a *App) RemoveRelaySubscription(name string) error {
+	cfg := a.Config()
+	if err := cfg.RemoveRelaySubscription(name); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
+func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bool, selectName string) (int, error) {
+	cfg := a.Config()
+	sub, ok := cfg.RelaySubscription(name)
+	if !ok {
+		return 0, errors.New("订阅不存在")
+	}
+	profiles, err := subscription.LoadRelayProfiles(ctx, sub.URL, nil)
+	if err != nil {
+		return 0, err
+	}
+	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
+		return 0, err
+	}
+	if selectName != "" {
+		if err := cfg.SelectRelayProfile(selectName); err != nil {
+			return 0, err
+		}
+	}
+	if err := a.SaveConfig(cfg); err != nil {
+		return 0, err
+	}
+	return len(profiles), nil
 }
 
 func (a *App) Start(ctx context.Context) error {

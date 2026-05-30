@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>明隧桌面端</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <h1>明隧</h1>
+          <p id="configPath">配置加载中</p>
+        </div>
+        <div class="status-block">
+          <span id="statusBadge" class="badge">未知</span>
+          <span id="relayAddr" class="relay">-</span>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <button id="startBtn" type="button">启动</button>
+        <button id="stopBtn" type="button">停止</button>
+        <button id="checkBtn" type="button">检测</button>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <div class="panel-title">
+            <h2>本地代理</h2>
+          </div>
+          <dl class="kv">
+            <div><dt>SOCKS5</dt><dd id="localAddr">-</dd></div>
+            <div><dt>HTTP</dt><dd id="httpAddr">-</dd></div>
+            <div><dt>认证</dt><dd id="authState">-</dd></div>
+            <div><dt>活跃连接</dt><dd id="activeConnections">0</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>当前 relay</h2>
+          </div>
+          <dl class="kv">
+            <div><dt>默认 profile</dt><dd id="activeProfile">-</dd></div>
+            <div><dt>TLS</dt><dd id="tlsState">-</dd></div>
+            <div><dt>累计连接</dt><dd id="totalConnections">0</dd></div>
+            <div><dt>流量</dt><dd id="traffic">0 B / 0 B</dd></div>
+          </dl>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Relay Profile</h2>
+        </div>
+        <div id="profiles" class="list"></div>
+      </section>
+
+      <section class="grid">
+        <section class="panel">
+          <div class="panel-title">
+            <h2>导入节点</h2>
+          </div>
+          <label class="field">
+            <span>选中 profile</span>
+            <input id="importSelect" type="text" autocomplete="off" />
+          </label>
+          <label class="checkline">
+            <input id="importReplace" type="checkbox" checked />
+            <span>覆盖同名 profile</span>
+          </label>
+          <textarea id="importContent" spellcheck="false" placeholder='{"version":1,"profiles":[...]}'></textarea>
+          <button id="importBtn" type="button">导入</button>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>节点订阅</h2>
+          </div>
+          <div class="split">
+            <label class="field">
+              <span>名称</span>
+              <input id="subName" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>URL</span>
+              <input id="subURL" type="url" autocomplete="off" />
+            </label>
+          </div>
+          <label class="checkline">
+            <input id="subReplace" type="checkbox" checked />
+            <span>覆盖同名 profile</span>
+          </label>
+          <div class="actions">
+            <button id="subSaveBtn" type="button">保存订阅</button>
+            <button id="subSyncBtn" type="button">同步</button>
+            <button id="subDeleteBtn" type="button">删除</button>
+          </div>
+          <div id="subscriptions" class="list compact"></div>
+        </section>
+      </section>
+
+      <section id="message" class="message" aria-live="polite"></section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

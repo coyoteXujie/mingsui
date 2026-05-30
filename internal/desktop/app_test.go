@@ -127,6 +127,46 @@ func TestAppCheckRelayProfileRejectsMissingProfile(t *testing.T) {
 	}
 }
 
+func TestAppImportRelayProfiles(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	count, err := app.ImportRelayProfiles([]byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), false, "tokyo")
+	if err != nil {
+		t.Fatalf("ImportRelayProfiles() error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	cfg := app.Config()
+	if cfg.ActiveProfile != "tokyo" || len(cfg.Profiles) != 1 {
+		t.Fatalf("Config() = %+v, want imported active profile", cfg)
+	}
+}
+
+func TestAppManageRelaySubscriptions(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	sub := config.RelaySubscription{Name: "team", URL: "https://example.com/nodes.json"}
+	if err := app.UpsertRelaySubscription(sub, false); err != nil {
+		t.Fatalf("UpsertRelaySubscription() error = %v", err)
+	}
+	if got := app.Config().Subscriptions; len(got) != 1 || got[0].Name != "team" {
+		t.Fatalf("Subscriptions = %+v, want team", got)
+	}
+	if err := app.RemoveRelaySubscription("team"); err != nil {
+		t.Fatalf("RemoveRelaySubscription() error = %v", err)
+	}
+	if got := app.Config().Subscriptions; len(got) != 0 {
+		t.Fatalf("Subscriptions = %+v, want empty", got)
+	}
+}
+
 func TestAppStopIsNoopWhenNotRunning(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

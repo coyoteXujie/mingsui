@@ -30,6 +30,7 @@ make dist APP_VERSION=v0.1.0
 
 - `mingsui`
 - `mingsui-relay`
+- `mingsui-desktop`
 - `README.md`
 - `configs/` 示例配置
 

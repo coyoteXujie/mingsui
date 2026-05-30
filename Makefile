@@ -12,6 +12,7 @@ build:
 	mkdir -p bin
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/mingsui ./cmd/mingsui
 	$(GO) build -ldflags "$(LDFLAGS)" -o bin/mingsui-relay ./cmd/mingsui-relay
+	$(GO) build -ldflags "$(LDFLAGS)" -o bin/mingsui-desktop ./cmd/mingsui-desktop
 
 test:
 	$(GO) test ./...
@@ -31,6 +32,7 @@ dist:
 		mkdir -p "$$work/configs"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui$$ext" ./cmd/mingsui; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui-relay$$ext" ./cmd/mingsui-relay; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui-desktop$$ext" ./cmd/mingsui-desktop; \
 		cp README.md "$$work/README.md"; \
 		cp configs/*.json "$$work/configs/"; \
 		if [ "$$os" = "windows" ]; then \
