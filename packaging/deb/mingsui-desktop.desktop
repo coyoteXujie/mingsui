@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=MingSui
+Comment=MingSui desktop console
+Exec=/usr/bin/mingsui-desktop -open
+Terminal=false
+Categories=Network;

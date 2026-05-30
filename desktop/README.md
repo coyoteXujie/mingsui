@@ -2,6 +2,8 @@
 
 当前仓库已经提供 `mingsui-desktop` 本机控制台壳层。它使用 Go 标准库启动本机 HTTP UI，复用 `internal/desktop.App`，可以启动/停止客户端、检测 relay、管理 profile，并导入或同步节点订阅。
 
+`mingsui-desktop` 默认读取 `mingsui config path` 指向的同一个客户端配置文件，因此 CLI 和桌面端会天然共享节点、订阅、本地监听和认证设置。
+
 后续如果要做原生窗口，建议使用 Wails 构建，继续复用同一套 Go core 和 `internal/desktop.App`。
 
 第一阶段桌面端功能：
@@ -22,6 +24,15 @@
 go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ./bin/mingsui-desktop -config ./client.json
 ```
+
+Linux 桌面发布包使用 Debian 包：
+
+```bash
+sh scripts/build-deb.sh
+sudo apt install ./dist/mingsui-desktop_0.0.0-dev_amd64.deb
+```
+
+Windows 发布包会包含 `mingsui-desktop.exe`，双击或命令行运行都使用同一套客户端配置。
 
 CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
 

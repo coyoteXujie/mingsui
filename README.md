@@ -83,9 +83,10 @@ curl -x http://local-user:local-pass@127.0.0.1:18081 https://example.com
 make build
 make test
 make dist APP_VERSION=v0.1.0
+make desktop-deb APP_VERSION=v0.1.0
 ```
 
-跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。详细流程见 [docs/release.md](docs/release.md)。
+跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。Linux 桌面端会生成 `.deb`，Windows 包内包含 `mingsui-desktop.exe`。详细流程见 [docs/release.md](docs/release.md)。
 
 开发时可以直接跑完整测试：
 
@@ -110,6 +111,8 @@ mingsui-relay config path
 mingsui config show -path ./client.json
 mingsui-relay config show -path ./relay.json
 ```
+
+`mingsui` CLI 和 `mingsui-desktop` 默认共用同一个客户端配置路径，也就是 `mingsui config path` 输出的位置。只有显式传 `-config` 时才会使用另外的配置文件。
 
 `config show` 默认会隐藏 token 和本地代理密码；只有显式加 `-secrets` 才会输出真实敏感值。
 

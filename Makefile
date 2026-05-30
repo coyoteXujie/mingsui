@@ -2,11 +2,12 @@ APP_VERSION ?= dev
 GO ?= go
 DIST_DIR ?= dist
 DIST_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+DEB_ARCHS ?= amd64 arm64
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=$(APP_VERSION) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=$(COMMIT) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=$(DATE)
 
-.PHONY: build test dist checksums clean
+.PHONY: build test dist desktop-deb checksums clean
 
 build:
 	mkdir -p bin
@@ -42,11 +43,16 @@ dist:
 		fi; \
 		rm -rf "$$work"; \
 	done
+	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" sh scripts/build-deb.sh
 	$(MAKE) checksums
 
+desktop-deb:
+	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" sh scripts/build-deb.sh
+
 checksums:
-	@if ls $(DIST_DIR)/*.tar.gz $(DIST_DIR)/*.zip >/dev/null 2>&1; then \
-		(cd $(DIST_DIR) && sha256sum *.tar.gz *.zip > SHA256SUMS); \
+	@files=$$(find $(DIST_DIR) -maxdepth 1 \( -name '*.tar.gz' -o -name '*.zip' -o -name '*.deb' \) -printf '%f\n' | sort); \
+	if [ -n "$$files" ]; then \
+		(cd $(DIST_DIR) && sha256sum $$files > SHA256SUMS); \
 		echo "checksums written to $(DIST_DIR)/SHA256SUMS"; \
 	else \
 		echo "no release archives found in $(DIST_DIR)" >&2; \

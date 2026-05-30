@@ -8,7 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -23,8 +25,9 @@ func main() {
 
 func run(args []string) int {
 	fs := flag.NewFlagSet("mingsui-desktop", flag.ContinueOnError)
-	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	cfgPath := fs.String("config", defaultDesktopConfigPath(), "客户端配置文件路径")
 	listenAddr := fs.String("listen", "127.0.0.1:18200", "桌面控制台监听地址")
+	openBrowser := fs.Bool("open", false, "启动后打开默认浏览器")
 	showVersion := fs.Bool("version", false, "输出版本信息")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -55,7 +58,16 @@ func run(args []string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	fmt.Fprintf(os.Stdout, "明隧桌面端已启动: http://%s\n", listener.Addr().String())
+	consoleURL := "http://" + listener.Addr().String()
+	fmt.Fprintf(os.Stdout, "明隧桌面端已启动: %s\n", consoleURL)
+	if *openBrowser {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			if err := openURL(consoleURL); err != nil {
+				logger.Printf("打开浏览器失败: %v", err)
+			}
+		}()
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- server.Serve(listener)
@@ -76,5 +88,25 @@ func run(args []string) int {
 			return 1
 		}
 		return 0
+	}
+}
+
+func defaultDesktopConfigPath() string {
+	return config.DefaultClientPath()
+}
+
+func openURL(url string) error {
+	name, args := browserCommand(url)
+	return exec.Command(name, args...).Start()
+}
+
+func browserCommand(url string) (string, []string) {
+	switch runtime.GOOS {
+	case "windows":
+		return "rundll32", []string{"url.dll,FileProtocolHandler", url}
+	case "darwin":
+		return "open", []string{url}
+	default:
+		return "xdg-open", []string{url}
 	}
 }

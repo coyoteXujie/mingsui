@@ -12,6 +12,12 @@ make test
 make dist APP_VERSION=v0.1.0
 ```
 
+Linux 桌面端也可以单独生成 `.deb`：
+
+```bash
+make desktop-deb APP_VERSION=v0.1.0
+```
+
 默认会构建这些平台：
 
 - `linux/amd64`
@@ -24,6 +30,8 @@ make dist APP_VERSION=v0.1.0
 
 - `mingsui-版本-系统-架构.tar.gz`
 - `mingsui-版本-windows-amd64.zip`
+- `mingsui-desktop_版本_amd64.deb`
+- `mingsui-desktop_版本_arm64.deb`
 - `SHA256SUMS`
 
 每个压缩包包含：
@@ -33,6 +41,15 @@ make dist APP_VERSION=v0.1.0
 - `mingsui-desktop`
 - `README.md`
 - `configs/` 示例配置
+
+Linux `.deb` 安装：
+
+- `/usr/bin/mingsui`
+- `/usr/bin/mingsui-desktop`
+- `/usr/share/applications/mingsui-desktop.desktop`
+- `/usr/share/doc/mingsui-desktop/README.md`
+
+`.deb` 中的 CLI 和 GUI 默认使用同一个客户端配置路径，和 `mingsui config path` 一致。Windows zip 中的桌面端产物是 `mingsui-desktop.exe`。
 
 校验发布包：
 
@@ -45,4 +62,5 @@ sha256sum -c SHA256SUMS
 
 ```bash
 make dist GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
+make desktop-deb GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 ```
