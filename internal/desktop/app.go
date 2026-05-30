@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/coyoteXujie/mingsui/internal/client"
@@ -28,7 +29,11 @@ func NewApp(cfgPath string, logger *log.Logger) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	controller, err := client.NewController(cfg, logger)
+	controllerCfg, err := effectiveClientConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	controller, err := client.NewController(controllerCfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +73,11 @@ func (a *App) SaveConfig(cfg config.ClientConfig) error {
 		return errors.New("客户端运行中，请停止后再修改配置")
 	}
 
-	controller, err := client.NewController(saved, a.logger)
+	controllerCfg, err := effectiveClientConfig(saved)
+	if err != nil {
+		return err
+	}
+	controller, err := client.NewController(controllerCfg, a.logger)
 	if err != nil {
 		return err
 	}
@@ -113,13 +122,23 @@ func (a *App) RenameRelayProfile(oldName, newName string) error {
 }
 
 func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) (int, error) {
-	profiles, err := subscription.ParseRelayProfiles(data)
+	content := strings.TrimSpace(string(data))
+	var profiles []config.RelayProfile
+	var err error
+	if strings.HasPrefix(content, "http://") || strings.HasPrefix(content, "https://") {
+		profiles, err = subscription.LoadRelayProfiles(context.Background(), content, nil)
+	} else {
+		profiles, err = subscription.ParseRelayProfiles(data)
+	}
 	if err != nil {
 		return 0, err
 	}
 	cfg := a.Config()
 	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
 		return 0, err
+	}
+	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
+		selectName = profiles[0].Name
 	}
 	if selectName != "" {
 		if err := cfg.SelectRelayProfile(selectName); err != nil {
@@ -209,6 +228,10 @@ func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) 
 	logger := a.logger
 	a.mu.Unlock()
 
+	cfg, err := effectiveClientConfig(cfg)
+	if err != nil {
+		return client.RelayHealth{}, err
+	}
 	service, err := client.NewService(cfg, logger)
 	if err != nil {
 		return client.RelayHealth{}, err
@@ -231,6 +254,14 @@ func (a *App) CheckRelayProfileStatus(ctx context.Context, name string) (client.
 		return client.RelayHealth{}, err
 	}
 	return service.CheckRelayStatus(ctx)
+}
+
+func effectiveClientConfig(cfg config.ClientConfig) (config.ClientConfig, error) {
+	profileName := strings.TrimSpace(cfg.ActiveProfile)
+	if profileName == "" && len(cfg.Profiles) > 0 {
+		profileName = cfg.Profiles[0].Name
+	}
+	return cfg.ResolveProfile(profileName)
 }
 
 func loadClientConfigOrDefault(path string) (config.ClientConfig, error) {

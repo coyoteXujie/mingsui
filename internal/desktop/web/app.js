@@ -52,13 +52,19 @@ function render() {
   const cfg = state.config || {};
   const status = state.status || {};
   const metrics = status.metrics || {};
+  const profiles = cfg.profiles || [];
+  const selectedProfile = cfg.active_profile || "";
+  const nodeLabel = selectedProfile || (profiles.length ? profiles[0].name : "");
+  const relayAddr = status.relay_addr || cfg.relay_addr;
+  const localAddr = status.local_addr || cfg.local_addr;
+  const httpAddr = status.http_addr || cfg.http_addr;
 
   renderConfigForm(cfg);
   $("configPath").textContent = text(state.configPath, "配置未加载");
-  $("relayAddr").textContent = text(cfg.relay_addr);
-  $("localAddr").textContent = text(cfg.local_addr);
-  $("httpAddr").textContent = text(cfg.http_addr);
-  $("activeProfile").textContent = text(cfg.active_profile);
+  $("relayAddr").textContent = text(relayAddr);
+  $("localAddr").textContent = text(localAddr);
+  $("httpAddr").textContent = text(httpAddr);
+  $("activeProfile").textContent = text(nodeLabel, "未选择");
   $("authState").textContent = cfg.local_auth && cfg.local_auth.enabled ? "已启用" : "未启用";
   $("tlsState").textContent = cfg.tls && cfg.tls.enabled ? "已启用" : "未启用";
   $("activeConnections").textContent = text(metrics.active_connections, "0");
@@ -66,10 +72,14 @@ function render() {
   $("traffic").textContent = `${bytes(metrics.upload_bytes)} / ${bytes(metrics.download_bytes)}`;
 
   const badge = $("statusBadge");
-  badge.textContent = status.running ? "运行中" : "已停止";
+  badge.textContent = status.running ? "已连接" : "未连接";
   badge.className = status.running ? "badge running" : "badge";
+  $("connectionTitle").textContent = status.running ? "已连接" : "未连接";
+  $("connectionSummary").textContent = nodeLabel ? `${nodeLabel} · ${text(relayAddr)}` : "未选择节点";
+  $("connectBtn").textContent = status.running ? "断开" : "连接";
+  $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
-  renderProfiles(cfg.profiles || [], cfg.active_profile || "");
+  renderProfiles(profiles, selectedProfile);
   renderSubscriptions(cfg.subscriptions || []);
 }
 
@@ -202,6 +212,16 @@ function escapeHTML(value) {
 }
 
 function bind() {
+  $("advancedToggleBtn").addEventListener("click", () => {
+    const panel = $("advancedPanel");
+    const opening = panel.hasAttribute("hidden");
+    if (opening) {
+      panel.removeAttribute("hidden");
+    } else {
+      panel.setAttribute("hidden", "");
+    }
+    $("advancedToggleBtn").textContent = opening ? "收起高级" : "高级设置";
+  });
   $("configSaveBtn").addEventListener("click", () => runAction(async () => {
     const cfg = buildConfigFromForm();
     const result = await api("/api/config", { method: "POST", body: cfg });
@@ -240,13 +260,10 @@ function bind() {
     clearProfileForm();
     setMessage("");
   });
-  $("startBtn").addEventListener("click", () => runAction(async () => {
-    const result = await api("/api/start", { method: "POST", body: {} });
-    setMessage(result.message, "ok");
-    await refresh();
-  }));
-  $("stopBtn").addEventListener("click", () => runAction(async () => {
-    const result = await api("/api/stop", { method: "POST", body: {} });
+  $("connectBtn").addEventListener("click", () => runAction(async () => {
+    const status = state.status || {};
+    const path = status.running ? "/api/stop" : "/api/start";
+    const result = await api(path, { method: "POST", body: {} });
     setMessage(result.message, "ok");
     await refresh();
   }));
@@ -266,6 +283,9 @@ function bind() {
     setMessage(`${result.message}：${result.count}`, "ok");
     await refresh();
   }));
+  $("loginBtn").addEventListener("click", () => {
+    setMessage("账号服务尚未接入，当前可以先导入机场节点连接。");
+  });
   $("subSaveBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/subscription", {
       method: "POST",

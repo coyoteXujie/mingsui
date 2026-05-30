@@ -127,13 +127,32 @@ func TestAppCheckRelayProfileRejectsMissingProfile(t *testing.T) {
 	}
 }
 
+func TestAppStatusUsesFirstProfileWhenActiveProfileEmpty(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	status := app.Status()
+	if status.RelayAddr != "tokyo.example.com:9443" {
+		t.Fatalf("Status().RelayAddr = %q, want first profile relay", status.RelayAddr)
+	}
+}
+
 func TestAppImportRelayProfiles(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {
 		t.Fatalf("NewApp() error = %v", err)
 	}
 
-	count, err := app.ImportRelayProfiles([]byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), false, "tokyo")
+	count, err := app.ImportRelayProfiles([]byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), false, "")
 	if err != nil {
 		t.Fatalf("ImportRelayProfiles() error = %v", err)
 	}
