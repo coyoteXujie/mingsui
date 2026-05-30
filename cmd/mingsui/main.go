@@ -77,6 +77,9 @@ func runDoctor(args []string) int {
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
 	relayAddr := fs.String("relay", "", "relay 服务端地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
+	authUser := fs.String("auth-user", "", "本地代理认证用户名")
+	authPass := fs.String("auth-pass", "", "本地代理认证密码")
 	skipLocal := fs.Bool("skip-local", false, "跳过本地监听端口可用性检查")
 	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出诊断结果")
 	if err := fs.Parse(args); err != nil {
@@ -93,7 +96,7 @@ func runDoctor(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token)
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
 	if err := cfg.Validate(); err != nil {
 		report.Fail(fmt.Sprintf("配置不正确: %v", err))
 		if *jsonOutput {
@@ -108,6 +111,13 @@ func runDoctor(args []string) int {
 	}
 	if cfg.Token == "change-me" {
 		warning := "当前使用默认 token，生产环境必须修改"
+		report.AddWarning(warning)
+		if !*jsonOutput {
+			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
+		}
+	}
+	if localProxyMayBeExposed(cfg) {
+		warning := "本地代理监听在非 loopback 地址且未启用本地认证"
 		report.AddWarning(warning)
 		if !*jsonOutput {
 			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
@@ -171,6 +181,9 @@ func runClient(args []string) int {
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
 	relayAddr := fs.String("relay", "", "relay 服务端地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
+	authUser := fs.String("auth-user", "", "本地代理认证用户名")
+	authPass := fs.String("auth-pass", "", "本地代理认证密码")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -180,13 +193,16 @@ func runClient(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token)
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "配置不正确: %v\n", err)
 		return 1
 	}
 	if cfg.Token == "change-me" {
 		fmt.Fprintln(os.Stderr, "警告: 当前使用默认 token，对外暴露 relay 前必须修改")
+	}
+	if localProxyMayBeExposed(cfg) {
+		fmt.Fprintln(os.Stderr, "警告: 本地代理监听在非 loopback 地址且未启用本地认证")
 	}
 
 	logger := log.New(os.Stderr, "mingsui client: ", log.LstdFlags)
@@ -206,7 +222,7 @@ func runClient(args []string) int {
 	return 0
 }
 
-func applyClientOverrides(cfg *config.ClientConfig, localAddr, httpAddr, relayAddr, token string) {
+func applyClientOverrides(cfg *config.ClientConfig, localAddr, httpAddr, relayAddr, token string, authEnabled bool, authUser, authPass string) {
 	if localAddr != "" {
 		cfg.LocalAddr = localAddr
 	}
@@ -218,6 +234,17 @@ func applyClientOverrides(cfg *config.ClientConfig, localAddr, httpAddr, relayAd
 	}
 	if token != "" {
 		cfg.Token = token
+	}
+	if authEnabled {
+		cfg.LocalAuth.Enabled = true
+	}
+	if authUser != "" {
+		cfg.LocalAuth.Enabled = true
+		cfg.LocalAuth.Username = authUser
+	}
+	if authPass != "" {
+		cfg.LocalAuth.Enabled = true
+		cfg.LocalAuth.Password = authPass
 	}
 }
 
@@ -276,6 +303,28 @@ func writeDiagnosticReport(report diagnostic.Report) int {
 	return report.ExitCode()
 }
 
+func localProxyMayBeExposed(cfg config.ClientConfig) bool {
+	if cfg.LocalAuth.Enabled {
+		return false
+	}
+	if !listenAddrIsLoopback(cfg.LocalAddr) {
+		return true
+	}
+	return strings.TrimSpace(cfg.HTTPAddr) != "" && !listenAddrIsLoopback(cfg.HTTPAddr)
+}
+
+func listenAddrIsLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return strings.EqualFold(host, "localhost")
+	}
+	return ip.IsLoopback()
+}
+
 func runConfig(args []string) int {
 	if len(args) == 0 {
 		printConfigUsage()
@@ -303,6 +352,9 @@ func initClientConfig(args []string) int {
 	httpAddr := fs.String("http", "127.0.0.1:18081", "本地 HTTP 代理监听地址")
 	relayAddr := fs.String("relay", "127.0.0.1:9443", "relay 服务端地址")
 	token := fs.String("token", "change-me", "客户端和 relay 共享的 token")
+	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
+	authUser := fs.String("auth-user", "", "本地代理认证用户名")
+	authPass := fs.String("auth-pass", "", "本地代理认证密码")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -312,6 +364,9 @@ func initClientConfig(args []string) int {
 	cfg.HTTPAddr = *httpAddr
 	cfg.RelayAddr = *relayAddr
 	cfg.Token = *token
+	cfg.LocalAuth.Enabled = *authEnabled || *authUser != "" || *authPass != ""
+	cfg.LocalAuth.Username = *authUser
+	cfg.LocalAuth.Password = *authPass
 
 	if err := config.WriteClient(*cfgPath, cfg, *force); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
@@ -346,6 +401,7 @@ func printUsage() {
 示例:
   TOKEN=$(mingsui token)
   mingsui config init -relay example.com:9443 -token "$TOKEN"
+  mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
   mingsui doctor -config %s
   mingsui doctor -json -config %s
   mingsui run -config %s

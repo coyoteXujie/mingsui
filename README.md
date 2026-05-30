@@ -52,6 +52,21 @@ curl --socks5-hostname 127.0.0.1:18080 https://example.com
 curl -x http://127.0.0.1:18081 https://example.com
 ```
 
+如果本地代理需要监听到局域网地址，建议启用本地代理认证：
+
+```bash
+./bin/mingsui config init -path ./client.json \
+  -relay 127.0.0.1:9443 \
+  -token "$TOKEN" \
+  -local 0.0.0.0:18080 \
+  -http 0.0.0.0:18081 \
+  -auth-user local-user \
+  -auth-pass local-pass
+
+curl --socks5-hostname local-user:local-pass@127.0.0.1:18080 https://example.com
+curl -x http://local-user:local-pass@127.0.0.1:18081 https://example.com
+```
+
 如果本机安装了 `make`，也可以直接运行：
 
 ```bash
@@ -169,6 +184,7 @@ sudo systemctl status mingsui-relay
 
 - 为 relay 启用 TLS。
 - 使用高熵 token，并定期轮换。
+- 如果客户端本地代理监听在非 loopback 地址，启用 `local_auth`。
 - 将 relay 放在受控服务器上，不要使用默认 token。
 - 保持 `allow_private_networks=false`，避免 relay 被用来访问内网地址。
 - 增加用户体系、设备授权、限速、审计和滥用检测。

@@ -61,3 +61,18 @@ func TestClientConfigValidatesHTTPAddrWhenPresent(t *testing.T) {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
+
+func TestClientConfigValidatesLocalAuth(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.LocalAuth.Enabled = true
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want missing local auth error")
+	}
+
+	cfg.LocalAuth.Username = "user"
+	cfg.LocalAuth.Password = "pass"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}

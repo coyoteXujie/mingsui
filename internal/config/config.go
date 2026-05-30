@@ -18,13 +18,20 @@ type ClientTLSConfig struct {
 	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
 }
 
+type ClientAuthConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type ClientConfig struct {
-	LocalAddr          string          `json:"local_addr"`
-	HTTPAddr           string          `json:"http_addr"`
-	RelayAddr          string          `json:"relay_addr"`
-	Token              string          `json:"token"`
-	DialTimeoutSeconds int             `json:"dial_timeout_seconds"`
-	TLS                ClientTLSConfig `json:"tls"`
+	LocalAddr          string           `json:"local_addr"`
+	HTTPAddr           string           `json:"http_addr"`
+	RelayAddr          string           `json:"relay_addr"`
+	Token              string           `json:"token"`
+	DialTimeoutSeconds int              `json:"dial_timeout_seconds"`
+	LocalAuth          ClientAuthConfig `json:"local_auth"`
+	TLS                ClientTLSConfig  `json:"tls"`
 }
 
 type RelayTLSConfig struct {
@@ -133,6 +140,9 @@ func (c ClientConfig) Validate() error {
 	if c.DialTimeoutSeconds < 0 {
 		return errors.New("dial_timeout_seconds cannot be negative")
 	}
+	if err := c.LocalAuth.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -141,6 +151,25 @@ func (c ClientConfig) DialTimeout() time.Duration {
 		return 10 * time.Second
 	}
 	return time.Duration(c.DialTimeoutSeconds) * time.Second
+}
+
+func (a ClientAuthConfig) Validate() error {
+	if !a.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(a.Username) == "" {
+		return errors.New("local_auth.username is required when local_auth.enabled is true")
+	}
+	if a.Password == "" {
+		return errors.New("local_auth.password is required when local_auth.enabled is true")
+	}
+	if len(a.Username) > 255 {
+		return errors.New("local_auth.username cannot be longer than 255 bytes")
+	}
+	if len(a.Password) > 255 {
+		return errors.New("local_auth.password cannot be longer than 255 bytes")
+	}
+	return nil
 }
 
 func (c RelayConfig) Validate() error {

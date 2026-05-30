@@ -22,6 +22,11 @@ func (s *Service) handleHTTP(conn net.Conn) {
 		return
 	}
 	defer req.Body.Close()
+	if !checkHTTPProxyAuth(req, s.cfg.LocalAuth) {
+		writeHTTPProxyAuthRequired(conn)
+		s.logger.Printf("http proxy auth failed from %s", conn.RemoteAddr())
+		return
+	}
 
 	if req.Method == http.MethodConnect {
 		s.handleHTTPConnect(conn, req, reader)
@@ -132,4 +137,9 @@ func writeHTTPError(w io.Writer, status int, body string) {
 		statusText = "Error"
 	}
 	_, _ = fmt.Fprintf(w, "HTTP/1.1 %d %s\r\nConnection: close\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s", status, statusText, len([]byte(body)), body)
+}
+
+func writeHTTPProxyAuthRequired(w io.Writer) {
+	body := "代理认证失败"
+	_, _ = fmt.Fprintf(w, "HTTP/1.1 407 Proxy Authentication Required\r\nConnection: close\r\nProxy-Authenticate: Basic realm=\"MingSui\"\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s", len([]byte(body)), body)
 }

@@ -4,6 +4,11 @@
   "relay_addr": "127.0.0.1:9443",
   "token": "paste-generated-token-here",
   "dial_timeout_seconds": 10,
+  "local_auth": {
+    "enabled": false,
+    "username": "",
+    "password": ""
+  },
   "tls": {
     "enabled": false,
     "server_name": "",

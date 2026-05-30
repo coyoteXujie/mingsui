@@ -95,3 +95,5 @@ relay 对健康检查只校验协议版本和 token，不拨出目标地址。
 ## 桌面端
 
 桌面端计划使用 Wails。Wails 的 Go 后端可以直接调用 `internal/client`，前端只负责展示状态、节点选择、日志和设置。桌面端的“连接测试”可以复用 `CheckRelayStatus`，避免重复实现网络诊断逻辑。
+
+本地代理认证属于客户端入口安全能力，不参与 relay 协议。启用 `local_auth` 后，SOCKS5 使用 username/password 方法，HTTP 代理使用 `Proxy-Authorization: Basic ...`。
