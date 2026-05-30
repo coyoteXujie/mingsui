@@ -76,3 +76,38 @@ func TestClientConfigValidatesLocalAuth(t *testing.T) {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
+
+func TestClientConfigRedacted(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Token = "secret"
+	cfg.LocalAuth.Enabled = true
+	cfg.LocalAuth.Username = "user"
+	cfg.LocalAuth.Password = "pass"
+
+	got := cfg.Redacted()
+	if got.Token != RedactedValue {
+		t.Fatalf("Token = %q, want redacted", got.Token)
+	}
+	if got.LocalAuth.Username != "user" {
+		t.Fatalf("Username = %q, want unchanged", got.LocalAuth.Username)
+	}
+	if got.LocalAuth.Password != RedactedValue {
+		t.Fatalf("Password = %q, want redacted", got.LocalAuth.Password)
+	}
+	if cfg.Token != "secret" || cfg.LocalAuth.Password != "pass" {
+		t.Fatalf("Redacted() mutated original config: %+v", cfg)
+	}
+}
+
+func TestRelayConfigRedacted(t *testing.T) {
+	cfg := DefaultRelay()
+	cfg.Token = "secret"
+
+	got := cfg.Redacted()
+	if got.Token != RedactedValue {
+		t.Fatalf("Token = %q, want redacted", got.Token)
+	}
+	if cfg.Token != "secret" {
+		t.Fatalf("Redacted() mutated original config: %+v", cfg)
+	}
+}

@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -417,6 +419,8 @@ func runConfig(args []string) int {
 	case "path":
 		fmt.Println(config.DefaultRelayPath())
 		return 0
+	case "show":
+		return showRelayConfig(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知配置命令 %q\n\n", args[0])
 		printConfigUsage()
@@ -465,6 +469,29 @@ func initRelayConfig(args []string) int {
 	return 0
 }
 
+func showRelayConfig(args []string) int {
+	fs := flag.NewFlagSet("config show", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultRelayPath(), "relay 配置文件路径")
+	showSecrets := fs.Bool("secrets", false, "显示真实 token")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadRelay(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if !*showSecrets {
+		cfg = cfg.Redacted()
+	}
+	if err := writeJSON(os.Stdout, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "输出配置失败: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
 func loadRelayOrDefault(path string) (config.RelayConfig, error) {
 	cfg, err := config.LoadRelay(path)
 	if err == nil {
@@ -485,6 +512,7 @@ func printUsage() {
   mingsui-relay cert [flags]
   mingsui-relay config init [flags]
   mingsui-relay config path
+  mingsui-relay config show [flags]
   mingsui-relay systemd [flags]
   mingsui-relay token [flags]
   mingsui-relay version
@@ -493,16 +521,24 @@ func printUsage() {
   TOKEN=$(mingsui-relay token)
   mingsui-relay cert -host example.com,127.0.0.1 -cert relay.crt -key relay.key
   mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
+  mingsui-relay config show -path %s
   mingsui-relay systemd -output mingsui-relay.service
   mingsui-relay check -config %s
   mingsui-relay check -json -config %s
   mingsui-relay serve -config %s
 
-`, config.DefaultRelayPath(), config.DefaultRelayPath(), config.DefaultRelayPath())
+`, config.DefaultRelayPath(), config.DefaultRelayPath(), config.DefaultRelayPath(), config.DefaultRelayPath())
 }
 
 func printConfigUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui-relay config init [flags]
-  mingsui-relay config path`)
+  mingsui-relay config path
+  mingsui-relay config show [flags]`)
+}
+
+func writeJSON(w io.Writer, value any) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(value)
 }

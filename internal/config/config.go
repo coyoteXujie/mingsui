@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const RedactedValue = "******"
+
 type ClientTLSConfig struct {
 	Enabled            bool   `json:"enabled"`
 	ServerName         string `json:"server_name"`
@@ -153,6 +155,12 @@ func (c ClientConfig) DialTimeout() time.Duration {
 	return time.Duration(c.DialTimeoutSeconds) * time.Second
 }
 
+func (c ClientConfig) Redacted() ClientConfig {
+	c.Token = redact(c.Token)
+	c.LocalAuth.Password = redact(c.LocalAuth.Password)
+	return c
+}
+
 func (a ClientAuthConfig) Validate() error {
 	if !a.Enabled {
 		return nil
@@ -198,6 +206,18 @@ func (c RelayConfig) DialTimeout() time.Duration {
 		return 10 * time.Second
 	}
 	return time.Duration(c.DialTimeoutSeconds) * time.Second
+}
+
+func (c RelayConfig) Redacted() RelayConfig {
+	c.Token = redact(c.Token)
+	return c
+}
+
+func redact(value string) string {
+	if value == "" {
+		return ""
+	}
+	return RedactedValue
 }
 
 func loadJSON(path string, dst any) error {

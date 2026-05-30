@@ -15,6 +15,8 @@
 
 CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
 
+配置查看命令支持默认脱敏输出。桌面端导出排障信息时，应复用脱敏后的配置结构，避免泄露 token 和本地代理密码。
+
 后续 Wails 后端建议用 `client.Controller`：
 
 - `Start(ctx)`：启动本地 SOCKS5/HTTP 代理。

@@ -86,7 +86,11 @@ make test
 ```bash
 mingsui config path
 mingsui-relay config path
+mingsui config show -path ./client.json
+mingsui-relay config show -path ./relay.json
 ```
+
+`config show` 默认会隐藏 token 和本地代理密码；只有显式加 `-secrets` 才会输出真实敏感值。
 
 诊断命令：
 
