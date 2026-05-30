@@ -15,6 +15,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/relay"
+	"github.com/coyoteXujie/mingsui/internal/security"
 )
 
 func main() {
@@ -34,6 +35,8 @@ func run(args []string) int {
 		return runCheck(args[1:])
 	case "config":
 		return runConfig(args[1:])
+	case "token":
+		return runToken(args[1:])
 	case "version":
 		fmt.Println(buildinfo.String())
 		return 0
@@ -45,6 +48,22 @@ func run(args []string) int {
 		printUsage()
 		return 2
 	}
+}
+
+func runToken(args []string) int {
+	fs := flag.NewFlagSet("token", flag.ContinueOnError)
+	byteLen := fs.Int("bytes", security.DefaultTokenBytes, "随机字节长度，至少 16")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	token, err := security.GenerateToken(*byteLen)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "生成 token 失败: %v\n", err)
+		return 1
+	}
+	fmt.Println(token)
+	return 0
 }
 
 func runCheck(args []string) int {
@@ -184,15 +203,28 @@ func initRelayConfig(args []string) int {
 	cfgPath := fs.String("path", config.DefaultRelayPath(), "relay 配置文件路径")
 	force := fs.Bool("force", false, "覆盖已存在的配置文件")
 	listenAddr := fs.String("listen", "0.0.0.0:9443", "relay 监听地址")
-	token := fs.String("token", "change-me", "客户端和 relay 共享的 token")
+	token := fs.String("token", "auto", "客户端和 relay 共享的 token，默认 auto 自动生成")
+	tokenBytes := fs.Int("token-bytes", security.DefaultTokenBytes, "自动生成 token 时使用的随机字节长度")
 	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
+	finalToken := *token
+	generatedToken := false
+	if finalToken == "" || finalToken == "auto" {
+		generated, err := security.GenerateToken(*tokenBytes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "生成 token 失败: %v\n", err)
+			return 1
+		}
+		finalToken = generated
+		generatedToken = true
+	}
+
 	cfg := config.DefaultRelay()
 	cfg.ListenAddr = *listenAddr
-	cfg.Token = *token
+	cfg.Token = finalToken
 	cfg.AllowPrivateNetworks = *allowPrivate
 
 	if err := config.WriteRelay(*cfgPath, cfg, *force); err != nil {
@@ -200,6 +232,10 @@ func initRelayConfig(args []string) int {
 		return 1
 	}
 	fmt.Printf("已写入 %s\n", *cfgPath)
+	if generatedToken {
+		fmt.Printf("已自动生成 token: %s\n", finalToken)
+		fmt.Println("请把这个 token 写入客户端配置。")
+	}
 	return 0
 }
 
@@ -222,10 +258,12 @@ func printUsage() {
   mingsui-relay check [flags]
   mingsui-relay config init [flags]
   mingsui-relay config path
+  mingsui-relay token [flags]
   mingsui-relay version
 
 示例:
-  mingsui-relay config init -listen 0.0.0.0:9443 -token your-secret
+  TOKEN=$(mingsui-relay token)
+  mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
   mingsui-relay check -config %s
   mingsui-relay serve -config %s
 

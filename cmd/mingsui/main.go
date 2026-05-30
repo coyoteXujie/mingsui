@@ -17,6 +17,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/security"
 )
 
 func main() {
@@ -36,6 +37,8 @@ func run(args []string) int {
 		return runDoctor(args[1:])
 	case "config":
 		return runConfig(args[1:])
+	case "token":
+		return runToken(args[1:])
 	case "version":
 		fmt.Println(buildinfo.String())
 		return 0
@@ -47,6 +50,22 @@ func run(args []string) int {
 		printUsage()
 		return 2
 	}
+}
+
+func runToken(args []string) int {
+	fs := flag.NewFlagSet("token", flag.ContinueOnError)
+	byteLen := fs.Int("bytes", security.DefaultTokenBytes, "随机字节长度，至少 16")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	token, err := security.GenerateToken(*byteLen)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "生成 token 失败: %v\n", err)
+		return 1
+	}
+	fmt.Println(token)
+	return 0
 }
 
 func runDoctor(args []string) int {
@@ -240,10 +259,12 @@ func printUsage() {
   mingsui doctor [flags]
   mingsui config init [flags]
   mingsui config path
+  mingsui token [flags]
   mingsui version
 
 示例:
-  mingsui config init -relay example.com:9443 -token your-secret
+  TOKEN=$(mingsui token)
+  mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui doctor -config %s
   mingsui run -config %s
   curl --socks5-hostname 127.0.0.1:18080 https://example.com

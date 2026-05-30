@@ -2,7 +2,7 @@
   "local_addr": "127.0.0.1:18080",
   "http_addr": "127.0.0.1:18081",
   "relay_addr": "127.0.0.1:9443",
-  "token": "change-me",
+  "token": "paste-generated-token-here",
   "dial_timeout_seconds": 10,
   "tls": {
     "enabled": false,

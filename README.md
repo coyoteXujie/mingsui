@@ -23,18 +23,19 @@ go build -o bin/mingsui ./cmd/mingsui
 go build -o bin/mingsui-relay ./cmd/mingsui-relay
 ```
 
-启动 relay：
+先在同一个终端里生成 token，然后启动 relay：
 
 ```bash
-./bin/mingsui-relay config init -path ./relay.json -token dev-secret -allow-private
+TOKEN=$(./bin/mingsui-relay token)
+./bin/mingsui-relay config init -path ./relay.json -token "$TOKEN" -allow-private
 ./bin/mingsui-relay check -config ./relay.json
 ./bin/mingsui-relay serve -config ./relay.json
 ```
 
-启动客户端：
+继续使用同一个 `TOKEN`，初始化并启动客户端：
 
 ```bash
-./bin/mingsui config init -path ./client.json -relay 127.0.0.1:9443 -token dev-secret
+./bin/mingsui config init -path ./client.json -relay 127.0.0.1:9443 -token "$TOKEN"
 ./bin/mingsui doctor -config ./client.json
 ./bin/mingsui run -config ./client.json
 ```
@@ -80,6 +81,21 @@ mingsui-relay check -config ./relay.json
 ```
 
 `mingsui doctor` 会检查本地监听地址是否可用，并通过协议级 `health` 指令验证 relay 地址和 token。`mingsui-relay check` 会检查 relay 配置、TLS 证书和监听地址是否可用。
+
+生成 token：
+
+```bash
+mingsui token
+mingsui-relay token
+```
+
+`mingsui-relay config init` 默认也支持自动生成 token：
+
+```bash
+mingsui-relay config init -path ./relay.json
+```
+
+自动生成后会在终端打印 token，需要把同一个 token 写入客户端配置。
 
 ## 安全边界
 
