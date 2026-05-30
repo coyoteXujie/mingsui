@@ -11,3 +11,9 @@
 - 后续接入节点列表、账号、流量统计和自动更新。
 
 当前仓库先实现 CLI、relay 和核心代理逻辑。桌面端接入时应避免重新实现网络层，只调用 `internal/client` 暴露的服务接口。
+
+后续 Wails 后端建议用 `client.Controller`：
+
+- `Start(ctx)`：启动本地 SOCKS5/HTTP 代理。
+- `Stop(ctx)`：停止本地代理。
+- `Status()`：读取运行状态、本地监听地址、relay 地址和最近一次错误。
