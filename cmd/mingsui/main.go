@@ -378,6 +378,10 @@ func runConfigProfile(args []string) int {
 		return addClientProfile(args[1:])
 	case "select":
 		return selectClientProfile(args[1:])
+	case "remove":
+		return removeClientProfile(args[1:])
+	case "rename":
+		return renameClientProfile(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知 profile 命令 %q\n\n", args[0])
 		printConfigProfileUsage()
@@ -488,6 +492,67 @@ func selectClientProfile(args []string) int {
 	return 0
 }
 
+func removeClientProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "profile 名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config profile remove", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := removeRelayProfile(&cfg, name); err != nil {
+		fmt.Fprintf(os.Stderr, "删除 profile 失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已删除 profile %s\n", name)
+	return 0
+}
+
+func renameClientProfile(args []string) int {
+	if len(args) < 2 || strings.TrimSpace(args[0]) == "" || strings.TrimSpace(args[1]) == "" {
+		fmt.Fprintln(os.Stderr, "profile 旧名称和新名称不能为空")
+		return 2
+	}
+	oldName := strings.TrimSpace(args[0])
+	newName := strings.TrimSpace(args[1])
+
+	fs := flag.NewFlagSet("config profile rename", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args[2:]); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := renameRelayProfile(&cfg, oldName, newName); err != nil {
+		fmt.Fprintf(os.Stderr, "重命名 profile 失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已重命名 profile %s -> %s\n", oldName, newName)
+	return 0
+}
+
 func upsertRelayProfile(cfg *config.ClientConfig, profile config.RelayProfile, replace bool) error {
 	if strings.TrimSpace(profile.Name) == "" {
 		return fmt.Errorf("profile 名称不能为空")
@@ -516,6 +581,36 @@ func selectRelayProfile(cfg *config.ClientConfig, name string) error {
 		return err
 	}
 	cfg.ActiveProfile = name
+	return cfg.Validate()
+}
+
+func removeRelayProfile(cfg *config.ClientConfig, name string) error {
+	index := relayProfileIndex(cfg.Profiles, name)
+	if index < 0 {
+		return fmt.Errorf("profile %q 不存在", name)
+	}
+	cfg.Profiles = append(cfg.Profiles[:index], cfg.Profiles[index+1:]...)
+	if cfg.ActiveProfile == name {
+		cfg.ActiveProfile = ""
+	}
+	return cfg.Validate()
+}
+
+func renameRelayProfile(cfg *config.ClientConfig, oldName, newName string) error {
+	if strings.TrimSpace(newName) == "" {
+		return fmt.Errorf("profile 新名称不能为空")
+	}
+	index := relayProfileIndex(cfg.Profiles, oldName)
+	if index < 0 {
+		return fmt.Errorf("profile %q 不存在", oldName)
+	}
+	if relayProfileIndex(cfg.Profiles, newName) >= 0 {
+		return fmt.Errorf("profile %q 已存在", newName)
+	}
+	cfg.Profiles[index].Name = newName
+	if cfg.ActiveProfile == oldName {
+		cfg.ActiveProfile = newName
+	}
 	return cfg.Validate()
 }
 
@@ -603,7 +698,7 @@ func printUsage() {
   mingsui doctor [flags]
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select [flags]
+  mingsui config profile add|list|select|remove|rename [flags]
   mingsui config show [flags]
   mingsui token [flags]
   mingsui version
@@ -612,6 +707,7 @@ func printUsage() {
   TOKEN=$(mingsui token)
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+  mingsui config profile rename tokyo jp-tokyo
   mingsui run -profile tokyo -config %s
   mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
   mingsui config show -path %s
@@ -628,7 +724,7 @@ func printConfigUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select [flags]
+  mingsui config profile add|list|select|remove|rename [flags]
   mingsui config show [flags]`)
 }
 
@@ -636,7 +732,9 @@ func printConfigProfileUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config profile list [flags]
   mingsui config profile add <name> -relay <addr> -token <token> [flags]
-  mingsui config profile select <name> [flags]`)
+  mingsui config profile select <name> [flags]
+  mingsui config profile remove <name> [flags]
+  mingsui config profile rename <old-name> <new-name> [flags]`)
 }
 
 func writeJSON(w io.Writer, value any) error {

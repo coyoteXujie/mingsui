@@ -89,3 +89,47 @@ func TestSelectRelayProfile(t *testing.T) {
 		t.Fatal("selectRelayProfile(missing) error = nil, want error")
 	}
 }
+
+func TestRemoveRelayProfile(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ActiveProfile = "tokyo"
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "secret"},
+	}
+
+	if err := removeRelayProfile(&cfg, "tokyo"); err != nil {
+		t.Fatalf("removeRelayProfile() error = %v", err)
+	}
+	if cfg.ActiveProfile != "" {
+		t.Fatalf("ActiveProfile = %q, want cleared", cfg.ActiveProfile)
+	}
+	if len(cfg.Profiles) != 1 || cfg.Profiles[0].Name != "osaka" {
+		t.Fatalf("Profiles = %+v, want only osaka", cfg.Profiles)
+	}
+	if err := removeRelayProfile(&cfg, "missing"); err == nil {
+		t.Fatal("removeRelayProfile(missing) error = nil, want error")
+	}
+}
+
+func TestRenameRelayProfile(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ActiveProfile = "tokyo"
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "secret"},
+	}
+
+	if err := renameRelayProfile(&cfg, "tokyo", "jp-tokyo"); err != nil {
+		t.Fatalf("renameRelayProfile() error = %v", err)
+	}
+	if cfg.ActiveProfile != "jp-tokyo" {
+		t.Fatalf("ActiveProfile = %q, want jp-tokyo", cfg.ActiveProfile)
+	}
+	if cfg.Profiles[0].Name != "jp-tokyo" {
+		t.Fatalf("profile name = %q, want jp-tokyo", cfg.Profiles[0].Name)
+	}
+	if err := renameRelayProfile(&cfg, "jp-tokyo", "osaka"); err == nil {
+		t.Fatal("renameRelayProfile(duplicate) error = nil, want error")
+	}
+}
