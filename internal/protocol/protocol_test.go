@@ -38,6 +38,35 @@ func TestConnectRequestEffectiveCommand(t *testing.T) {
 	}
 }
 
+func TestReadWriteJSONWithMetrics(t *testing.T) {
+	var buf bytes.Buffer
+	want := ConnectResponse{
+		Version: Version,
+		OK:      true,
+		Metrics: &Metrics{
+			ActiveConnections: 1,
+			TotalConnections:  2,
+			UploadBytes:       3,
+			DownloadBytes:     4,
+		},
+	}
+
+	if err := WriteJSON(&buf, want); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	var got ConnectResponse
+	if err := ReadJSON(&buf, &got); err != nil {
+		t.Fatalf("ReadJSON() error = %v", err)
+	}
+	if got.Metrics == nil {
+		t.Fatal("got Metrics = nil, want metrics")
+	}
+	if *got.Metrics != *want.Metrics {
+		t.Fatalf("got metrics %+v, want %+v", *got.Metrics, *want.Metrics)
+	}
+}
+
 func TestReadJSONRejectsLargeMessages(t *testing.T) {
 	var buf bytes.Buffer
 	buf.Write([]byte{0, 2, 0, 1})

@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -16,8 +15,9 @@ import (
 )
 
 type Server struct {
-	cfg    config.RelayConfig
-	logger *log.Logger
+	cfg     config.RelayConfig
+	logger  *log.Logger
+	metrics *metricsRecorder
 }
 
 func NewServer(cfg config.RelayConfig, logger *log.Logger) (*Server, error) {
@@ -27,7 +27,14 @@ func NewServer(cfg config.RelayConfig, logger *log.Logger) (*Server, error) {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{cfg: cfg, logger: logger}, nil
+	return &Server{cfg: cfg, logger: logger, metrics: &metricsRecorder{}}, nil
+}
+
+func (s *Server) Metrics() protocol.Metrics {
+	if s.metrics == nil {
+		return protocol.Metrics{}
+	}
+	return s.metrics.Snapshot()
 }
 
 func (s *Server) Serve(ctx context.Context) error {
@@ -97,7 +104,12 @@ func (s *Server) handle(conn net.Conn) {
 	}
 
 	if req.EffectiveCommand() == protocol.CommandHealth {
-		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{Version: protocol.Version, OK: true})
+		metrics := s.Metrics()
+		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{
+			Version: protocol.Version,
+			OK:      true,
+			Metrics: &metrics,
+		})
 		s.logger.Printf("health check ok from %s", conn.RemoteAddr())
 		return
 	}
@@ -121,7 +133,7 @@ func (s *Server) handle(conn net.Conn) {
 	_ = conn.SetDeadline(time.Time{})
 
 	s.logger.Printf("relay connected target=%s", req.Address)
-	proxyBidirectional(conn, target)
+	s.proxy(conn, target)
 }
 
 func (s *Server) validateRequest(req protocol.ConnectRequest) error {
@@ -191,20 +203,4 @@ func isPrivateOrLocal(ip net.IP) bool {
 		ip.IsMulticast() ||
 		ip.IsLinkLocalUnicast() ||
 		ip.IsLinkLocalMulticast()
-}
-
-func proxyBidirectional(a, b net.Conn) {
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		_, _ = copyAndCloseWrite(b, a)
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = copyAndCloseWrite(a, b)
-	}()
-
-	wg.Wait()
 }

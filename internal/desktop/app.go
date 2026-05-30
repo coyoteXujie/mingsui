@@ -100,6 +100,11 @@ func (a *App) Status() client.RuntimeStatus {
 }
 
 func (a *App) CheckRelay(ctx context.Context) error {
+	_, err := a.CheckRelayStatus(ctx)
+	return err
+}
+
+func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) {
 	a.mu.Lock()
 	cfg := a.cfg
 	logger := a.logger
@@ -107,9 +112,9 @@ func (a *App) CheckRelay(ctx context.Context) error {
 
 	service, err := client.NewService(cfg, logger)
 	if err != nil {
-		return err
+		return client.RelayHealth{}, err
 	}
-	return service.CheckRelay(ctx)
+	return service.CheckRelayStatus(ctx)
 }
 
 func loadClientConfigOrDefault(path string) (config.ClientConfig, error) {

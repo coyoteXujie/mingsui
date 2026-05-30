@@ -22,6 +22,10 @@ type Service struct {
 	metrics *metricsRecorder
 }
 
+type RelayHealth struct {
+	Metrics *protocol.Metrics `json:"metrics,omitempty"`
+}
+
 func NewService(cfg config.ClientConfig, logger *log.Logger) (*Service, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -147,9 +151,14 @@ func (s *Service) openRelayContext(ctx context.Context, target string) (net.Conn
 }
 
 func (s *Service) CheckRelay(ctx context.Context) error {
+	_, err := s.CheckRelayStatus(ctx)
+	return err
+}
+
+func (s *Service) CheckRelayStatus(ctx context.Context) (RelayHealth, error) {
 	conn, err := s.dialRelay(ctx)
 	if err != nil {
-		return err
+		return RelayHealth{}, err
 	}
 	defer conn.Close()
 
@@ -159,26 +168,26 @@ func (s *Service) CheckRelay(ctx context.Context) error {
 		Token:   s.cfg.Token,
 	}
 	if err := conn.SetDeadline(time.Now().Add(s.cfg.DialTimeout())); err != nil {
-		return err
+		return RelayHealth{}, err
 	}
 	if err := protocol.WriteJSON(conn, req); err != nil {
-		return err
+		return RelayHealth{}, err
 	}
 
 	var resp protocol.ConnectResponse
 	if err := protocol.ReadJSON(conn, &resp); err != nil {
-		return err
+		return RelayHealth{}, err
 	}
 	if resp.Version != protocol.Version {
-		return fmt.Errorf("relay protocol version mismatch: %d", resp.Version)
+		return RelayHealth{}, fmt.Errorf("relay protocol version mismatch: %d", resp.Version)
 	}
 	if !resp.OK {
 		if strings.TrimSpace(resp.Error) == "" {
-			return errors.New("relay health check failed")
+			return RelayHealth{}, errors.New("relay health check failed")
 		}
-		return errors.New(resp.Error)
+		return RelayHealth{}, errors.New(resp.Error)
 	}
-	return nil
+	return RelayHealth{Metrics: resp.Metrics}, nil
 }
 
 func (s *Service) dialRelay(ctx context.Context) (net.Conn, error) {

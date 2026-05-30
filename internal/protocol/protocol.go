@@ -24,9 +24,10 @@ type ConnectRequest struct {
 }
 
 type ConnectResponse struct {
-	Version int    `json:"version"`
-	OK      bool   `json:"ok"`
-	Error   string `json:"error,omitempty"`
+	Version int      `json:"version"`
+	OK      bool     `json:"ok"`
+	Error   string   `json:"error,omitempty"`
+	Metrics *Metrics `json:"metrics,omitempty"`
 }
 
 func (r ConnectRequest) EffectiveCommand() string {
@@ -34,6 +35,13 @@ func (r ConnectRequest) EffectiveCommand() string {
 		return CommandConnect
 	}
 	return r.Command
+}
+
+type Metrics struct {
+	ActiveConnections int64  `json:"active_connections"`
+	TotalConnections  uint64 `json:"total_connections"`
+	UploadBytes       uint64 `json:"upload_bytes"`
+	DownloadBytes     uint64 `json:"download_bytes"`
 }
 
 func WriteJSON(w io.Writer, value any) error {

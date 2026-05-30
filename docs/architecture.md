@@ -77,6 +77,21 @@ relay 返回：
 
 relay 对健康检查只校验协议版本和 token，不拨出目标地址。
 
+健康检查成功响应会带上 relay 运行指标：
+
+```json
+{
+  "version": 1,
+  "ok": true,
+  "metrics": {
+    "active_connections": 0,
+    "total_connections": 12,
+    "upload_bytes": 4096,
+    "download_bytes": 8192
+  }
+}
+```
+
 ## 桌面端
 
-桌面端计划使用 Wails。Wails 的 Go 后端可以直接调用 `internal/client`，前端只负责展示状态、节点选择、日志和设置。桌面端的“连接测试”可以复用 `CheckRelay`，避免重复实现网络诊断逻辑。
+桌面端计划使用 Wails。Wails 的 Go 后端可以直接调用 `internal/client`，前端只负责展示状态、节点选择、日志和设置。桌面端的“连接测试”可以复用 `CheckRelayStatus`，避免重复实现网络诊断逻辑。

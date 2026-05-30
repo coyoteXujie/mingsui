@@ -17,6 +17,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/protocol"
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
 
@@ -114,11 +115,13 @@ func runDoctor(args []string) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.DialTimeout()+2*time.Second)
 	defer cancel()
-	if err := service.CheckRelay(ctx); err != nil {
+	health, err := service.CheckRelayStatus(ctx)
+	if err != nil {
 		fmt.Fprintf(os.Stdout, "[失败] relay 健康检查: %v\n", err)
 		failed = true
 	} else {
 		fmt.Fprintf(os.Stdout, "[正常] relay 健康检查: %s\n", cfg.RelayAddr)
+		printRelayMetrics(health.Metrics)
 	}
 
 	if failed {
@@ -193,6 +196,16 @@ func printListenCheck(label, addr string) bool {
 	_ = listener.Close()
 	fmt.Fprintf(os.Stdout, "[正常] %s可用: %s\n", label, addr)
 	return true
+}
+
+func printRelayMetrics(metrics *protocol.Metrics) {
+	if metrics == nil {
+		return
+	}
+	fmt.Fprintf(os.Stdout, "  relay 活跃连接: %d\n", metrics.ActiveConnections)
+	fmt.Fprintf(os.Stdout, "  relay 累计连接: %d\n", metrics.TotalConnections)
+	fmt.Fprintf(os.Stdout, "  relay 累计上行: %d B\n", metrics.UploadBytes)
+	fmt.Fprintf(os.Stdout, "  relay 累计下行: %d B\n", metrics.DownloadBytes)
 }
 
 func runConfig(args []string) int {

@@ -6,7 +6,7 @@
 
 - 启动/停止本地代理。
 - 编辑 relay 地址和 token。
-- 调用 `CheckRelay` 验证 relay 地址和 token。
+- 调用 `CheckRelayStatus` 验证 relay 地址和 token，并展示 relay 运行指标。
 - 显示连接状态、当前本地监听地址和日志。
 - 后续接入节点列表、账号、流量统计和自动更新。
 
@@ -26,6 +26,7 @@
 - `Start(ctx)` / `Stop(ctx)`：控制本地代理。
 - `Status()`：返回桌面 UI 可展示的运行状态。
 - `CheckRelay(ctx)`：执行 relay 连接测试。
+- `CheckRelayStatus(ctx)`：执行 relay 连接测试，并返回 relay 活跃连接、累计连接和流量指标。
 
 `Status()` 会包含运行指标：
 
