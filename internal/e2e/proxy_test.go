@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -114,6 +115,50 @@ func TestHTTPProxyEndToEnd(t *testing.T) {
 	}
 	if string(body) != "hello through mingsui" {
 		t.Fatalf("body = %q, want proxy response", body)
+	}
+}
+
+func TestHTTPConnectProxyEndToEnd(t *testing.T) {
+	targetAddr := startTCPServer(t, func(conn net.Conn) {
+		defer conn.Close()
+		buf := make([]byte, len("ping"))
+		if _, err := io.ReadFull(conn, buf); err != nil {
+			return
+		}
+		_, _ = conn.Write([]byte("pong"))
+	})
+	relayAddr := startRelay(t, "secret")
+	_, httpProxyAddr := startClient(t, relayAddr, "secret")
+
+	conn, err := net.DialTimeout("tcp", httpProxyAddr, time.Second)
+	if err != nil {
+		t.Fatalf("Dial HTTP proxy error = %v", err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
+
+	reader := bufio.NewReader(conn)
+	if _, err := fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", targetAddr, targetAddr); err != nil {
+		t.Fatalf("write CONNECT request error = %v", err)
+	}
+	resp, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
+	if err != nil {
+		t.Fatalf("read CONNECT response error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("CONNECT StatusCode = %d, want 200", resp.StatusCode)
+	}
+
+	if _, err := conn.Write([]byte("ping")); err != nil {
+		t.Fatalf("write CONNECT tunnel payload error = %v", err)
+	}
+	body := make([]byte, len("pong"))
+	if _, err := io.ReadFull(reader, body); err != nil {
+		t.Fatalf("read CONNECT tunnel payload error = %v", err)
+	}
+	if string(body) != "pong" {
+		t.Fatalf("CONNECT tunnel response = %q, want pong", body)
 	}
 }
 
