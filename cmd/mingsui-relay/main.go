@@ -45,10 +45,10 @@ func run(args []string) int {
 
 func runRelay(args []string) int {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	cfgPath := fs.String("config", config.DefaultRelayPath(), "relay config path")
-	listenAddr := fs.String("listen", "", "relay listen address")
-	token := fs.String("token", "", "shared relay token")
-	allowPrivate := fs.Bool("allow-private", false, "allow dialing private and local target networks")
+	cfgPath := fs.String("config", config.DefaultRelayPath(), "relay 配置文件路径")
+	listenAddr := fs.String("listen", "", "relay 监听地址")
+	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -113,11 +113,11 @@ func runConfig(args []string) int {
 
 func initRelayConfig(args []string) int {
 	fs := flag.NewFlagSet("config init", flag.ContinueOnError)
-	cfgPath := fs.String("path", config.DefaultRelayPath(), "relay config path")
-	force := fs.Bool("force", false, "overwrite existing config")
-	listenAddr := fs.String("listen", "0.0.0.0:9443", "relay listen address")
-	token := fs.String("token", "change-me", "shared relay token")
-	allowPrivate := fs.Bool("allow-private", false, "allow dialing private and local target networks")
+	cfgPath := fs.String("path", config.DefaultRelayPath(), "relay 配置文件路径")
+	force := fs.Bool("force", false, "覆盖已存在的配置文件")
+	listenAddr := fs.String("listen", "0.0.0.0:9443", "relay 监听地址")
+	token := fs.String("token", "change-me", "客户端和 relay 共享的 token")
+	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

@@ -5,7 +5,7 @@ MingSui 当前采用一个很小的客户端/relay 架构。
 ```text
 browser/app
    |
-   | SOCKS5
+   | SOCKS5 或 HTTP/CONNECT
    v
 mingsui client
    |
@@ -20,7 +20,9 @@ target host
 
 ## 客户端
 
-客户端监听本地 SOCKS5 地址，默认是 `127.0.0.1:18080`。收到 CONNECT 请求后，客户端会连接 relay，发送带 token 的 `ConnectRequest`，relay 接受后开始双向转发字节流。
+客户端监听本地 SOCKS5 地址，默认是 `127.0.0.1:18080`。新建配置时还会写入 HTTP 代理地址 `127.0.0.1:18081`。
+
+客户端收到 SOCKS5 CONNECT 或 HTTP CONNECT 请求后，会连接 relay，发送带 token 的 `ConnectRequest`，relay 接受后开始双向转发字节流。普通 HTTP 请求会被转换成 origin-form 后转发给目标服务器。
 
 ## Relay 服务端
 

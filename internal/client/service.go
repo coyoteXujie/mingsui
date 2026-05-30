@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -33,14 +32,41 @@ func NewService(cfg config.ClientConfig, logger *log.Logger) (*Service, error) {
 }
 
 func (s *Service) Serve(ctx context.Context) error {
-	listener, err := net.Listen("tcp", s.cfg.LocalAddr)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errCh := make(chan error, 2)
+	go func() {
+		errCh <- s.serveTCP(ctx, "socks5", s.cfg.LocalAddr, s.handleSOCKS)
+	}()
+	if strings.TrimSpace(s.cfg.HTTPAddr) != "" {
+		go func() {
+			errCh <- s.serveTCP(ctx, "http", s.cfg.HTTPAddr, s.handleHTTP)
+		}()
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (s *Service) serveTCP(ctx context.Context, name, addr string, handler func(net.Conn)) error {
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 	defer listener.Close()
 
-	s.logger.Printf("client listening on socks5://%s", listener.Addr())
-	s.logger.Printf("relay target %s", s.cfg.RelayAddr)
+	s.logger.Printf("%s proxy listening on %s", name, listener.Addr())
+	if name == "socks5" {
+		s.logger.Printf("relay target %s", s.cfg.RelayAddr)
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -60,7 +86,7 @@ func (s *Service) Serve(ctx context.Context) error {
 			}
 			return err
 		}
-		go s.handleSOCKS(conn)
+		go handler(conn)
 	}
 }
 
@@ -151,20 +177,4 @@ func (s *Service) clientTLSConfig() (*tls.Config, error) {
 		tlsCfg.RootCAs = pool
 	}
 	return tlsCfg, nil
-}
-
-func proxyBidirectional(a, b net.Conn) {
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		_, _ = copyAndCloseWrite(b, a)
-	}()
-	go func() {
-		defer wg.Done()
-		_, _ = copyAndCloseWrite(a, b)
-	}()
-
-	wg.Wait()
 }

@@ -45,10 +45,11 @@ func run(args []string) int {
 
 func runClient(args []string) int {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	cfgPath := fs.String("config", config.DefaultClientPath(), "client config path")
-	localAddr := fs.String("local", "", "local socks5 listen address")
-	relayAddr := fs.String("relay", "", "relay server address")
-	token := fs.String("token", "", "shared relay token")
+	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
+	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
+	relayAddr := fs.String("relay", "", "relay 服务端地址")
+	token := fs.String("token", "", "客户端和 relay 共享的 token")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -60,6 +61,9 @@ func runClient(args []string) int {
 	}
 	if *localAddr != "" {
 		cfg.LocalAddr = *localAddr
+	}
+	if *httpAddr != "" {
+		cfg.HTTPAddr = *httpAddr
 	}
 	if *relayAddr != "" {
 		cfg.RelayAddr = *relayAddr
@@ -113,17 +117,19 @@ func runConfig(args []string) int {
 
 func initClientConfig(args []string) int {
 	fs := flag.NewFlagSet("config init", flag.ContinueOnError)
-	cfgPath := fs.String("path", config.DefaultClientPath(), "client config path")
-	force := fs.Bool("force", false, "overwrite existing config")
-	localAddr := fs.String("local", "127.0.0.1:18080", "local socks5 listen address")
-	relayAddr := fs.String("relay", "127.0.0.1:9443", "relay server address")
-	token := fs.String("token", "change-me", "shared relay token")
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	force := fs.Bool("force", false, "覆盖已存在的配置文件")
+	localAddr := fs.String("local", "127.0.0.1:18080", "本地 SOCKS5 监听地址")
+	httpAddr := fs.String("http", "127.0.0.1:18081", "本地 HTTP 代理监听地址")
+	relayAddr := fs.String("relay", "127.0.0.1:9443", "relay 服务端地址")
+	token := fs.String("token", "change-me", "客户端和 relay 共享的 token")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = *localAddr
+	cfg.HTTPAddr = *httpAddr
 	cfg.RelayAddr = *relayAddr
 	cfg.Token = *token
 
@@ -159,6 +165,7 @@ func printUsage() {
   mingsui config init -relay example.com:9443 -token your-secret
   mingsui run -config %s
   curl --socks5-hostname 127.0.0.1:18080 https://example.com
+  curl -x http://127.0.0.1:18081 https://example.com
 
 `, config.DefaultClientPath())
 }

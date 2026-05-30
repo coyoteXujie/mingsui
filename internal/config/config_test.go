@@ -47,3 +47,17 @@ func TestLoadClientRejectsUnknownFields(t *testing.T) {
 		t.Fatal("LoadClient() error = nil, want unknown field error")
 	}
 }
+
+func TestClientConfigValidatesHTTPAddrWhenPresent(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.HTTPAddr = "127.0.0.1"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid http_addr error")
+	}
+
+	cfg.HTTPAddr = "127.0.0.1:18081"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}

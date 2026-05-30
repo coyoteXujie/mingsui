@@ -1,12 +1,12 @@
 # MingSui 明隧
 
-MingSui 是一个 Go 编写的桌面端与命令行网络代理产品雏形。当前仓库先落地核心链路：本地 SOCKS5 客户端连接远端 relay，relay 负责拨出目标 TCP 连接。
+MingSui 是一个 Go 编写的桌面端与命令行网络代理产品雏形。当前仓库先落地核心链路：本地 SOCKS5/HTTP 客户端连接远端 relay，relay 负责拨出目标 TCP 连接。
 
 > 当前版本是产品 MVP 的基础骨架，不是已经可公开运营的成熟代理服务。
 
 ## 主要组件
 
-- `mingsui`: 客户端 CLI，启动本地 SOCKS5 代理。
+- `mingsui`: 客户端 CLI，启动本地 SOCKS5 和 HTTP 代理。
 - `mingsui-relay`: 远端 relay 服务，负责鉴权和转发。
 - `internal/client`: 本地 SOCKS5 和 relay 连接逻辑。
 - `internal/relay`: relay 服务端逻辑。
@@ -43,6 +43,12 @@ go build -o bin/mingsui-relay ./cmd/mingsui-relay
 curl --socks5-hostname 127.0.0.1:18080 https://example.com
 ```
 
+测试 HTTP 代理：
+
+```bash
+curl -x http://127.0.0.1:18081 https://example.com
+```
+
 如果本机安装了 `make`，也可以直接运行：
 
 ```bash
@@ -76,7 +82,7 @@ mingsui-relay config path
 
 ## 后续路线
 
-1. 稳定核心代理链路：SOCKS5、HTTP CONNECT、TLS relay、连接状态。
+1. 稳定核心代理链路：SOCKS5、HTTP/CONNECT、TLS relay、连接状态。
 2. 增加配置订阅、节点选择、自动重连和健康检查。
 3. 用 Wails 构建桌面端，复用 Go core。
 4. 增加账号、授权、计费、流量统计和服务端控制台。

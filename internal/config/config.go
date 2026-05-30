@@ -20,6 +20,7 @@ type ClientTLSConfig struct {
 
 type ClientConfig struct {
 	LocalAddr          string          `json:"local_addr"`
+	HTTPAddr           string          `json:"http_addr"`
 	RelayAddr          string          `json:"relay_addr"`
 	Token              string          `json:"token"`
 	DialTimeoutSeconds int             `json:"dial_timeout_seconds"`
@@ -117,6 +118,11 @@ func WriteRelay(path string, cfg RelayConfig, force bool) error {
 func (c ClientConfig) Validate() error {
 	if err := validateAddr("local_addr", c.LocalAddr); err != nil {
 		return err
+	}
+	if strings.TrimSpace(c.HTTPAddr) != "" {
+		if err := validateAddr("http_addr", c.HTTPAddr); err != nil {
+			return err
+		}
 	}
 	if err := validateAddr("relay_addr", c.RelayAddr); err != nil {
 		return err
