@@ -1,0 +1,11 @@
+{
+  "listen_addr": "0.0.0.0:9443",
+  "token": "change-me",
+  "dial_timeout_seconds": 10,
+  "allow_private_networks": false,
+  "tls": {
+    "enabled": false,
+    "cert_file": "",
+    "key_file": ""
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "local_addr": "127.0.0.1:18080",
+  "relay_addr": "127.0.0.1:9443",
+  "token": "change-me",
+  "dial_timeout_seconds": 10,
+  "tls": {
+    "enabled": false,
+    "server_name": "",
+    "ca_file": "",
+    "insecure_skip_verify": false
+  }
+}
