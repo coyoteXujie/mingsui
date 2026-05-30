@@ -135,6 +135,7 @@ mingsui config subscription add team -path ./client.json -url https://example.co
 mingsui config subscription list -path ./client.json
 mingsui config subscription sync team -path ./client.json
 mingsui config subscription remove team -path ./client.json
+mingsui config profile export -path ./client.json -output ./nodes.json -secrets
 ```
 
 订阅 URL 可能包含访问密钥，因此 `config show` 和 `config subscription list` 默认会隐藏订阅 URL；需要排障时再显式加 `-secrets`。

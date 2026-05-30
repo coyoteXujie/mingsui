@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -53,6 +54,91 @@ func importClientProfiles(args []string) int {
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个 profile\n", len(profiles))
 	return 0
+}
+
+func exportClientProfiles(args []string) int {
+	fs := flag.NewFlagSet("config profile export", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	outputPath := fs.String("output", "", "输出文件路径，留空则打印到 stdout")
+	showSecrets := fs.Bool("secrets", false, "导出真实 profile token")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if !*showSecrets {
+		cfg = cfg.Redacted()
+	}
+	profiles, err := selectExportProfiles(cfg.Profiles, fs.Args())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "导出 profile 失败: %v\n", err)
+		return 1
+	}
+	doc := subscription.Document{
+		Version:  1,
+		Profiles: profiles,
+	}
+	if *outputPath == "" {
+		if err := writeSubscriptionJSON(os.Stdout, doc); err != nil {
+			fmt.Fprintf(os.Stderr, "输出订阅失败: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	file, err := os.OpenFile(*outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "打开输出文件失败: %v\n", err)
+		return 1
+	}
+	defer file.Close()
+	if err := writeSubscriptionJSON(file, doc); err != nil {
+		fmt.Fprintf(os.Stderr, "写入订阅失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "已导出 %d 个 profile 到 %s\n", len(profiles), *outputPath)
+	return 0
+}
+
+func selectExportProfiles(profiles []config.RelayProfile, names []string) ([]config.RelayProfile, error) {
+	if len(profiles) == 0 {
+		return nil, fmt.Errorf("没有可导出的 relay profile")
+	}
+	if len(names) == 0 {
+		return append([]config.RelayProfile(nil), profiles...), nil
+	}
+
+	selected := make([]config.RelayProfile, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		found := false
+		for _, profile := range profiles {
+			if strings.TrimSpace(profile.Name) == name {
+				selected = append(selected, profile)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("profile %q 不存在", name)
+		}
+	}
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("没有可导出的 relay profile")
+	}
+	return selected, nil
+}
+
+func writeSubscriptionJSON(w io.Writer, doc subscription.Document) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
 }
 
 func runConfigSubscription(args []string) int {

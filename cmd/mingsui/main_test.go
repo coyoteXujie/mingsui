@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -117,5 +118,46 @@ func TestConfigSubscriptionAddAndRemove(t *testing.T) {
 	}
 	if len(cfg.Subscriptions) != 0 {
 		t.Fatalf("Subscriptions = %+v, want empty", cfg.Subscriptions)
+	}
+}
+
+func TestExportClientProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	outputPath := filepath.Join(dir, "nodes.json")
+	cfg := config.DefaultClient()
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "osaka-secret"},
+	}
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code := run([]string{"config", "profile", "export", "-path", cfgPath, "-output", outputPath, "tokyo"})
+	if code != 0 {
+		t.Fatalf("run(config profile export) = %d, want 0", code)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(data), `"name": "tokyo"`) {
+		t.Fatalf("export = %s, want tokyo", data)
+	}
+	if strings.Contains(string(data), "secret") {
+		t.Fatalf("export = %s, want redacted token by default", data)
+	}
+
+	code = run([]string{"config", "profile", "export", "-path", cfgPath, "-output", outputPath, "-secrets", "tokyo"})
+	if code != 0 {
+		t.Fatalf("run(config profile export -secrets) = %d, want 0", code)
+	}
+	data, err = os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(data), `"token": "secret"`) {
+		t.Fatalf("export = %s, want real token with -secrets", data)
 	}
 }

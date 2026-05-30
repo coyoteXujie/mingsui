@@ -388,6 +388,8 @@ func runConfigProfile(args []string) int {
 		return checkClientProfile(args[1:])
 	case "import":
 		return importClientProfiles(args[1:])
+	case "export":
+		return exportClientProfiles(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知 profile 命令 %q\n\n", args[0])
 		printConfigProfileUsage()
@@ -700,7 +702,7 @@ func printUsage() {
   mingsui doctor [flags]
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select|remove|rename|check|import [flags]
+  mingsui config profile add|list|select|remove|rename|check|import|export [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]
   mingsui token [flags]
@@ -712,6 +714,7 @@ func printUsage() {
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
+  mingsui config profile export -output ./nodes.json -secrets
   mingsui config subscription add team -url https://example.com/mingsui/nodes.json
   mingsui config subscription sync team
   mingsui config profile rename tokyo jp-tokyo
@@ -731,7 +734,7 @@ func printConfigUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select|remove|rename|check|import [flags]
+  mingsui config profile add|list|select|remove|rename|check|import|export [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]`)
 }
@@ -744,7 +747,8 @@ func printConfigProfileUsage() {
   mingsui config profile remove <name> [flags]
   mingsui config profile rename <old-name> <new-name> [flags]
   mingsui config profile check <name> [flags]
-  mingsui config profile import -source <file|url|-> [flags]`)
+  mingsui config profile import -source <file|url|-> [flags]
+  mingsui config profile export [flags] [name...]`)
 }
 
 func writeJSON(w io.Writer, value any) error {
