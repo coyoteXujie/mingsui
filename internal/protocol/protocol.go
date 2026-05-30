@@ -10,10 +10,14 @@ import (
 const (
 	Version        = 1
 	MaxMessageSize = 64 * 1024
+
+	CommandConnect = "connect"
+	CommandHealth  = "health"
 )
 
 type ConnectRequest struct {
 	Version int    `json:"version"`
+	Command string `json:"command,omitempty"`
 	Token   string `json:"token"`
 	Network string `json:"network"`
 	Address string `json:"address"`
@@ -23,6 +27,13 @@ type ConnectResponse struct {
 	Version int    `json:"version"`
 	OK      bool   `json:"ok"`
 	Error   string `json:"error,omitempty"`
+}
+
+func (r ConnectRequest) EffectiveCommand() string {
+	if r.Command == "" {
+		return CommandConnect
+	}
+	return r.Command
 }
 
 func WriteJSON(w io.Writer, value any) error {

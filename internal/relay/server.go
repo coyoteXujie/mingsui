@@ -96,6 +96,12 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
+	if req.EffectiveCommand() == protocol.CommandHealth {
+		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{Version: protocol.Version, OK: true})
+		s.logger.Printf("health check ok from %s", conn.RemoteAddr())
+		return
+	}
+
 	target, err := net.DialTimeout(req.Network, req.Address, s.cfg.DialTimeout())
 	if err != nil {
 		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{
@@ -125,6 +131,15 @@ func (s *Server) validateRequest(req protocol.ConnectRequest) error {
 	if req.Token != s.cfg.Token {
 		return errors.New("unauthorized")
 	}
+
+	switch req.EffectiveCommand() {
+	case protocol.CommandHealth:
+		return nil
+	case protocol.CommandConnect:
+	default:
+		return fmt.Errorf("unsupported command %q", req.Command)
+	}
+
 	if req.Network != "tcp" {
 		return fmt.Errorf("unsupported network %q", req.Network)
 	}

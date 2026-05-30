@@ -91,21 +91,11 @@ func (s *Service) serveTCP(ctx context.Context, name, addr string, handler func(
 }
 
 func (s *Service) openRelay(target string) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: s.cfg.DialTimeout()}
+	return s.openRelayContext(context.Background(), target)
+}
 
-	var (
-		conn net.Conn
-		err  error
-	)
-	if s.cfg.TLS.Enabled {
-		tlsCfg, err := s.clientTLSConfig()
-		if err != nil {
-			return nil, err
-		}
-		conn, err = tls.DialWithDialer(dialer, "tcp", s.cfg.RelayAddr, tlsCfg)
-	} else {
-		conn, err = dialer.Dial("tcp", s.cfg.RelayAddr)
-	}
+func (s *Service) openRelayContext(ctx context.Context, target string) (net.Conn, error) {
+	conn, err := s.dialRelay(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +136,70 @@ func (s *Service) openRelay(target string) (net.Conn, error) {
 		return nil, errors.New(resp.Error)
 	}
 	return conn, nil
+}
+
+func (s *Service) CheckRelay(ctx context.Context) error {
+	conn, err := s.dialRelay(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	req := protocol.ConnectRequest{
+		Version: protocol.Version,
+		Command: protocol.CommandHealth,
+		Token:   s.cfg.Token,
+	}
+	if err := conn.SetDeadline(time.Now().Add(s.cfg.DialTimeout())); err != nil {
+		return err
+	}
+	if err := protocol.WriteJSON(conn, req); err != nil {
+		return err
+	}
+
+	var resp protocol.ConnectResponse
+	if err := protocol.ReadJSON(conn, &resp); err != nil {
+		return err
+	}
+	if resp.Version != protocol.Version {
+		return fmt.Errorf("relay protocol version mismatch: %d", resp.Version)
+	}
+	if !resp.OK {
+		if strings.TrimSpace(resp.Error) == "" {
+			return errors.New("relay health check failed")
+		}
+		return errors.New(resp.Error)
+	}
+	return nil
+}
+
+func (s *Service) dialRelay(ctx context.Context) (net.Conn, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.cfg.DialTimeout())
+		defer cancel()
+	}
+
+	dialer := &net.Dialer{Timeout: s.cfg.DialTimeout()}
+	conn, err := dialer.DialContext(ctx, "tcp", s.cfg.RelayAddr)
+	if err != nil {
+		return nil, err
+	}
+	if !s.cfg.TLS.Enabled {
+		return conn, nil
+	}
+
+	tlsCfg, err := s.clientTLSConfig()
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	tlsConn := tls.Client(conn, tlsCfg)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		_ = tlsConn.Close()
+		return nil, err
+	}
+	return tlsConn, nil
 }
 
 func (s *Service) clientTLSConfig() (*tls.Config, error) {

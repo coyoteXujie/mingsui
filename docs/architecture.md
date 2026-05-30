@@ -38,11 +38,12 @@ relay 监听公网或内网地址，默认是 `0.0.0.0:9443`。它负责：
 
 ## 通信协议
 
-客户端和 relay 之间先交换一个长度前缀 JSON 消息：
+客户端和 relay 之间先交换一个长度前缀 JSON 消息。普通代理连接使用 `connect` 指令：
 
 ```json
 {
   "version": 1,
+  "command": "connect",
   "token": "shared-secret",
   "network": "tcp",
   "address": "example.com:443"
@@ -60,6 +61,18 @@ relay 返回：
 
 返回成功后，连接切换为原始字节流转发。
 
+健康检查使用 `health` 指令：
+
+```json
+{
+  "version": 1,
+  "command": "health",
+  "token": "shared-secret"
+}
+```
+
+relay 对健康检查只校验协议版本和 token，不拨出目标地址。
+
 ## 桌面端
 
-桌面端计划使用 Wails。Wails 的 Go 后端可以直接调用 `internal/client`，前端只负责展示状态、节点选择、日志和设置。
+桌面端计划使用 Wails。Wails 的 Go 后端可以直接调用 `internal/client`，前端只负责展示状态、节点选择、日志和设置。桌面端的“连接测试”可以复用 `CheckRelay`，避免重复实现网络诊断逻辑。

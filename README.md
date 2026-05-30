@@ -27,6 +27,7 @@ go build -o bin/mingsui-relay ./cmd/mingsui-relay
 
 ```bash
 ./bin/mingsui-relay config init -path ./relay.json -token dev-secret -allow-private
+./bin/mingsui-relay check -config ./relay.json
 ./bin/mingsui-relay serve -config ./relay.json
 ```
 
@@ -34,6 +35,7 @@ go build -o bin/mingsui-relay ./cmd/mingsui-relay
 
 ```bash
 ./bin/mingsui config init -path ./client.json -relay 127.0.0.1:9443 -token dev-secret
+./bin/mingsui doctor -config ./client.json
 ./bin/mingsui run -config ./client.json
 ```
 
@@ -69,6 +71,15 @@ make test
 mingsui config path
 mingsui-relay config path
 ```
+
+诊断命令：
+
+```bash
+mingsui doctor -config ./client.json
+mingsui-relay check -config ./relay.json
+```
+
+`mingsui doctor` 会检查本地监听地址是否可用，并通过协议级 `health` 指令验证 relay 地址和 token。`mingsui-relay check` 会检查 relay 配置、TLS 证书和监听地址是否可用。
 
 ## 安全边界
 

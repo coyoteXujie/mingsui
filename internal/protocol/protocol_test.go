@@ -29,6 +29,15 @@ func TestReadWriteJSON(t *testing.T) {
 	}
 }
 
+func TestConnectRequestEffectiveCommand(t *testing.T) {
+	if got := (ConnectRequest{}).EffectiveCommand(); got != CommandConnect {
+		t.Fatalf("EffectiveCommand() = %q, want %q", got, CommandConnect)
+	}
+	if got := (ConnectRequest{Command: CommandHealth}).EffectiveCommand(); got != CommandHealth {
+		t.Fatalf("EffectiveCommand() = %q, want %q", got, CommandHealth)
+	}
+}
+
 func TestReadJSONRejectsLargeMessages(t *testing.T) {
 	var buf bytes.Buffer
 	buf.Write([]byte{0, 2, 0, 1})
