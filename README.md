@@ -132,6 +132,33 @@ relay 配置中启用 TLS：
 
 生产环境建议使用正式 CA 签发的证书，不要开启 `insecure_skip_verify`。
 
+## 部署 relay
+
+服务器上可以用 systemd 托管 relay。先生成服务文件：
+
+```bash
+mingsui-relay systemd \
+  -binary /usr/local/bin/mingsui-relay \
+  -config /etc/mingsui/relay.json \
+  -output mingsui-relay.service
+```
+
+典型安装步骤：
+
+```bash
+sudo install -m 0755 ./bin/mingsui-relay /usr/local/bin/mingsui-relay
+sudo mkdir -p /etc/mingsui /var/lib/mingsui
+sudo cp ./relay.json /etc/mingsui/relay.json
+sudo useradd --system --home /var/lib/mingsui --shell /usr/sbin/nologin mingsui
+sudo chown -R mingsui:mingsui /var/lib/mingsui
+sudo cp ./mingsui-relay.service /etc/systemd/system/mingsui-relay.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now mingsui-relay
+sudo systemctl status mingsui-relay
+```
+
+如果使用 TLS 证书文件，也要确保 `mingsui` 用户能读取证书和私钥。
+
 ## 安全边界
 
 第一版 relay 使用共享 token 鉴权。生产环境至少需要：

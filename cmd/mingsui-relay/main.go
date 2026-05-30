@@ -16,6 +16,7 @@ import (
 
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/deploy"
 	"github.com/coyoteXujie/mingsui/internal/relay"
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
@@ -39,6 +40,8 @@ func run(args []string) int {
 		return runCert(args[1:])
 	case "config":
 		return runConfig(args[1:])
+	case "systemd":
+		return runSystemd(args[1:])
 	case "token":
 		return runToken(args[1:])
 	case "version":
@@ -52,6 +55,44 @@ func run(args []string) int {
 		printUsage()
 		return 2
 	}
+}
+
+func runSystemd(args []string) int {
+	fs := flag.NewFlagSet("systemd", flag.ContinueOnError)
+	outputPath := fs.String("output", "", "输出文件路径，留空则打印到 stdout")
+	binaryPath := fs.String("binary", "/usr/local/bin/mingsui-relay", "mingsui-relay 二进制路径")
+	cfgPath := fs.String("config", "/etc/mingsui/relay.json", "relay 配置文件路径")
+	user := fs.String("user", "mingsui", "systemd 服务运行用户")
+	group := fs.String("group", "", "systemd 服务运行用户组，留空则与 user 相同")
+	workDir := fs.String("workdir", "/var/lib/mingsui", "服务工作目录")
+	description := fs.String("description", "MingSui Relay", "systemd 服务描述")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	unit, err := deploy.RenderRelaySystemd(deploy.SystemdRelayOptions{
+		Description: *description,
+		BinaryPath:  *binaryPath,
+		ConfigPath:  *cfgPath,
+		User:        *user,
+		Group:       *group,
+		WorkingDir:  *workDir,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "生成 systemd 服务失败: %v\n", err)
+		return 1
+	}
+
+	if *outputPath == "" {
+		fmt.Print(unit)
+		return 0
+	}
+	if err := os.WriteFile(*outputPath, []byte(unit), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "写入 systemd 服务失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已写入 %s\n", *outputPath)
+	return 0
 }
 
 func runCert(args []string) int {
@@ -300,6 +341,7 @@ func printUsage() {
   mingsui-relay cert [flags]
   mingsui-relay config init [flags]
   mingsui-relay config path
+  mingsui-relay systemd [flags]
   mingsui-relay token [flags]
   mingsui-relay version
 
@@ -307,6 +349,7 @@ func printUsage() {
   TOKEN=$(mingsui-relay token)
   mingsui-relay cert -host example.com,127.0.0.1 -cert relay.crt -key relay.key
   mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
+  mingsui-relay systemd -output mingsui-relay.service
   mingsui-relay check -config %s
   mingsui-relay serve -config %s
 

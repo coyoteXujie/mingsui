@@ -38,6 +38,8 @@ relay 监听公网或内网地址，默认是 `0.0.0.0:9443`。它负责：
 
 relay 可以直接监听 TCP，也可以启用 TLS。自签名证书可以用 `mingsui-relay cert` 生成；生产环境建议使用正式 CA 签发的证书。
 
+Linux 服务器上可以用 `mingsui-relay systemd` 生成服务文件，再交给 systemd 托管运行。
+
 ## 通信协议
 
 客户端和 relay 之间先交换一个长度前缀 JSON 消息。普通代理连接使用 `connect` 指令：
