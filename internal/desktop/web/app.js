@@ -53,9 +53,13 @@ function render() {
   const status = state.status || {};
   const metrics = status.metrics || {};
   const profiles = cfg.profiles || [];
+  const proxyProfiles = cfg.proxy_profiles || [];
   const selectedProfile = cfg.active_profile || "";
-  const nodeLabel = selectedProfile || (profiles.length ? profiles[0].name : "");
-  const relayAddr = status.relay_addr || cfg.relay_addr;
+  const selectedProxy = cfg.active_proxy_profile || "";
+  const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
+    || (!selectedProfile && proxyProfiles.length ? proxyProfiles[0] : null);
+  const nodeLabel = activeProxy ? activeProxy.name : selectedProfile || (profiles.length ? profiles[0].name : "");
+  const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : status.relay_addr || cfg.relay_addr;
   const localAddr = status.local_addr || cfg.local_addr;
   const httpAddr = status.http_addr || cfg.http_addr;
 
@@ -80,6 +84,7 @@ function render() {
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
   renderProfiles(profiles, selectedProfile);
+  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "");
   renderSubscriptions(cfg.subscriptions || []);
 }
 
@@ -132,6 +137,36 @@ function renderProfiles(profiles, active) {
       setMessage(result.message || `${profile.name} 可连接`, "ok");
     });
     actions.append(edit, select, check);
+    item.append(info, actions);
+    root.append(item);
+  });
+}
+
+function renderProxyProfiles(profiles, active) {
+  const root = $("proxyProfiles");
+  root.innerHTML = "";
+  if (!profiles.length) {
+    root.append(emptyItem("没有机场节点"));
+    return;
+  }
+  profiles.forEach((profile) => {
+    const item = document.createElement("div");
+    item.className = "item";
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = profile.name === active ? `${profile.name} · 当前` : profile.name;
+    const addr = document.createElement("span");
+    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · 等待通用代理内核`;
+    info.append(title, addr);
+
+    const actions = document.createElement("div");
+    actions.className = "item-actions";
+    const select = button("选择", "secondary", async () => {
+      await api("/api/proxy/select", { method: "POST", body: { name: profile.name } });
+      setMessage(`已选择 ${profile.name}`, "ok");
+      await refresh();
+    });
+    actions.append(select);
     item.append(info, actions);
     root.append(item);
   });
@@ -338,6 +373,7 @@ function buildConfigFromForm() {
     insecure_skip_verify: $("configTLSInsecure").checked,
   };
   cfg.profiles = cfg.profiles || [];
+  cfg.proxy_profiles = cfg.proxy_profiles || [];
   cfg.subscriptions = cfg.subscriptions || [];
   return cfg;
 }

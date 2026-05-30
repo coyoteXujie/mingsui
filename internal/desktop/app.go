@@ -105,6 +105,14 @@ func (a *App) SelectRelayProfile(name string) error {
 	return a.SaveConfig(cfg)
 }
 
+func (a *App) SelectProxyProfile(name string) error {
+	cfg := a.Config()
+	if err := cfg.SelectProxyProfile(name); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
 func (a *App) RemoveRelayProfile(name string) error {
 	cfg := a.Config()
 	if err := cfg.RemoveRelayProfile(name); err != nil {
@@ -123,15 +131,17 @@ func (a *App) RenameRelayProfile(oldName, newName string) error {
 
 func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) (int, error) {
 	content := strings.TrimSpace(string(data))
-	var profiles []config.RelayProfile
-	var err error
 	if strings.HasPrefix(content, "http://") || strings.HasPrefix(content, "https://") {
-		profiles, err = subscription.LoadRelayProfiles(context.Background(), content, nil)
-	} else {
-		profiles, err = subscription.ParseRelayProfiles(data)
+		var err error
+		data, err = subscription.LoadSource(context.Background(), content, nil)
+		if err != nil {
+			return 0, err
+		}
 	}
+
+	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil {
-		return 0, err
+		return a.importProxyProfiles(data, replace, selectName, err)
 	}
 	cfg := a.Config()
 	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
@@ -142,6 +152,29 @@ func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) 
 	}
 	if selectName != "" {
 		if err := cfg.SelectRelayProfile(selectName); err != nil {
+			return 0, err
+		}
+	}
+	if err := a.SaveConfig(cfg); err != nil {
+		return 0, err
+	}
+	return len(profiles), nil
+}
+
+func (a *App) importProxyProfiles(data []byte, replace bool, selectName string, relayErr error) (int, error) {
+	profiles, err := subscription.ParseProxyProfiles(data)
+	if err != nil {
+		return 0, relayErr
+	}
+	cfg := a.Config()
+	if err := cfg.ImportProxyProfiles(profiles, replace); err != nil {
+		return 0, err
+	}
+	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
+		selectName = profiles[0].Name
+	}
+	if selectName != "" {
+		if err := cfg.SelectProxyProfile(selectName); err != nil {
 			return 0, err
 		}
 	}
@@ -174,24 +207,47 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 		return 0, errors.New("订阅不存在")
 	}
 	profiles, err := subscription.LoadRelayProfiles(ctx, sub.URL, nil)
-	if err != nil {
+	if err == nil {
+		if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
+			return 0, err
+		}
+		if selectName != "" {
+			if err := cfg.SelectRelayProfile(selectName); err != nil {
+				return 0, err
+			}
+		}
+		if err := a.SaveConfig(cfg); err != nil {
+			return 0, err
+		}
+		return len(profiles), nil
+	}
+
+	data, dataErr := subscription.LoadSource(ctx, sub.URL, nil)
+	if dataErr != nil {
+		return 0, dataErr
+	}
+	proxyProfiles, proxyErr := subscription.ParseProxyProfiles(data)
+	if proxyErr != nil {
 		return 0, err
 	}
-	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
+	if err := cfg.ImportProxyProfiles(proxyProfiles, replace); err != nil {
 		return 0, err
 	}
 	if selectName != "" {
-		if err := cfg.SelectRelayProfile(selectName); err != nil {
+		if err := cfg.SelectProxyProfile(selectName); err != nil {
 			return 0, err
 		}
 	}
 	if err := a.SaveConfig(cfg); err != nil {
 		return 0, err
 	}
-	return len(profiles), nil
+	return len(proxyProfiles), nil
 }
 
 func (a *App) Start(ctx context.Context) error {
+	if proxy, ok := activeProxyProfile(a.Config()); ok {
+		return errors.New("当前选择的是机场节点 " + proxy.Name + "，通用代理内核尚未接入")
+	}
 	a.mu.Lock()
 	controller := a.controller
 	a.mu.Unlock()
@@ -228,6 +284,9 @@ func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) 
 	logger := a.logger
 	a.mu.Unlock()
 
+	if proxy, ok := activeProxyProfile(cfg); ok {
+		return client.RelayHealth{}, errors.New("当前选择的是机场节点 " + proxy.Name + "，通用代理内核尚未接入")
+	}
 	cfg, err := effectiveClientConfig(cfg)
 	if err != nil {
 		return client.RelayHealth{}, err
@@ -262,6 +321,17 @@ func effectiveClientConfig(cfg config.ClientConfig) (config.ClientConfig, error)
 		profileName = cfg.Profiles[0].Name
 	}
 	return cfg.ResolveProfile(profileName)
+}
+
+func activeProxyProfile(cfg config.ClientConfig) (config.ProxyProfile, bool) {
+	name := strings.TrimSpace(cfg.ActiveProxyProfile)
+	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0 {
+		name = cfg.ProxyProfiles[0].Name
+	}
+	if name == "" {
+		return config.ProxyProfile{}, false
+	}
+	return cfg.ProxyProfile(name)
 }
 
 func loadClientConfigOrDefault(path string) (config.ClientConfig, error) {

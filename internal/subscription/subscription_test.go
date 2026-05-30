@@ -76,6 +76,39 @@ func TestParseRelayProfilesRecognizesAirportSubscription(t *testing.T) {
 	}
 }
 
+func TestParseProxyProfilesBase64AirportSubscription(t *testing.T) {
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n" +
+		"vmess://eyJwcyI6InRva3lvIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ==\r\n"
+	data := []byte(base64.StdEncoding.EncodeToString([]byte(raw)))
+
+	profiles, err := ParseProxyProfiles(data)
+	if err != nil {
+		t.Fatalf("ParseProxyProfiles() error = %v", err)
+	}
+	if len(profiles) != 2 {
+		t.Fatalf("profiles length = %d, want 2", len(profiles))
+	}
+	if profiles[0].Name != "tokyo" || profiles[0].Protocol != "ss" {
+		t.Fatalf("profiles[0] = %+v, want ss tokyo", profiles[0])
+	}
+	if profiles[1].Name != "tokyo-2" || profiles[1].Protocol != "vmess" {
+		t.Fatalf("profiles[1] = %+v, want vmess tokyo-2", profiles[1])
+	}
+}
+
+func TestParseProxyProfilesSkipsAirportInfoNodes(t *testing.T) {
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#%E5%89%A9%E4%BD%99%E6%B5%81%E9%87%8F%EF%BC%9A100GB\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#%5B1x%5D%20%E6%97%A5%E6%9C%AC%201\r\n"
+
+	profiles, err := ParseProxyProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))))
+	if err != nil {
+		t.Fatalf("ParseProxyProfiles() error = %v", err)
+	}
+	if len(profiles) != 1 || profiles[0].Name != "[1x] 日本 1" {
+		t.Fatalf("profiles = %+v, want only real node", profiles)
+	}
+}
+
 func TestLoaderReadsFileAndStdin(t *testing.T) {
 	data := `[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`
 	path := filepath.Join(t.TempDir(), "nodes.json")

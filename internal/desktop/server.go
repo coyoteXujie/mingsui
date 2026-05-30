@@ -33,6 +33,7 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 	mux.HandleFunc("/api/profile/delete", method(http.MethodPost, handleDeleteProfile(app)))
 	mux.HandleFunc("/api/profile/select", method(http.MethodPost, handleSelectProfile(app)))
 	mux.HandleFunc("/api/profile/check", method(http.MethodPost, handleCheckProfile(app)))
+	mux.HandleFunc("/api/proxy/select", method(http.MethodPost, handleSelectProxyProfile(app)))
 	mux.HandleFunc("/api/profiles/import", method(http.MethodPost, handleImportProfiles(app)))
 	mux.HandleFunc("/api/subscription", method(http.MethodPost, handleSaveSubscription(app)))
 	mux.HandleFunc("/api/subscription/delete", method(http.MethodPost, handleDeleteSubscription(app)))
@@ -191,6 +192,21 @@ func handleSelectProfile(app *App) http.HandlerFunc {
 	}
 }
 
+func handleSelectProxyProfile(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req profileNameRequest
+		if err := readJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := app.SelectProxyProfile(req.Name); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "机场节点已选择"})
+	}
+}
+
 func handleCheckProfile(app *App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req profileNameRequest
@@ -225,7 +241,7 @@ func handleImportProfiles(app *App) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "profile 已导入", Count: count})
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "节点已导入", Count: count})
 	}
 }
 
@@ -335,6 +351,17 @@ func preserveRedactedSecrets(current config.ClientConfig, next *config.ClientCon
 		for _, profile := range current.Profiles {
 			if profile.Name == next.Profiles[i].Name {
 				next.Profiles[i].Token = profile.Token
+				break
+			}
+		}
+	}
+	for i := range next.ProxyProfiles {
+		if next.ProxyProfiles[i].URL != config.RedactedValue {
+			continue
+		}
+		for _, profile := range current.ProxyProfiles {
+			if profile.Name == next.ProxyProfiles[i].Name {
+				next.ProxyProfiles[i].URL = profile.URL
 				break
 			}
 		}

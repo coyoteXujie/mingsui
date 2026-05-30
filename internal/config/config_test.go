@@ -135,15 +135,22 @@ func TestClientConfigCloneCopiesProfiles(t *testing.T) {
 	cfg.Profiles = []RelayProfile{
 		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
 	}
+	cfg.ProxyProfiles = []ProxyProfile{
+		{Name: "hk", Protocol: "ss", URL: "ss://secret@example.com:8388#hk"},
+	}
 	cfg.Subscriptions = []RelaySubscription{
 		{Name: "team", URL: "https://example.com/nodes.json"},
 	}
 
 	got := cfg.Clone()
 	got.Profiles[0].Token = "changed"
+	got.ProxyProfiles[0].URL = "ss://changed@example.com:8388#hk"
 	got.Subscriptions[0].URL = "https://changed.example.com/nodes.json"
 	if cfg.Profiles[0].Token != "secret" {
 		t.Fatalf("Clone() shared profile slice: %+v", cfg.Profiles[0])
+	}
+	if cfg.ProxyProfiles[0].URL != "ss://secret@example.com:8388#hk" {
+		t.Fatalf("Clone() shared proxy profile slice: %+v", cfg.ProxyProfiles[0])
 	}
 	if cfg.Subscriptions[0].URL != "https://example.com/nodes.json" {
 		t.Fatalf("Clone() shared subscription slice: %+v", cfg.Subscriptions[0])
@@ -192,6 +199,42 @@ func TestClientConfigImportRelayProfilesIsAtomic(t *testing.T) {
 	}
 	if len(cfg.Profiles) != 1 || cfg.Profiles[0].Name != "tokyo" {
 		t.Fatalf("Profiles = %+v, want original unchanged", cfg.Profiles)
+	}
+}
+
+func TestClientConfigImportProxyProfilesAndSelect(t *testing.T) {
+	cfg := DefaultClient()
+	profile := ProxyProfile{Name: "hk", Protocol: "ss", URL: "ss://secret@example.com:8388#hk"}
+
+	if err := cfg.ImportProxyProfiles([]ProxyProfile{profile}, false); err != nil {
+		t.Fatalf("ImportProxyProfiles() error = %v", err)
+	}
+	if err := cfg.SelectProxyProfile("hk"); err != nil {
+		t.Fatalf("SelectProxyProfile() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "hk" || cfg.ActiveProfile != "" {
+		t.Fatalf("active relay/proxy = %q/%q, want proxy hk only", cfg.ActiveProfile, cfg.ActiveProxyProfile)
+	}
+	if err := cfg.UpsertProxyProfile(profile, false); err == nil {
+		t.Fatal("UpsertProxyProfile() duplicate error = nil, want error")
+	}
+}
+
+func TestClientConfigImportProxyProfilesIsAtomic(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.ProxyProfiles = []ProxyProfile{
+		{Name: "hk", Protocol: "ss", URL: "ss://secret@example.com:8388#hk"},
+	}
+
+	err := cfg.ImportProxyProfiles([]ProxyProfile{
+		{Name: "tw", Protocol: "ss", URL: "ss://secret@example.com:8388#tw"},
+		{Name: "hk", Protocol: "ss", URL: "ss://secret2@example.com:8388#hk"},
+	}, false)
+	if err == nil {
+		t.Fatal("ImportProxyProfiles() error = nil, want duplicate error")
+	}
+	if len(cfg.ProxyProfiles) != 1 || cfg.ProxyProfiles[0].Name != "hk" {
+		t.Fatalf("ProxyProfiles = %+v, want original unchanged", cfg.ProxyProfiles)
 	}
 }
 
@@ -248,6 +291,21 @@ func TestClientConfigRedactsSubscriptions(t *testing.T) {
 	}
 	if cfg.Subscriptions[0].URL != "https://token@example.com/nodes.json" {
 		t.Fatalf("Redacted() mutated original subscription: %+v", cfg.Subscriptions[0])
+	}
+}
+
+func TestClientConfigRedactsProxyProfiles(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.ProxyProfiles = []ProxyProfile{
+		{Name: "hk", Protocol: "ss", URL: "ss://secret@example.com:8388#hk"},
+	}
+
+	got := cfg.Redacted()
+	if got.ProxyProfiles[0].URL != RedactedValue {
+		t.Fatalf("proxy URL = %q, want redacted", got.ProxyProfiles[0].URL)
+	}
+	if cfg.ProxyProfiles[0].URL != "ss://secret@example.com:8388#hk" {
+		t.Fatalf("Redacted() mutated original proxy profile: %+v", cfg.ProxyProfiles[0])
 	}
 }
 

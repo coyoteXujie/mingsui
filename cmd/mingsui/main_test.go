@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -117,6 +118,35 @@ func TestTopLevelImportSelectsFirstProfile(t *testing.T) {
 	}
 	if cfg.ActiveProfile != "tokyo" {
 		t.Fatalf("ActiveProfile = %q, want tokyo", cfg.ActiveProfile)
+	}
+}
+
+func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath})
+	if code != 0 {
+		t.Fatalf("run(import airport) = %d, want 0", code)
+	}
+
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "tokyo" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want imported active proxy profile", cfg)
+	}
+	if code := run([]string{"status", "-config", cfgPath}); code != 0 {
+		t.Fatalf("run(status proxy) = %d, want 0", code)
+	}
+	if code := run([]string{"connect", "-config", cfgPath}); code != 1 {
+		t.Fatalf("run(connect proxy) = %d, want pending proxy engine error", code)
 	}
 }
 

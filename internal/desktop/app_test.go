@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"log"
 	"path/filepath"
@@ -162,6 +163,29 @@ func TestAppImportRelayProfiles(t *testing.T) {
 	cfg := app.Config()
 	if cfg.ActiveProfile != "tokyo" || len(cfg.Profiles) != 1 {
 		t.Fatalf("Config() = %+v, want imported active profile", cfg)
+	}
+}
+
+func TestAppImportProxyProfiles(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+
+	count, err := app.ImportRelayProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))), false, "")
+	if err != nil {
+		t.Fatalf("ImportRelayProfiles(proxy) error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	cfg := app.Config()
+	if cfg.ActiveProxyProfile != "tokyo" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want imported active proxy profile", cfg)
+	}
+	if err := app.Start(context.Background()); err == nil {
+		t.Fatal("Start() error = nil, want sing-box pending error for proxy profile")
 	}
 }
 

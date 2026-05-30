@@ -222,6 +222,12 @@ func runClientCommand(name string, args []string, autoProfileDefault bool) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
+	if name == "connect" && *profileName == "" && *relayAddr == "" && *token == "" {
+		if proxy, ok := resolveClientProxyProfile(cfg, true); ok {
+			fmt.Fprintf(os.Stderr, "当前选择的是机场节点 %s（%s），通用代理内核尚未接入；下一步接入 sing-box 后可直接连接\n", proxy.Name, proxy.Protocol)
+			return 1
+		}
+	}
 	var selectedProfile string
 	cfg, selectedProfile, err = resolveClientProfile(cfg, *profileName, *autoProfile)
 	if err != nil {
@@ -265,7 +271,12 @@ type cliStatus struct {
 	ConfigPath      string `json:"config_path"`
 	Mode            string `json:"mode"`
 	Managed         bool   `json:"managed"`
+	SelectedType    string `json:"selected_type,omitempty"`
 	SelectedProfile string `json:"selected_profile,omitempty"`
+	SelectedProxy   string `json:"selected_proxy,omitempty"`
+	ProxyProtocol   string `json:"proxy_protocol,omitempty"`
+	RelayProfiles   int    `json:"relay_profiles"`
+	ProxyProfiles   int    `json:"proxy_profiles"`
 	LocalAddr       string `json:"local_addr"`
 	HTTPAddr        string `json:"http_addr,omitempty"`
 	RelayAddr       string `json:"relay_addr"`
@@ -303,6 +314,19 @@ func runStatus(args []string) int {
 		status.Message = fmt.Sprintf("加载配置失败: %v", err)
 		return writeCLIStatus(status, *jsonOutput)
 	}
+	status.RelayProfiles = len(cfg.Profiles)
+	status.ProxyProfiles = len(cfg.ProxyProfiles)
+	if proxy, ok := resolveClientProxyProfile(cfg, true); ok && *profileName == "" && *relayAddr == "" && *token == "" {
+		status.OK = true
+		status.Mode = "proxy"
+		status.SelectedType = "proxy"
+		status.SelectedProxy = proxy.Name
+		status.ProxyProtocol = proxy.Protocol
+		status.LocalAddr = cfg.LocalAddr
+		status.HTTPAddr = cfg.HTTPAddr
+		status.Message = "当前选择的是机场节点，通用代理内核尚未接入"
+		return writeCLIStatus(status, *jsonOutput)
+	}
 	var selectedProfile string
 	cfg, selectedProfile, err = resolveClientProfile(cfg, *profileName, *autoProfile)
 	if err != nil {
@@ -316,7 +340,10 @@ func runStatus(args []string) int {
 	}
 
 	status.OK = true
+	status.SelectedType = "relay"
 	status.SelectedProfile = selectedProfile
+	status.RelayProfiles = len(cfg.Profiles)
+	status.ProxyProfiles = len(cfg.ProxyProfiles)
 	status.LocalAddr = cfg.LocalAddr
 	status.HTTPAddr = cfg.HTTPAddr
 	status.RelayAddr = cfg.RelayAddr
@@ -377,6 +404,17 @@ func resolveClientProfile(cfg config.ClientConfig, profileName string, autoProfi
 		return config.ClientConfig{}, "", err
 	}
 	return resolved, strings.TrimSpace(resolved.ActiveProfile), nil
+}
+
+func resolveClientProxyProfile(cfg config.ClientConfig, autoProfile bool) (config.ProxyProfile, bool) {
+	name := strings.TrimSpace(cfg.ActiveProxyProfile)
+	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && autoProfile && len(cfg.ProxyProfiles) > 0 {
+		name = cfg.ProxyProfiles[0].Name
+	}
+	if name == "" {
+		return config.ProxyProfile{}, false
+	}
+	return cfg.ProxyProfile(name)
 }
 
 func applyClientOverrides(cfg *config.ClientConfig, localAddr, httpAddr, relayAddr, token string, authEnabled bool, authUser, authPass string) {

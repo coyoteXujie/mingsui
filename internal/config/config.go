@@ -39,6 +39,12 @@ type RelaySubscription struct {
 	URL  string `json:"url"`
 }
 
+type ProxyProfile struct {
+	Name     string `json:"name"`
+	Protocol string `json:"protocol"`
+	URL      string `json:"url"`
+}
+
 type ClientConfig struct {
 	LocalAddr          string              `json:"local_addr"`
 	HTTPAddr           string              `json:"http_addr"`
@@ -46,7 +52,9 @@ type ClientConfig struct {
 	Token              string              `json:"token"`
 	DialTimeoutSeconds int                 `json:"dial_timeout_seconds"`
 	ActiveProfile      string              `json:"active_profile,omitempty"`
+	ActiveProxyProfile string              `json:"active_proxy_profile,omitempty"`
 	Profiles           []RelayProfile      `json:"profiles,omitempty"`
+	ProxyProfiles      []ProxyProfile      `json:"proxy_profiles,omitempty"`
 	Subscriptions      []RelaySubscription `json:"subscriptions,omitempty"`
 	LocalAuth          ClientAuthConfig    `json:"local_auth"`
 	TLS                ClientTLSConfig     `json:"tls"`
@@ -165,12 +173,20 @@ func (c ClientConfig) Validate() error {
 	if err := validateRelayProfiles(c.Profiles); err != nil {
 		return err
 	}
+	if err := validateProxyProfiles(c.ProxyProfiles); err != nil {
+		return err
+	}
 	if err := validateRelaySubscriptions(c.Subscriptions); err != nil {
 		return err
 	}
 	if strings.TrimSpace(c.ActiveProfile) != "" {
 		if _, ok := findRelayProfile(c.Profiles, c.ActiveProfile); !ok {
 			return fmt.Errorf("active_profile %q not found", c.ActiveProfile)
+		}
+	}
+	if strings.TrimSpace(c.ActiveProxyProfile) != "" {
+		if _, ok := findProxyProfile(c.ProxyProfiles, c.ActiveProxyProfile); !ok {
+			return fmt.Errorf("active_proxy_profile %q not found", c.ActiveProxyProfile)
 		}
 	}
 	return nil
@@ -186,6 +202,7 @@ func (c ClientConfig) DialTimeout() time.Duration {
 // Clone 返回客户端配置副本，避免调用方通过 profile 切片修改内部状态。
 func (c ClientConfig) Clone() ClientConfig {
 	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
+	c.ProxyProfiles = append([]ProxyProfile(nil), c.ProxyProfiles...)
 	c.Subscriptions = append([]RelaySubscription(nil), c.Subscriptions...)
 	return c
 }
@@ -196,6 +213,10 @@ func (c ClientConfig) Redacted() ClientConfig {
 	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
 	for i := range c.Profiles {
 		c.Profiles[i].Token = redact(c.Profiles[i].Token)
+	}
+	c.ProxyProfiles = append([]ProxyProfile(nil), c.ProxyProfiles...)
+	for i := range c.ProxyProfiles {
+		c.ProxyProfiles[i].URL = redact(c.ProxyProfiles[i].URL)
 	}
 	c.Subscriptions = append([]RelaySubscription(nil), c.Subscriptions...)
 	for i := range c.Subscriptions {
@@ -239,6 +260,10 @@ func (c ClientConfig) RelaySubscription(name string) (RelaySubscription, bool) {
 	return findRelaySubscription(c.Subscriptions, name)
 }
 
+func (c ClientConfig) ProxyProfile(name string) (ProxyProfile, bool) {
+	return findProxyProfile(c.ProxyProfiles, name)
+}
+
 // UpsertRelayProfile 新增或更新 relay profile。
 func (c *ClientConfig) UpsertRelayProfile(profile RelayProfile, replace bool) error {
 	profile.Name = strings.TrimSpace(profile.Name)
@@ -274,6 +299,48 @@ func (c *ClientConfig) ImportRelayProfiles(profiles []RelayProfile, replace bool
 	next := c.Clone()
 	for _, profile := range profiles {
 		if err := next.UpsertRelayProfile(profile, replace); err != nil {
+			return err
+		}
+	}
+	*c = next
+	return nil
+}
+
+// UpsertProxyProfile 新增或更新真实机场节点。
+func (c *ClientConfig) UpsertProxyProfile(profile ProxyProfile, replace bool) error {
+	profile.Name = strings.TrimSpace(profile.Name)
+	profile.Protocol = strings.ToLower(strings.TrimSpace(profile.Protocol))
+	profile.URL = strings.TrimSpace(profile.URL)
+	if err := validateProxyProfile(profile); err != nil {
+		return err
+	}
+
+	next := c.Clone()
+	index := proxyProfileIndex(next.ProxyProfiles, profile.Name)
+	if index >= 0 {
+		if !replace {
+			return fmt.Errorf("proxy profile %q 已存在", profile.Name)
+		}
+		next.ProxyProfiles[index] = profile
+	} else {
+		next.ProxyProfiles = append(next.ProxyProfiles, profile)
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// ImportProxyProfiles 批量导入真实机场节点，任意一个无效时不会修改原配置。
+func (c *ClientConfig) ImportProxyProfiles(profiles []ProxyProfile, replace bool) error {
+	if len(profiles) == 0 {
+		return fmt.Errorf("没有可导入的机场节点")
+	}
+
+	next := c.Clone()
+	for _, profile := range profiles {
+		if err := next.UpsertProxyProfile(profile, replace); err != nil {
 			return err
 		}
 	}
@@ -335,6 +402,27 @@ func (c *ClientConfig) SelectRelayProfile(name string) error {
 
 	next := c.Clone()
 	next.ActiveProfile = name
+	next.ActiveProxyProfile = ""
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// SelectProxyProfile 设置当前默认使用的真实机场节点。
+func (c *ClientConfig) SelectProxyProfile(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("proxy profile 名称不能为空")
+	}
+	if _, ok := findProxyProfile(c.ProxyProfiles, name); !ok {
+		return fmt.Errorf("proxy profile %q not found", name)
+	}
+
+	next := c.Clone()
+	next.ActiveProxyProfile = name
+	next.ActiveProfile = ""
 	if err := next.Validate(); err != nil {
 		return err
 	}
@@ -354,6 +442,26 @@ func (c *ClientConfig) RemoveRelayProfile(name string) error {
 	next.Profiles = append(next.Profiles[:index], next.Profiles[index+1:]...)
 	if next.ActiveProfile == name {
 		next.ActiveProfile = ""
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// RemoveProxyProfile 删除真实机场节点，并在删除当前节点时清空选择。
+func (c *ClientConfig) RemoveProxyProfile(name string) error {
+	name = strings.TrimSpace(name)
+	index := proxyProfileIndex(c.ProxyProfiles, name)
+	if index < 0 {
+		return fmt.Errorf("proxy profile %q 不存在", name)
+	}
+
+	next := c.Clone()
+	next.ProxyProfiles = append(next.ProxyProfiles[:index], next.ProxyProfiles[index+1:]...)
+	if next.ActiveProxyProfile == name {
+		next.ActiveProxyProfile = ""
 	}
 	if err := next.Validate(); err != nil {
 		return err
@@ -459,6 +567,53 @@ func validateRelayProfile(profile RelayProfile) error {
 	return nil
 }
 
+func validateProxyProfiles(profiles []ProxyProfile) error {
+	seen := make(map[string]struct{}, len(profiles))
+	for _, profile := range profiles {
+		name := strings.TrimSpace(profile.Name)
+		if name == "" {
+			return errors.New("proxy_profiles.name is required")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate proxy profile %q", name)
+		}
+		seen[name] = struct{}{}
+		if err := validateProxyProfile(profile); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateProxyProfile(profile ProxyProfile) error {
+	name := strings.TrimSpace(profile.Name)
+	if name == "" {
+		return errors.New("proxy_profiles.name is required")
+	}
+	protocol := strings.ToLower(strings.TrimSpace(profile.Protocol))
+	if !isSupportedProxyProtocol(protocol) {
+		return fmt.Errorf("proxy_profiles.%s protocol is not supported", name)
+	}
+	rawURL := strings.TrimSpace(profile.URL)
+	if rawURL == "" {
+		return fmt.Errorf("proxy_profiles.%s url is required", name)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || strings.ToLower(parsed.Scheme) != protocol {
+		return fmt.Errorf("proxy_profiles.%s url must use %s://", name, protocol)
+	}
+	return nil
+}
+
+func isSupportedProxyProtocol(protocol string) bool {
+	switch protocol {
+	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic":
+		return true
+	default:
+		return false
+	}
+}
+
 func findRelayProfile(profiles []RelayProfile, name string) (RelayProfile, bool) {
 	name = strings.TrimSpace(name)
 	for _, profile := range profiles {
@@ -470,6 +625,26 @@ func findRelayProfile(profiles []RelayProfile, name string) (RelayProfile, bool)
 }
 
 func relayProfileIndex(profiles []RelayProfile, name string) int {
+	name = strings.TrimSpace(name)
+	for i, profile := range profiles {
+		if strings.TrimSpace(profile.Name) == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func findProxyProfile(profiles []ProxyProfile, name string) (ProxyProfile, bool) {
+	name = strings.TrimSpace(name)
+	for _, profile := range profiles {
+		if strings.TrimSpace(profile.Name) == name {
+			return profile, true
+		}
+	}
+	return ProxyProfile{}, false
+}
+
+func proxyProfileIndex(profiles []ProxyProfile, name string) int {
 	name = strings.TrimSpace(name)
 	for i, profile := range profiles {
 		if strings.TrimSpace(profile.Name) == name {

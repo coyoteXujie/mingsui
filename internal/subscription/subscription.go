@@ -33,12 +33,24 @@ func LoadRelayProfiles(ctx context.Context, source string, stdin io.Reader) ([]c
 	return Loader{}.LoadRelayProfiles(ctx, source, stdin)
 }
 
+func LoadSource(ctx context.Context, source string, stdin io.Reader) ([]byte, error) {
+	return Loader{}.LoadSource(ctx, source, stdin)
+}
+
 func (l Loader) LoadRelayProfiles(ctx context.Context, source string, stdin io.Reader) ([]config.RelayProfile, error) {
-	data, err := l.readSource(ctx, source, stdin)
+	data, err := l.LoadSource(ctx, source, stdin)
 	if err != nil {
 		return nil, err
 	}
 	return ParseRelayProfiles(data)
+}
+
+func (l Loader) LoadProxyProfiles(ctx context.Context, source string, stdin io.Reader) ([]config.ProxyProfile, error) {
+	data, err := l.LoadSource(ctx, source, stdin)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProxyProfiles(data)
 }
 
 func ParseRelayProfiles(data []byte) ([]config.RelayProfile, error) {
@@ -69,6 +81,154 @@ func ParseRelayProfiles(data []byte) ([]config.RelayProfile, error) {
 		return nil, err
 	}
 	return cfg.Profiles, nil
+}
+
+func ParseProxyProfiles(data []byte) ([]config.ProxyProfile, error) {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
+		return nil, fmt.Errorf("订阅内容为空")
+	}
+
+	candidates := [][]byte{data}
+	if decoded, ok := decodeSubscriptionBase64(data); ok {
+		candidates = append([][]byte{bytes.TrimSpace(decoded)}, candidates...)
+	}
+	for _, candidate := range candidates {
+		profiles, err := parseProxyProfileLines(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if len(profiles) > 0 {
+			return profiles, nil
+		}
+	}
+	return nil, fmt.Errorf("没有识别到支持的机场节点")
+}
+
+func parseProxyProfileLines(data []byte) ([]config.ProxyProfile, error) {
+	var profiles []config.ProxyProfile
+	nameCounts := make(map[string]int)
+	for _, raw := range strings.Fields(string(data)) {
+		profile, ok, err := parseProxyProfile(raw)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if isInformationalProxyName(profile.Name) {
+			continue
+		}
+		profile.Name = uniqueProxyProfileName(profile.Name, nameCounts)
+		profiles = append(profiles, profile)
+	}
+	return profiles, nil
+}
+
+func parseProxyProfile(raw string) (config.ProxyProfile, bool, error) {
+	raw = strings.TrimSpace(raw)
+	scheme, _, ok := strings.Cut(raw, "://")
+	if !ok {
+		return config.ProxyProfile{}, false, nil
+	}
+	protocol := strings.ToLower(strings.TrimSpace(scheme))
+	if !isStandardProxyScheme(protocol) {
+		return config.ProxyProfile{}, false, nil
+	}
+
+	name := proxyNameFromURL(raw)
+	if name == "" && protocol == "vmess" {
+		name = proxyNameFromVMess(raw)
+	}
+	if name == "" {
+		name = protocol
+	}
+	profile := config.ProxyProfile{
+		Name:     name,
+		Protocol: protocol,
+		URL:      raw,
+	}
+	cfg := config.DefaultClient()
+	if err := cfg.ImportProxyProfiles([]config.ProxyProfile{profile}, false); err != nil {
+		return config.ProxyProfile{}, false, err
+	}
+	return cfg.ProxyProfiles[0], true, nil
+}
+
+func proxyNameFromURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	name := strings.TrimSpace(parsed.Fragment)
+	if name == "" {
+		return ""
+	}
+	if decoded, err := url.QueryUnescape(name); err == nil {
+		name = decoded
+	}
+	return strings.TrimSpace(name)
+}
+
+func proxyNameFromVMess(raw string) string {
+	_, encoded, ok := strings.Cut(raw, "://")
+	if !ok {
+		return ""
+	}
+	if i := strings.IndexAny(encoded, "#?"); i >= 0 {
+		encoded = encoded[:i]
+	}
+	decoded, ok := decodeSubscriptionBase64([]byte(encoded))
+	if !ok {
+		return ""
+	}
+	var doc struct {
+		Name string `json:"ps"`
+	}
+	if err := json.Unmarshal(decoded, &doc); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(doc.Name)
+}
+
+func uniqueProxyProfileName(name string, counts map[string]int) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "proxy"
+	}
+	count := counts[name]
+	counts[name] = count + 1
+	if count == 0 {
+		return name
+	}
+	return fmt.Sprintf("%s-%d", name, count+1)
+}
+
+func isInformationalProxyName(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return false
+	}
+	markers := []string{
+		"剩余流量",
+		"套餐到期",
+		"到期",
+		"过期",
+		"官网",
+		"入口",
+		"电报",
+		"群组",
+		"traffic",
+		"expire",
+		"expired",
+		"subscription",
+	}
+	for _, marker := range markers {
+		if strings.Contains(name, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 type proxySubscriptionInspection struct {
@@ -170,7 +330,7 @@ func formatSchemeCounts(counts map[string]int) string {
 	return strings.Join(parts, "，")
 }
 
-func (l Loader) readSource(ctx context.Context, source string, stdin io.Reader) ([]byte, error) {
+func (l Loader) LoadSource(ctx context.Context, source string, stdin io.Reader) ([]byte, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return nil, fmt.Errorf("订阅来源不能为空")

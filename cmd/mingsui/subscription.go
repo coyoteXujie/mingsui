@@ -15,20 +15,20 @@ import (
 )
 
 func importClientProfiles(args []string) int {
-	return importClientProfilesCommand("config profile import", args, false, false)
+	return importClientProfilesCommand("config profile import", args, false, false, false)
 }
 
 func importClientProfilesProduct(args []string) int {
-	return importClientProfilesCommand("import", args, true, true)
+	return importClientProfilesCommand("import", args, true, true, true)
 }
 
-func importClientProfilesCommand(name string, args []string, forceDefault, selectFirstDefault bool) int {
+func importClientProfilesCommand(name string, args []string, forceDefault, selectFirstDefault, allowProxy bool) int {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	source := fs.String("source", "", "订阅来源：本地 JSON 文件、HTTP(S) URL 或 - 表示 stdin")
-	force := fs.Bool("force", forceDefault, "覆盖同名 profile")
-	selectName := fs.String("select", "", "导入后选择指定 profile")
-	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个 profile")
+	force := fs.Bool("force", forceDefault, "覆盖同名节点")
+	selectName := fs.String("select", "", "导入后选择指定节点")
+	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个节点")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -42,7 +42,16 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	profiles, err := loadProfilesFromSource(*source, os.Stdin)
+	data, err := loadSourceData(*source, os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
+		return 1
+	}
+
+	profiles, err := subscription.ParseRelayProfiles(data)
+	if err != nil && allowProxy {
+		return importProxyProfiles(cfg, *cfgPath, data, *force, strings.TrimSpace(*selectName), *selectFirst, err)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
 		return 1
@@ -66,6 +75,33 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个 profile\n", len(profiles))
+	return 0
+}
+
+func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, force bool, selectedName string, selectFirst bool, relayErr error) int {
+	profiles, err := subscription.ParseProxyProfiles(data)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", relayErr)
+		return 1
+	}
+	if err := cfg.ImportProxyProfiles(profiles, force); err != nil {
+		fmt.Fprintf(os.Stderr, "导入机场节点失败: %v\n", err)
+		return 1
+	}
+	if selectedName == "" && selectFirst && len(profiles) > 0 {
+		selectedName = profiles[0].Name
+	}
+	if selectedName != "" {
+		if err := cfg.SelectProxyProfile(selectedName); err != nil {
+			fmt.Fprintf(os.Stderr, "选择机场节点失败: %v\n", err)
+			return 1
+		}
+	}
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
 	return 0
 }
 
@@ -316,6 +352,12 @@ func loadProfilesFromSource(source string, stdin io.Reader) ([]config.RelayProfi
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	return subscription.LoadRelayProfiles(ctx, source, stdin)
+}
+
+func loadSourceData(source string, stdin io.Reader) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return subscription.LoadSource(ctx, source, stdin)
 }
 
 func printConfigSubscriptionUsage() {

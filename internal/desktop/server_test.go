@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -68,6 +69,42 @@ func TestHTTPHandlerImportProfiles(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerImportAndSelectProxyProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	payload, err := json.Marshal(importProfilesRequest{
+		Content: base64.StdEncoding.EncodeToString([]byte(raw)),
+		Replace: false,
+	})
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/profiles/import", bytes.NewReader(payload))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if app.Config().ActiveProxyProfile != "tokyo" {
+		t.Fatalf("ActiveProxyProfile = %q, want tokyo", app.Config().ActiveProxyProfile)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/proxy/select", bytes.NewReader([]byte(`{"name":"tokyo"}`)))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("select status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHTTPHandlerSaveAndDeleteProfile(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {
@@ -122,6 +159,9 @@ func TestHTTPHandlerSaveConfigPreservesRedactedSecrets(t *testing.T) {
 	cfg.Subscriptions = []config.RelaySubscription{
 		{Name: "team", URL: "https://token@example.com/nodes.json"},
 	}
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "hk", Protocol: "ss", URL: "ss://secret@example.com:8388#hk"},
+	}
 	if err := app.SaveConfig(cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -144,7 +184,7 @@ func TestHTTPHandlerSaveConfigPreservesRedactedSecrets(t *testing.T) {
 	}
 
 	got := app.Config()
-	if got.Token != "secret" || got.Profiles[0].Token != "profile-secret" || got.Subscriptions[0].URL != "https://token@example.com/nodes.json" {
+	if got.Token != "secret" || got.Profiles[0].Token != "profile-secret" || got.Subscriptions[0].URL != "https://token@example.com/nodes.json" || got.ProxyProfiles[0].URL != "ss://secret@example.com:8388#hk" {
 		t.Fatalf("Config() secrets = %+v, want preserved", got)
 	}
 	if got.LocalAddr != "127.0.0.1:19080" {
