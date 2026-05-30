@@ -77,6 +77,14 @@ make dist APP_VERSION=v0.1.0
 
 跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。详细流程见 [docs/release.md](docs/release.md)。
 
+开发时可以直接跑完整测试：
+
+```bash
+go test ./...
+```
+
+其中 `internal/e2e` 会启动本机 relay、客户端和目标服务，验证 SOCKS5 与 HTTP 代理完整链路。如果当前环境禁止监听本机端口，这组集成测试会自动跳过。
+
 ## 配置
 
 示例配置在 `configs/`：
