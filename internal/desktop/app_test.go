@@ -116,6 +116,17 @@ func TestAppManageRelayProfiles(t *testing.T) {
 	}
 }
 
+func TestAppCheckRelayProfileRejectsMissingProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+
+	if _, err := app.CheckRelayProfileStatus(context.Background(), "missing"); err == nil {
+		t.Fatal("CheckRelayProfileStatus() error = nil, want missing profile error")
+	}
+}
+
 func TestAppStopIsNoopWhenNotRunning(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

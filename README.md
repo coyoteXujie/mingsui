@@ -108,6 +108,7 @@ mingsui-relay config show -path ./relay.json
 ```bash
 mingsui config profile add tokyo -path ./client.json -relay tokyo.example.com:9443 -token "$TOKEN"
 mingsui config profile add tls-node -path ./client.json -relay relay.example.com:9443 -token "$TOKEN" -tls -server-name relay.example.com
+mingsui config profile check tokyo -path ./client.json
 mingsui config profile select tokyo -path ./client.json
 mingsui config profile list -path ./client.json
 mingsui config profile rename tokyo jp-tokyo -path ./client.json

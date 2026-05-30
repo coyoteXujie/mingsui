@@ -382,6 +382,8 @@ func runConfigProfile(args []string) int {
 		return removeClientProfile(args[1:])
 	case "rename":
 		return renameClientProfile(args[1:])
+	case "check":
+		return checkClientProfile(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知 profile 命令 %q\n\n", args[0])
 		printConfigProfileUsage()
@@ -553,6 +555,73 @@ func renameClientProfile(args []string) int {
 	return 0
 }
 
+func checkClientProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "profile 名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config profile check", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出诊断结果")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	report := diagnostic.NewReport(*cfgPath)
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		report.Fail(fmt.Sprintf("加载配置失败: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	cfg, err = cfg.ResolveProfile(name)
+	if err != nil {
+		report.Fail(fmt.Sprintf("选择 profile 失败: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
+		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
+		return 1
+	}
+
+	logger := log.New(io.Discard, "", 0)
+	service, err := client.NewService(cfg, logger)
+	if err != nil {
+		report.Fail(fmt.Sprintf("创建客户端失败: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
+		fmt.Fprintf(os.Stderr, "创建客户端失败: %v\n", err)
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.DialTimeout()+2*time.Second)
+	defer cancel()
+	health, err := service.CheckRelayStatus(ctx)
+	check := diagnostic.Check{
+		Name:   "profile_health",
+		Label:  fmt.Sprintf("relay profile %s 健康检查", name),
+		Target: cfg.RelayAddr,
+		OK:     err == nil,
+	}
+	if err != nil {
+		check.Error = err.Error()
+	} else {
+		check.Metrics = health.Metrics
+	}
+	report.AddCheck(check)
+
+	if *jsonOutput {
+		return writeDiagnosticReport(report)
+	}
+	printRelayHealthResult(check)
+	return report.ExitCode()
+}
+
 func initClientConfig(args []string) int {
 	fs := flag.NewFlagSet("config init", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
@@ -627,7 +696,7 @@ func printUsage() {
   mingsui doctor [flags]
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select|remove|rename [flags]
+  mingsui config profile add|list|select|remove|rename|check [flags]
   mingsui config show [flags]
   mingsui token [flags]
   mingsui version
@@ -636,6 +705,7 @@ func printUsage() {
   TOKEN=$(mingsui token)
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+  mingsui config profile check tokyo
   mingsui config profile rename tokyo jp-tokyo
   mingsui run -profile tokyo -config %s
   mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
@@ -653,7 +723,7 @@ func printConfigUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config init [flags]
   mingsui config path
-  mingsui config profile add|list|select|remove|rename [flags]
+  mingsui config profile add|list|select|remove|rename|check [flags]
   mingsui config show [flags]`)
 }
 
@@ -663,7 +733,8 @@ func printConfigProfileUsage() {
   mingsui config profile add <name> -relay <addr> -token <token> [flags]
   mingsui config profile select <name> [flags]
   mingsui config profile remove <name> [flags]
-  mingsui config profile rename <old-name> <new-name> [flags]`)
+  mingsui config profile rename <old-name> <new-name> [flags]
+  mingsui config profile check <name> [flags]`)
 }
 
 func writeJSON(w io.Writer, value any) error {

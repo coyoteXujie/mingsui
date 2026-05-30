@@ -137,12 +137,34 @@ func (a *App) CheckRelay(ctx context.Context) error {
 	return err
 }
 
+func (a *App) CheckRelayProfile(ctx context.Context, name string) error {
+	_, err := a.CheckRelayProfileStatus(ctx, name)
+	return err
+}
+
 func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) {
 	a.mu.Lock()
 	cfg := a.cfg
 	logger := a.logger
 	a.mu.Unlock()
 
+	service, err := client.NewService(cfg, logger)
+	if err != nil {
+		return client.RelayHealth{}, err
+	}
+	return service.CheckRelayStatus(ctx)
+}
+
+func (a *App) CheckRelayProfileStatus(ctx context.Context, name string) (client.RelayHealth, error) {
+	a.mu.Lock()
+	cfg := a.cfg
+	logger := a.logger
+	a.mu.Unlock()
+
+	cfg, err := cfg.ResolveProfile(name)
+	if err != nil {
+		return client.RelayHealth{}, err
+	}
 	service, err := client.NewService(cfg, logger)
 	if err != nil {
 		return client.RelayHealth{}, err

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -43,5 +44,23 @@ func TestListenAddrIsLoopback(t *testing.T) {
 				t.Fatalf("listenAddrIsLoopback() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCheckClientProfileRequiresName(t *testing.T) {
+	if code := run([]string{"config", "profile", "check"}); code != 2 {
+		t.Fatalf("run(config profile check) = %d, want 2", code)
+	}
+}
+
+func TestCheckClientProfileRejectsMissingProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+	if err := config.WriteClient(path, config.DefaultClient(), true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code := run([]string{"config", "profile", "check", "missing", "-path", path})
+	if code != 1 {
+		t.Fatalf("run(config profile check missing) = %d, want 1", code)
 	}
 }
