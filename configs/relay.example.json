@@ -2,6 +2,7 @@
   "listen_addr": "0.0.0.0:9443",
   "token": "paste-generated-token-here",
   "dial_timeout_seconds": 10,
+  "max_connections": 0,
   "allow_private_networks": false,
   "tls": {
     "enabled": false,

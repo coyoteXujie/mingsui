@@ -114,6 +114,17 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 
+	if !s.reserveConnection() {
+		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{
+			Version: protocol.Version,
+			OK:      false,
+			Error:   "relay active connection limit reached",
+		})
+		s.logger.Printf("connection limit reached from %s target=%s", conn.RemoteAddr(), req.Address)
+		return
+	}
+	defer s.releaseConnection()
+
 	target, err := net.DialTimeout(req.Network, req.Address, s.cfg.DialTimeout())
 	if err != nil {
 		_ = protocol.WriteJSON(conn, protocol.ConnectResponse{
@@ -125,6 +136,7 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 	defer target.Close()
+	s.commitConnection()
 
 	if err := protocol.WriteJSON(conn, protocol.ConnectResponse{Version: protocol.Version, OK: true}); err != nil {
 		s.logger.Printf("response failed target=%s: %v", req.Address, err)
@@ -134,6 +146,25 @@ func (s *Server) handle(conn net.Conn) {
 
 	s.logger.Printf("relay connected target=%s", req.Address)
 	s.proxy(conn, target)
+}
+
+func (s *Server) reserveConnection() bool {
+	if s.metrics == nil {
+		return true
+	}
+	return s.metrics.ReserveConnection(s.cfg.MaxConnections)
+}
+
+func (s *Server) commitConnection() {
+	if s.metrics != nil {
+		s.metrics.CommitConnection()
+	}
+}
+
+func (s *Server) releaseConnection() {
+	if s.metrics != nil {
+		s.metrics.CloseConnection()
+	}
 }
 
 func (s *Server) validateRequest(req protocol.ConnectRequest) error {

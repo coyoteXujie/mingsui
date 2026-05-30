@@ -46,6 +46,7 @@ type RelayConfig struct {
 	ListenAddr           string         `json:"listen_addr"`
 	Token                string         `json:"token"`
 	DialTimeoutSeconds   int            `json:"dial_timeout_seconds"`
+	MaxConnections       int            `json:"max_connections"`
 	AllowPrivateNetworks bool           `json:"allow_private_networks"`
 	TLS                  RelayTLSConfig `json:"tls"`
 }
@@ -189,6 +190,9 @@ func (c RelayConfig) Validate() error {
 	}
 	if c.DialTimeoutSeconds < 0 {
 		return errors.New("dial_timeout_seconds cannot be negative")
+	}
+	if c.MaxConnections < 0 {
+		return errors.New("max_connections cannot be negative")
 	}
 	if c.TLS.Enabled {
 		if strings.TrimSpace(c.TLS.CertFile) == "" {

@@ -159,6 +159,7 @@ func runCheck(args []string) int {
 	listenAddr := fs.String("listen", "", "relay 监听地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
 	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
+	maxConnections := fs.Int("max-connections", -1, "最大活跃转发连接数，0 表示不限制")
 	skipListen := fs.Bool("skip-listen", false, "跳过监听端口可用性检查")
 	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出诊断结果")
 	if err := fs.Parse(args); err != nil {
@@ -175,7 +176,7 @@ func runCheck(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	applyRelayOverrides(&cfg, *listenAddr, *token, *allowPrivate)
+	applyRelayOverrides(&cfg, *listenAddr, *token, *allowPrivate, *maxConnections)
 	if err := cfg.Validate(); err != nil {
 		report.Fail(fmt.Sprintf("配置不正确: %v", err))
 		if *jsonOutput {
@@ -324,6 +325,7 @@ func runRelay(args []string) int {
 	listenAddr := fs.String("listen", "", "relay 监听地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
 	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
+	maxConnections := fs.Int("max-connections", -1, "最大活跃转发连接数，0 表示不限制")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -333,7 +335,7 @@ func runRelay(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	applyRelayOverrides(&cfg, *listenAddr, *token, *allowPrivate)
+	applyRelayOverrides(&cfg, *listenAddr, *token, *allowPrivate, *maxConnections)
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "配置不正确: %v\n", err)
 		return 1
@@ -359,7 +361,7 @@ func runRelay(args []string) int {
 	return 0
 }
 
-func applyRelayOverrides(cfg *config.RelayConfig, listenAddr, token string, allowPrivate bool) {
+func applyRelayOverrides(cfg *config.RelayConfig, listenAddr, token string, allowPrivate bool, maxConnections int) {
 	if listenAddr != "" {
 		cfg.ListenAddr = listenAddr
 	}
@@ -368,6 +370,9 @@ func applyRelayOverrides(cfg *config.RelayConfig, listenAddr, token string, allo
 	}
 	if allowPrivate {
 		cfg.AllowPrivateNetworks = true
+	}
+	if maxConnections >= 0 {
+		cfg.MaxConnections = maxConnections
 	}
 }
 
@@ -436,6 +441,7 @@ func initRelayConfig(args []string) int {
 	token := fs.String("token", "auto", "客户端和 relay 共享的 token，默认 auto 自动生成")
 	tokenBytes := fs.Int("token-bytes", security.DefaultTokenBytes, "自动生成 token 时使用的随机字节长度")
 	allowPrivate := fs.Bool("allow-private", false, "允许 relay 访问私有和本地目标网络")
+	maxConnections := fs.Int("max-connections", 0, "最大活跃转发连接数，0 表示不限制")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -456,6 +462,7 @@ func initRelayConfig(args []string) int {
 	cfg.ListenAddr = *listenAddr
 	cfg.Token = finalToken
 	cfg.AllowPrivateNetworks = *allowPrivate
+	cfg.MaxConnections = *maxConnections
 
 	if err := config.WriteRelay(*cfgPath, cfg, *force); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
@@ -520,7 +527,7 @@ func printUsage() {
 示例:
   TOKEN=$(mingsui-relay token)
   mingsui-relay cert -host example.com,127.0.0.1 -cert relay.crt -key relay.key
-  mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
+  mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN" -max-connections 256
   mingsui-relay config show -path %s
   mingsui-relay systemd -output mingsui-relay.service
   mingsui-relay check -config %s

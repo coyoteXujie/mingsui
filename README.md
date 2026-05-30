@@ -27,7 +27,7 @@ go build -o bin/mingsui-relay ./cmd/mingsui-relay
 
 ```bash
 TOKEN=$(./bin/mingsui-relay token)
-./bin/mingsui-relay config init -path ./relay.json -token "$TOKEN" -allow-private
+./bin/mingsui-relay config init -path ./relay.json -token "$TOKEN" -allow-private -max-connections 256
 ./bin/mingsui-relay check -config ./relay.json
 ./bin/mingsui-relay serve -config ./relay.json
 ```
@@ -189,6 +189,7 @@ sudo systemctl status mingsui-relay
 - 为 relay 启用 TLS。
 - 使用高熵 token，并定期轮换。
 - 如果客户端本地代理监听在非 loopback 地址，启用 `local_auth`。
+- 根据服务器规格设置 `max_connections`，避免 relay 被耗尽资源。
 - 将 relay 放在受控服务器上，不要使用默认 token。
 - 保持 `allow_private_networks=false`，避免 relay 被用来访问内网地址。
 - 增加用户体系、设备授权、限速、审计和滥用检测。

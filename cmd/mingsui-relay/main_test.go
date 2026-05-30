@@ -64,6 +64,19 @@ func TestFormatRemaining(t *testing.T) {
 	}
 }
 
+func TestApplyRelayOverridesMaxConnections(t *testing.T) {
+	cfg := config.DefaultRelay()
+	applyRelayOverrides(&cfg, "", "", false, -1)
+	if cfg.MaxConnections != 0 {
+		t.Fatalf("MaxConnections = %d, want unchanged 0", cfg.MaxConnections)
+	}
+
+	applyRelayOverrides(&cfg, "", "", false, 32)
+	if cfg.MaxConnections != 32 {
+		t.Fatalf("MaxConnections = %d, want 32", cfg.MaxConnections)
+	}
+}
+
 func writeTestCertificate(t *testing.T) (string, string) {
 	t.Helper()
 

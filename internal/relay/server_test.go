@@ -3,6 +3,7 @@ package relay
 import (
 	"log"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -98,5 +99,55 @@ func TestHandleHealthReturnsMetrics(t *testing.T) {
 	}
 	if resp.Metrics.UploadBytes != 10 || resp.Metrics.DownloadBytes != 20 {
 		t.Fatalf("traffic metrics = %+v, want upload=10 download=20", *resp.Metrics)
+	}
+}
+
+func TestHandleRejectsWhenMaxConnectionsReached(t *testing.T) {
+	cfg := config.DefaultRelay()
+	cfg.AllowPrivateNetworks = true
+	cfg.MaxConnections = 1
+	server, err := NewServer(cfg, log.Default())
+	if err != nil {
+		t.Fatalf("NewServer() error = %v", err)
+	}
+	if !server.metrics.ReserveConnection(cfg.MaxConnections) {
+		t.Fatal("ReserveConnection() = false, want true")
+	}
+	defer server.metrics.CloseConnection()
+
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.handle(serverConn)
+	}()
+
+	req := protocol.ConnectRequest{
+		Version: protocol.Version,
+		Command: protocol.CommandConnect,
+		Token:   "change-me",
+		Network: "tcp",
+		Address: "127.0.0.1:1",
+	}
+	if err := protocol.WriteJSON(clientConn, req); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	var resp protocol.ConnectResponse
+	if err := protocol.ReadJSON(clientConn, &resp); err != nil {
+		t.Fatalf("ReadJSON() error = %v", err)
+	}
+	<-done
+
+	if resp.OK {
+		t.Fatal("OK = true, want connection limit rejection")
+	}
+	if !strings.Contains(resp.Error, "connection limit") {
+		t.Fatalf("Error = %q, want connection limit", resp.Error)
+	}
+	got := server.Metrics()
+	if got.ActiveConnections != 1 || got.TotalConnections != 0 {
+		t.Fatalf("Metrics = %+v, want active=1 total=0", got)
 	}
 }

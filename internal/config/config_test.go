@@ -111,3 +111,17 @@ func TestRelayConfigRedacted(t *testing.T) {
 		t.Fatalf("Redacted() mutated original config: %+v", cfg)
 	}
 }
+
+func TestRelayConfigValidatesMaxConnections(t *testing.T) {
+	cfg := DefaultRelay()
+	cfg.MaxConnections = -1
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want negative max_connections error")
+	}
+
+	cfg.MaxConnections = 10
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}

@@ -42,9 +42,6 @@ func (s *Server) proxy(clientConn, targetConn net.Conn) {
 		return
 	}
 
-	s.metrics.OpenConnection()
-	defer s.metrics.CloseConnection()
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 

@@ -25,3 +25,31 @@ func TestMetricsRecorderSnapshot(t *testing.T) {
 		t.Fatalf("DownloadBytes = %d, want 34", got.DownloadBytes)
 	}
 }
+
+func TestMetricsRecorderReserveConnectionWithLimit(t *testing.T) {
+	var recorder metricsRecorder
+	if !recorder.ReserveConnection(1) {
+		t.Fatal("ReserveConnection(1) = false, want true")
+	}
+	if recorder.ReserveConnection(1) {
+		t.Fatal("ReserveConnection(1) second call = true, want false")
+	}
+
+	got := recorder.Snapshot()
+	if got.ActiveConnections != 1 {
+		t.Fatalf("ActiveConnections = %d, want 1", got.ActiveConnections)
+	}
+	if got.TotalConnections != 0 {
+		t.Fatalf("TotalConnections = %d, want 0 before commit", got.TotalConnections)
+	}
+
+	recorder.CommitConnection()
+	recorder.CloseConnection()
+	got = recorder.Snapshot()
+	if got.ActiveConnections != 0 {
+		t.Fatalf("ActiveConnections = %d, want 0", got.ActiveConnections)
+	}
+	if got.TotalConnections != 1 {
+		t.Fatalf("TotalConnections = %d, want 1", got.TotalConnections)
+	}
+}

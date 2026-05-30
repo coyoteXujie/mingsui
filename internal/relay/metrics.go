@@ -14,7 +14,29 @@ type metricsRecorder struct {
 }
 
 func (m *metricsRecorder) OpenConnection() {
-	atomic.AddInt64(&m.activeConnections, 1)
+	_ = m.ReserveConnection(0)
+	m.CommitConnection()
+}
+
+func (m *metricsRecorder) ReserveConnection(maxConnections int) bool {
+	if maxConnections <= 0 {
+		atomic.AddInt64(&m.activeConnections, 1)
+		return true
+	}
+
+	limit := int64(maxConnections)
+	for {
+		active := atomic.LoadInt64(&m.activeConnections)
+		if active >= limit {
+			return false
+		}
+		if atomic.CompareAndSwapInt64(&m.activeConnections, active, active+1) {
+			return true
+		}
+	}
+}
+
+func (m *metricsRecorder) CommitConnection() {
 	atomic.AddUint64(&m.totalConnections, 1)
 }
 
