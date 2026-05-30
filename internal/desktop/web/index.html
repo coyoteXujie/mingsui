@@ -25,6 +25,65 @@
         <button id="checkBtn" type="button">检测</button>
       </section>
 
+      <section class="panel">
+        <div class="panel-title">
+          <h2>客户端配置</h2>
+        </div>
+        <div class="config-grid">
+          <label class="field">
+            <span>SOCKS5 监听</span>
+            <input id="configLocal" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>HTTP 监听</span>
+            <input id="configHTTP" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>默认 relay</span>
+            <input id="configRelay" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Token</span>
+            <input id="configToken" type="password" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>超时秒数</span>
+            <input id="configTimeout" type="number" min="0" step="1" />
+          </label>
+          <label class="field">
+            <span>TLS ServerName</span>
+            <input id="configTLSServerName" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>TLS CA 文件</span>
+            <input id="configTLSCAFile" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>认证用户名</span>
+            <input id="configAuthUser" type="text" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>认证密码</span>
+            <input id="configAuthPass" type="password" autocomplete="off" />
+          </label>
+        </div>
+        <div class="toggle-row">
+          <label class="checkline">
+            <input id="configAuthEnabled" type="checkbox" />
+            <span>启用本地代理认证</span>
+          </label>
+          <label class="checkline">
+            <input id="configTLSEnabled" type="checkbox" />
+            <span>启用 relay TLS</span>
+          </label>
+          <label class="checkline">
+            <input id="configTLSInsecure" type="checkbox" />
+            <span>跳过证书校验</span>
+          </label>
+        </div>
+        <button id="configSaveBtn" type="button">保存配置</button>
+      </section>
+
       <section class="grid">
         <section class="panel">
           <div class="panel-title">
@@ -54,6 +113,45 @@
       <section class="panel">
         <div class="panel-title">
           <h2>Relay Profile</h2>
+        </div>
+        <div class="profile-form">
+          <div class="config-grid">
+            <label class="field">
+              <span>名称</span>
+              <input id="profileName" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Relay 地址</span>
+              <input id="profileRelay" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Token</span>
+              <input id="profileToken" type="password" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>TLS ServerName</span>
+              <input id="profileTLSServerName" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>TLS CA 文件</span>
+              <input id="profileTLSCAFile" type="text" autocomplete="off" />
+            </label>
+          </div>
+          <div class="toggle-row">
+            <label class="checkline">
+              <input id="profileTLSEnabled" type="checkbox" />
+              <span>启用 TLS</span>
+            </label>
+            <label class="checkline">
+              <input id="profileTLSInsecure" type="checkbox" />
+              <span>跳过证书校验</span>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="profileSaveBtn" type="button">保存 profile</button>
+            <button id="profileDeleteBtn" class="danger" type="button">删除</button>
+            <button id="profileClearBtn" class="secondary" type="button">清空</button>
+          </div>
         </div>
         <div id="profiles" class="list"></div>
       </section>

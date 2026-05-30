@@ -29,6 +29,8 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 	mux.HandleFunc("/api/start", method(http.MethodPost, handleStart(app)))
 	mux.HandleFunc("/api/stop", method(http.MethodPost, handleStop(app)))
 	mux.HandleFunc("/api/check", method(http.MethodPost, handleCheck(app)))
+	mux.HandleFunc("/api/profile", method(http.MethodPost, handleSaveProfile(app)))
+	mux.HandleFunc("/api/profile/delete", method(http.MethodPost, handleDeleteProfile(app)))
 	mux.HandleFunc("/api/profile/select", method(http.MethodPost, handleSelectProfile(app)))
 	mux.HandleFunc("/api/profile/check", method(http.MethodPost, handleCheckProfile(app)))
 	mux.HandleFunc("/api/profiles/import", method(http.MethodPost, handleImportProfiles(app)))
@@ -53,6 +55,14 @@ type messageResponse struct {
 
 type profileNameRequest struct {
 	Name string `json:"name"`
+}
+
+type profileRequest struct {
+	Name      string                 `json:"name"`
+	RelayAddr string                 `json:"relay_addr"`
+	Token     string                 `json:"token"`
+	TLS       config.ClientTLSConfig `json:"tls"`
+	Replace   bool                   `json:"replace"`
 }
 
 type importProfilesRequest struct {
@@ -126,6 +136,43 @@ func handleCheck(app *App) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "relay 可连接", Health: &health})
+	}
+}
+
+func handleSaveProfile(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req profileRequest
+		if err := readJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		profile := config.RelayProfile{
+			Name:      req.Name,
+			RelayAddr: req.RelayAddr,
+			Token:     req.Token,
+			TLS:       req.TLS,
+		}
+		preserveRedactedProfileSecret(app.Config(), &profile)
+		if err := app.UpsertRelayProfile(profile, req.Replace); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "profile 已保存"})
+	}
+}
+
+func handleDeleteProfile(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req profileNameRequest
+		if err := readJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := app.RemoveRelayProfile(req.Name); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "profile 已删除"})
 	}
 }
 
@@ -260,6 +307,18 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func preserveRedactedProfileSecret(current config.ClientConfig, next *config.RelayProfile) {
+	if next.Token != config.RedactedValue {
+		return
+	}
+	for _, profile := range current.Profiles {
+		if profile.Name == next.Name {
+			next.Token = profile.Token
+			return
+		}
+	}
 }
 
 func preserveRedactedSecrets(current config.ClientConfig, next *config.ClientConfig) {

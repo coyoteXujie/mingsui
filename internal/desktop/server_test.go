@@ -68,6 +68,47 @@ func TestHTTPHandlerImportProfiles(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerSaveAndDeleteProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "profile-secret"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	saveBody := []byte(`{"name":"tokyo","relay_addr":"tokyo2.example.com:9443","token":"******","replace":true,"tls":{"enabled":false}}`)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/profile", bytes.NewReader(saveBody))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("save status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := app.Config().Profiles[0]
+	if got.RelayAddr != "tokyo2.example.com:9443" || got.Token != "profile-secret" {
+		t.Fatalf("profile = %+v, want updated relay and preserved token", got)
+	}
+
+	deleteBody := []byte(`{"name":"tokyo"}`)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/api/profile/delete", bytes.NewReader(deleteBody))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(app.Config().Profiles) != 0 {
+		t.Fatalf("Profiles = %+v, want empty", app.Config().Profiles)
+	}
+}
+
 func TestHTTPHandlerSaveConfigPreservesRedactedSecrets(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

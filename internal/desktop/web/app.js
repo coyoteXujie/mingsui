@@ -53,6 +53,7 @@ function render() {
   const status = state.status || {};
   const metrics = status.metrics || {};
 
+  renderConfigForm(cfg);
   $("configPath").textContent = text(state.configPath, "配置未加载");
   $("relayAddr").textContent = text(cfg.relay_addr);
   $("localAddr").textContent = text(cfg.local_addr);
@@ -70,6 +71,23 @@ function render() {
 
   renderProfiles(cfg.profiles || [], cfg.active_profile || "");
   renderSubscriptions(cfg.subscriptions || []);
+}
+
+function renderConfigForm(cfg) {
+  const auth = cfg.local_auth || {};
+  const tls = cfg.tls || {};
+  $("configLocal").value = cfg.local_addr || "";
+  $("configHTTP").value = cfg.http_addr || "";
+  $("configRelay").value = cfg.relay_addr || "";
+  $("configToken").value = cfg.token || "";
+  $("configTimeout").value = cfg.dial_timeout_seconds || 10;
+  $("configAuthEnabled").checked = Boolean(auth.enabled);
+  $("configAuthUser").value = auth.username || "";
+  $("configAuthPass").value = auth.password || "";
+  $("configTLSEnabled").checked = Boolean(tls.enabled);
+  $("configTLSServerName").value = tls.server_name || "";
+  $("configTLSCAFile").value = tls.ca_file || "";
+  $("configTLSInsecure").checked = Boolean(tls.insecure_skip_verify);
 }
 
 function renderProfiles(profiles, active) {
@@ -91,6 +109,9 @@ function renderProfiles(profiles, active) {
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
+    const edit = button("编辑", "secondary", async () => {
+      fillProfileForm(profile);
+    });
     const select = button("选择", "secondary", async () => {
       await api("/api/profile/select", { method: "POST", body: { name: profile.name } });
       setMessage(`已选择 ${profile.name}`, "ok");
@@ -100,10 +121,25 @@ function renderProfiles(profiles, active) {
       const result = await api("/api/profile/check", { method: "POST", body: { name: profile.name } });
       setMessage(result.message || `${profile.name} 可连接`, "ok");
     });
-    actions.append(select, check);
+    actions.append(edit, select, check);
     item.append(info, actions);
     root.append(item);
   });
+}
+
+function fillProfileForm(profile) {
+  const tls = profile.tls || {};
+  $("profileName").value = profile.name || "";
+  $("profileRelay").value = profile.relay_addr || "";
+  $("profileToken").value = profile.token || "";
+  $("profileTLSEnabled").checked = Boolean(tls.enabled);
+  $("profileTLSServerName").value = tls.server_name || "";
+  $("profileTLSCAFile").value = tls.ca_file || "";
+  $("profileTLSInsecure").checked = Boolean(tls.insecure_skip_verify);
+}
+
+function clearProfileForm() {
+  fillProfileForm({ tls: {} });
 }
 
 function renderSubscriptions(subscriptions) {
@@ -166,6 +202,44 @@ function escapeHTML(value) {
 }
 
 function bind() {
+  $("configSaveBtn").addEventListener("click", () => runAction(async () => {
+    const cfg = buildConfigFromForm();
+    const result = await api("/api/config", { method: "POST", body: cfg });
+    setMessage(result.message, "ok");
+    await refresh();
+  }));
+  $("profileSaveBtn").addEventListener("click", () => runAction(async () => {
+    const result = await api("/api/profile", {
+      method: "POST",
+      body: {
+        name: $("profileName").value,
+        relay_addr: $("profileRelay").value,
+        token: $("profileToken").value,
+        replace: true,
+        tls: {
+          enabled: $("profileTLSEnabled").checked,
+          server_name: $("profileTLSServerName").value,
+          ca_file: $("profileTLSCAFile").value,
+          insecure_skip_verify: $("profileTLSInsecure").checked,
+        },
+      },
+    });
+    setMessage(result.message, "ok");
+    await refresh();
+  }));
+  $("profileDeleteBtn").addEventListener("click", () => runAction(async () => {
+    const result = await api("/api/profile/delete", {
+      method: "POST",
+      body: { name: $("profileName").value },
+    });
+    clearProfileForm();
+    setMessage(result.message, "ok");
+    await refresh();
+  }));
+  $("profileClearBtn").addEventListener("click", () => {
+    clearProfileForm();
+    setMessage("");
+  });
   $("startBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/start", { method: "POST", body: {} });
     setMessage(result.message, "ok");
@@ -223,6 +297,29 @@ function bind() {
     setMessage(result.message, "ok");
     await refresh();
   }));
+}
+
+function buildConfigFromForm() {
+  const cfg = JSON.parse(JSON.stringify(state.config || {}));
+  cfg.local_addr = $("configLocal").value;
+  cfg.http_addr = $("configHTTP").value;
+  cfg.relay_addr = $("configRelay").value;
+  cfg.token = $("configToken").value;
+  cfg.dial_timeout_seconds = Number.parseInt($("configTimeout").value || "0", 10);
+  cfg.local_auth = {
+    enabled: $("configAuthEnabled").checked,
+    username: $("configAuthUser").value,
+    password: $("configAuthPass").value,
+  };
+  cfg.tls = {
+    enabled: $("configTLSEnabled").checked,
+    server_name: $("configTLSServerName").value,
+    ca_file: $("configTLSCAFile").value,
+    insecure_skip_verify: $("configTLSInsecure").checked,
+  };
+  cfg.profiles = cfg.profiles || [];
+  cfg.subscriptions = cfg.subscriptions || [];
+  return cfg;
 }
 
 bind();

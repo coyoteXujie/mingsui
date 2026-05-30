@@ -137,11 +137,34 @@ button.danger {
   margin-bottom: 16px;
 }
 
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 2px 0 12px;
+}
+
+.profile-form {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   padding: 16px;
+}
+
+.shell > .panel {
+  margin-bottom: 16px;
 }
 
 .panel-title {
@@ -302,6 +325,7 @@ textarea {
   }
 
   .grid,
+  .config-grid,
   .split {
     grid-template-columns: 1fr;
   }
