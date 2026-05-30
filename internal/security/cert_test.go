@@ -46,6 +46,45 @@ func TestGenerateSelfSignedCertificateRequiresHost(t *testing.T) {
 	}
 }
 
+func TestLoadCertificateInfo(t *testing.T) {
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "relay.crt")
+	certPEM, _, err := GenerateSelfSignedCertificate(CertificateOptions{
+		Hosts:    []string{"example.com", "127.0.0.1"},
+		ValidFor: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("GenerateSelfSignedCertificate() error = %v", err)
+	}
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	info, err := LoadCertificateInfo(certPath)
+	if err != nil {
+		t.Fatalf("LoadCertificateInfo() error = %v", err)
+	}
+	if len(info.DNSNames) != 1 || info.DNSNames[0] != "example.com" {
+		t.Fatalf("DNSNames = %v, want example.com", info.DNSNames)
+	}
+	if len(info.IPAddresses) != 1 || info.IPAddresses[0].String() != "127.0.0.1" {
+		t.Fatalf("IPAddresses = %v, want 127.0.0.1", info.IPAddresses)
+	}
+	if !info.NotAfter.After(info.NotBefore) {
+		t.Fatalf("NotAfter = %v, NotBefore = %v, want valid range", info.NotAfter, info.NotBefore)
+	}
+}
+
+func TestLoadCertificateInfoRejectsInvalidPEM(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "relay.crt")
+	if err := os.WriteFile(path, []byte("not a cert"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := LoadCertificateInfo(path); err == nil {
+		t.Fatal("LoadCertificateInfo() error = nil, want invalid certificate error")
+	}
+}
+
 func TestWriteCertificateFilesDoesNotOverwriteByDefault(t *testing.T) {
 	dir := t.TempDir()
 	certPath := filepath.Join(dir, "relay.crt")

@@ -21,6 +21,14 @@ type CertificateOptions struct {
 	RSAKeyBits int
 }
 
+type CertificateInfo struct {
+	CommonName  string
+	DNSNames    []string
+	IPAddresses []net.IP
+	NotBefore   time.Time
+	NotAfter    time.Time
+}
+
 func GenerateSelfSignedCertificate(options CertificateOptions) (certPEM, keyPEM []byte, err error) {
 	hosts := cleanHosts(options.Hosts)
 	if len(hosts) == 0 {
@@ -78,6 +86,48 @@ func GenerateSelfSignedCertificate(options CertificateOptions) (certPEM, keyPEM 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
 	return certPEM, keyPEM, nil
+}
+
+func LoadCertificateInfo(path string) (CertificateInfo, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return CertificateInfo{}, err
+	}
+
+	for len(data) > 0 {
+		var block *pem.Block
+		block, data = pem.Decode(data)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return CertificateInfo{}, err
+		}
+		return CertificateInfo{
+			CommonName:  cert.Subject.CommonName,
+			DNSNames:    append([]string(nil), cert.DNSNames...),
+			IPAddresses: append([]net.IP(nil), cert.IPAddresses...),
+			NotBefore:   cert.NotBefore,
+			NotAfter:    cert.NotAfter,
+		}, nil
+	}
+	return CertificateInfo{}, fmt.Errorf("未找到 PEM 格式证书")
+}
+
+func (i CertificateInfo) Hosts() []string {
+	hosts := make([]string, 0, len(i.DNSNames)+len(i.IPAddresses))
+	hosts = append(hosts, i.DNSNames...)
+	for _, ip := range i.IPAddresses {
+		hosts = append(hosts, ip.String())
+	}
+	if len(hosts) == 0 && strings.TrimSpace(i.CommonName) != "" {
+		hosts = append(hosts, i.CommonName)
+	}
+	return hosts
 }
 
 func WriteCertificateFiles(certPath, keyPath string, certPEM, keyPEM []byte, force bool) error {

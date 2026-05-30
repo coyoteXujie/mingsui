@@ -21,6 +21,8 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
 
+const certificateExpiryWarning = 30 * 24 * time.Hour
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -175,15 +177,8 @@ func runCheck(args []string) int {
 	if cfg.Token == "change-me" {
 		fmt.Fprintln(os.Stdout, "警告: 当前使用默认 token，生产环境必须修改")
 	}
-	if cfg.TLS.Enabled {
-		if _, err := tls.LoadX509KeyPair(cfg.TLS.CertFile, cfg.TLS.KeyFile); err != nil {
-			fmt.Fprintf(os.Stdout, "[失败] TLS 证书加载失败: %v\n", err)
-			failed = true
-		} else {
-			fmt.Fprintf(os.Stdout, "[正常] TLS 证书可以加载\n")
-		}
-	} else {
-		fmt.Fprintf(os.Stdout, "[正常] TLS 未启用\n")
+	if !printTLSCheck(cfg.TLS, time.Now()) {
+		failed = true
 	}
 	if !*skipListen {
 		if !printListenCheck("relay 监听地址", cfg.ListenAddr) {
@@ -195,6 +190,62 @@ func runCheck(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func printTLSCheck(cfg config.RelayTLSConfig, now time.Time) bool {
+	if !cfg.Enabled {
+		fmt.Fprintf(os.Stdout, "[正常] TLS 未启用\n")
+		return true
+	}
+
+	if _, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile); err != nil {
+		fmt.Fprintf(os.Stdout, "[失败] TLS 证书加载失败: %v\n", err)
+		return false
+	}
+	fmt.Fprintf(os.Stdout, "[正常] TLS 证书可以加载\n")
+
+	info, err := security.LoadCertificateInfo(cfg.CertFile)
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "[失败] TLS 证书解析失败: %v\n", err)
+		return false
+	}
+	if hosts := info.Hosts(); len(hosts) > 0 {
+		fmt.Fprintf(os.Stdout, "  TLS 证书主机: %s\n", strings.Join(hosts, ", "))
+	}
+	fmt.Fprintf(os.Stdout, "  TLS 证书有效期: %s 至 %s\n", formatCertificateTime(info.NotBefore), formatCertificateTime(info.NotAfter))
+
+	if now.Before(info.NotBefore) {
+		fmt.Fprintf(os.Stdout, "[失败] TLS 证书尚未生效\n")
+		return false
+	}
+	if !now.Before(info.NotAfter) {
+		fmt.Fprintf(os.Stdout, "[失败] TLS 证书已过期\n")
+		return false
+	}
+	remaining := info.NotAfter.Sub(now)
+	if remaining <= certificateExpiryWarning {
+		fmt.Fprintf(os.Stdout, "[警告] TLS 证书将在 %s 后过期\n", formatRemaining(remaining))
+	}
+	return true
+}
+
+func formatCertificateTime(t time.Time) string {
+	return t.Local().Format("2006-01-02 15:04:05 MST")
+}
+
+func formatRemaining(d time.Duration) string {
+	if d < time.Minute {
+		return "不足 1 分钟"
+	}
+	days := int(d.Hours()) / 24
+	if days > 0 {
+		return fmt.Sprintf("%d 天", days)
+	}
+	hours := int(d.Hours())
+	if hours > 0 {
+		return fmt.Sprintf("%d 小时", hours)
+	}
+	return fmt.Sprintf("%d 分钟", int(d.Minutes()))
 }
 
 func runRelay(args []string) int {
