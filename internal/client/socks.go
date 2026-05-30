@@ -51,7 +51,7 @@ func (s *Service) handleSOCKS(conn net.Conn) {
 	_ = conn.SetDeadline(time.Time{})
 
 	s.logger.Printf("proxy connected target=%s", target)
-	proxyBidirectional(conn, relay)
+	s.proxy(conn, relay)
 }
 
 func readSOCKS5Target(rw io.ReadWriter) (string, byte, error) {

@@ -26,3 +26,10 @@
 - `Start(ctx)` / `Stop(ctx)`：控制本地代理。
 - `Status()`：返回桌面 UI 可展示的运行状态。
 - `CheckRelay(ctx)`：执行 relay 连接测试。
+
+`Status()` 会包含运行指标：
+
+- `active_connections`：当前活跃转发连接数。
+- `total_connections`：启动后累计转发连接数。
+- `upload_bytes`：客户端发往 relay 的累计字节数。
+- `download_bytes`：relay 返回客户端的累计字节数。

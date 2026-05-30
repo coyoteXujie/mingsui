@@ -82,11 +82,32 @@ func TestControllerRecordsServeError(t *testing.T) {
 	t.Fatal("controller still running after serve returned error")
 }
 
+func TestControllerStatusIncludesMetrics(t *testing.T) {
+	controller := newTestController(func(ctx context.Context) error {
+		<-ctx.Done()
+		return nil
+	})
+	controller.metrics = func() RuntimeMetrics {
+		return RuntimeMetrics{
+			ActiveConnections: 1,
+			TotalConnections:  2,
+			UploadBytes:       3,
+			DownloadBytes:     4,
+		}
+	}
+
+	got := controller.Status().Metrics
+	if got.ActiveConnections != 1 || got.TotalConnections != 2 || got.UploadBytes != 3 || got.DownloadBytes != 4 {
+		t.Fatalf("Status().Metrics = %+v, want populated metrics", got)
+	}
+}
+
 func newTestController(serve func(context.Context) error) *Controller {
 	cfg := config.DefaultClient()
 	cfg.HTTPAddr = "127.0.0.1:18081"
 	return &Controller{
-		cfg:   cfg,
-		serve: serve,
+		cfg:     cfg,
+		serve:   serve,
+		metrics: func() RuntimeMetrics { return RuntimeMetrics{} },
 	}
 }

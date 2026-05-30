@@ -53,7 +53,7 @@ func (s *Service) handleHTTPConnect(clientConn net.Conn, req *http.Request, read
 	_ = clientConn.SetDeadline(time.Time{})
 
 	s.logger.Printf("http connect target=%s", target)
-	proxyBidirectional(bufferedConn{Conn: clientConn, reader: reader}, relayConn)
+	s.proxy(bufferedConn{Conn: clientConn, reader: reader}, relayConn)
 }
 
 func (s *Service) handleHTTPRequest(clientConn net.Conn, req *http.Request, reader *bufio.Reader) {
@@ -91,7 +91,7 @@ func (s *Service) handleHTTPRequest(clientConn net.Conn, req *http.Request, read
 	_ = clientConn.SetDeadline(time.Time{})
 
 	s.logger.Printf("http request target=%s method=%s", target, req.Method)
-	proxyBidirectional(bufferedConn{Conn: clientConn, reader: reader}, relayConn)
+	s.proxy(bufferedConn{Conn: clientConn, reader: reader}, relayConn)
 }
 
 func normalizeHostPort(host, defaultPort string) (string, error) {

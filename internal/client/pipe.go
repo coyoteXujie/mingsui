@@ -37,6 +37,32 @@ func proxyBidirectional(a, b net.Conn) {
 	wg.Wait()
 }
 
+func (s *Service) proxy(clientConn, relayConn net.Conn) {
+	if s.metrics == nil {
+		proxyBidirectional(clientConn, relayConn)
+		return
+	}
+
+	s.metrics.OpenConnection()
+	defer s.metrics.CloseConnection()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		n, _ := copyAndCloseWrite(relayConn, clientConn)
+		s.metrics.AddUploadBytes(n)
+	}()
+	go func() {
+		defer wg.Done()
+		n, _ := copyAndCloseWrite(clientConn, relayConn)
+		s.metrics.AddDownloadBytes(n)
+	}()
+
+	wg.Wait()
+}
+
 type bufferedConn struct {
 	net.Conn
 	reader *bufio.Reader

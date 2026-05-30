@@ -17,8 +17,9 @@ import (
 )
 
 type Service struct {
-	cfg    config.ClientConfig
-	logger *log.Logger
+	cfg     config.ClientConfig
+	logger  *log.Logger
+	metrics *metricsRecorder
 }
 
 func NewService(cfg config.ClientConfig, logger *log.Logger) (*Service, error) {
@@ -28,7 +29,14 @@ func NewService(cfg config.ClientConfig, logger *log.Logger) (*Service, error) {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Service{cfg: cfg, logger: logger}, nil
+	return &Service{cfg: cfg, logger: logger, metrics: &metricsRecorder{}}, nil
+}
+
+func (s *Service) Metrics() RuntimeMetrics {
+	if s.metrics == nil {
+		return RuntimeMetrics{}
+	}
+	return s.metrics.Snapshot()
 }
 
 func (s *Service) Serve(ctx context.Context) error {

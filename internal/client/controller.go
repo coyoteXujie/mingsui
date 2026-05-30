@@ -11,18 +11,20 @@ import (
 )
 
 type RuntimeStatus struct {
-	Running   bool      `json:"running"`
-	LocalAddr string    `json:"local_addr"`
-	HTTPAddr  string    `json:"http_addr,omitempty"`
-	RelayAddr string    `json:"relay_addr"`
-	StartedAt time.Time `json:"started_at,omitempty"`
-	LastError string    `json:"last_error,omitempty"`
+	Running   bool           `json:"running"`
+	LocalAddr string         `json:"local_addr"`
+	HTTPAddr  string         `json:"http_addr,omitempty"`
+	RelayAddr string         `json:"relay_addr"`
+	StartedAt time.Time      `json:"started_at,omitempty"`
+	LastError string         `json:"last_error,omitempty"`
+	Metrics   RuntimeMetrics `json:"metrics"`
 }
 
 type Controller struct {
 	mu        sync.Mutex
 	cfg       config.ClientConfig
 	serve     func(context.Context) error
+	metrics   func() RuntimeMetrics
 	cancel    context.CancelFunc
 	done      chan error
 	startedAt time.Time
@@ -35,8 +37,9 @@ func NewController(cfg config.ClientConfig, logger *log.Logger) (*Controller, er
 		return nil, err
 	}
 	return &Controller{
-		cfg:   cfg,
-		serve: service.Serve,
+		cfg:     cfg,
+		serve:   service.Serve,
+		metrics: service.Metrics,
 	}, nil
 }
 
@@ -103,6 +106,11 @@ func (c *Controller) Status() RuntimeStatus {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	var metrics RuntimeMetrics
+	if c.metrics != nil {
+		metrics = c.metrics()
+	}
+
 	return RuntimeStatus{
 		Running:   c.cancel != nil,
 		LocalAddr: c.cfg.LocalAddr,
@@ -110,5 +118,6 @@ func (c *Controller) Status() RuntimeStatus {
 		RelayAddr: c.cfg.RelayAddr,
 		StartedAt: c.startedAt,
 		LastError: c.lastError,
+		Metrics:   metrics,
 	}
 }
