@@ -52,13 +52,14 @@ func (a *App) ConfigPath() string {
 func (a *App) Config() config.ClientConfig {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.cfg
+	return a.cfg.Clone()
 }
 
 func (a *App) SaveConfig(cfg config.ClientConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+	saved := cfg.Clone()
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -66,16 +67,48 @@ func (a *App) SaveConfig(cfg config.ClientConfig) error {
 		return errors.New("客户端运行中，请停止后再修改配置")
 	}
 
-	controller, err := client.NewController(cfg, a.logger)
+	controller, err := client.NewController(saved, a.logger)
 	if err != nil {
 		return err
 	}
-	if err := config.WriteClient(a.cfgPath, cfg, true); err != nil {
+	if err := config.WriteClient(a.cfgPath, saved, true); err != nil {
 		return err
 	}
-	a.cfg = cfg
+	a.cfg = saved
 	a.controller = controller
 	return nil
+}
+
+func (a *App) UpsertRelayProfile(profile config.RelayProfile, replace bool) error {
+	cfg := a.Config()
+	if err := cfg.UpsertRelayProfile(profile, replace); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
+func (a *App) SelectRelayProfile(name string) error {
+	cfg := a.Config()
+	if err := cfg.SelectRelayProfile(name); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
+func (a *App) RemoveRelayProfile(name string) error {
+	cfg := a.Config()
+	if err := cfg.RemoveRelayProfile(name); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
+func (a *App) RenameRelayProfile(oldName, newName string) error {
+	cfg := a.Config()
+	if err := cfg.RenameRelayProfile(oldName, newName); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
 }
 
 func (a *App) Start(ctx context.Context) error {

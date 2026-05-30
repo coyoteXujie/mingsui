@@ -440,7 +440,7 @@ func addClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	if err := upsertRelayProfile(&cfg, config.RelayProfile{
+	if err := cfg.UpsertRelayProfile(config.RelayProfile{
 		Name:      name,
 		RelayAddr: *relayAddr,
 		Token:     *token,
@@ -480,7 +480,7 @@ func selectClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	if err := selectRelayProfile(&cfg, name); err != nil {
+	if err := cfg.SelectRelayProfile(name); err != nil {
 		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 		return 1
 	}
@@ -510,7 +510,7 @@ func removeClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	if err := removeRelayProfile(&cfg, name); err != nil {
+	if err := cfg.RemoveRelayProfile(name); err != nil {
 		fmt.Fprintf(os.Stderr, "删除 profile 失败: %v\n", err)
 		return 1
 	}
@@ -541,7 +541,7 @@ func renameClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	if err := renameRelayProfile(&cfg, oldName, newName); err != nil {
+	if err := cfg.RenameRelayProfile(oldName, newName); err != nil {
 		fmt.Fprintf(os.Stderr, "重命名 profile 失败: %v\n", err)
 		return 1
 	}
@@ -551,77 +551,6 @@ func renameClientProfile(args []string) int {
 	}
 	fmt.Printf("已重命名 profile %s -> %s\n", oldName, newName)
 	return 0
-}
-
-func upsertRelayProfile(cfg *config.ClientConfig, profile config.RelayProfile, replace bool) error {
-	if strings.TrimSpace(profile.Name) == "" {
-		return fmt.Errorf("profile 名称不能为空")
-	}
-	if strings.TrimSpace(profile.RelayAddr) == "" {
-		return fmt.Errorf("profile relay 地址不能为空")
-	}
-	if strings.TrimSpace(profile.Token) == "" {
-		return fmt.Errorf("profile token 不能为空")
-	}
-
-	index := relayProfileIndex(cfg.Profiles, profile.Name)
-	if index >= 0 {
-		if !replace {
-			return fmt.Errorf("profile %q 已存在", profile.Name)
-		}
-		cfg.Profiles[index] = profile
-		return cfg.Validate()
-	}
-	cfg.Profiles = append(cfg.Profiles, profile)
-	return cfg.Validate()
-}
-
-func selectRelayProfile(cfg *config.ClientConfig, name string) error {
-	if _, err := cfg.ResolveProfile(name); err != nil {
-		return err
-	}
-	cfg.ActiveProfile = name
-	return cfg.Validate()
-}
-
-func removeRelayProfile(cfg *config.ClientConfig, name string) error {
-	index := relayProfileIndex(cfg.Profiles, name)
-	if index < 0 {
-		return fmt.Errorf("profile %q 不存在", name)
-	}
-	cfg.Profiles = append(cfg.Profiles[:index], cfg.Profiles[index+1:]...)
-	if cfg.ActiveProfile == name {
-		cfg.ActiveProfile = ""
-	}
-	return cfg.Validate()
-}
-
-func renameRelayProfile(cfg *config.ClientConfig, oldName, newName string) error {
-	if strings.TrimSpace(newName) == "" {
-		return fmt.Errorf("profile 新名称不能为空")
-	}
-	index := relayProfileIndex(cfg.Profiles, oldName)
-	if index < 0 {
-		return fmt.Errorf("profile %q 不存在", oldName)
-	}
-	if relayProfileIndex(cfg.Profiles, newName) >= 0 {
-		return fmt.Errorf("profile %q 已存在", newName)
-	}
-	cfg.Profiles[index].Name = newName
-	if cfg.ActiveProfile == oldName {
-		cfg.ActiveProfile = newName
-	}
-	return cfg.Validate()
-}
-
-func relayProfileIndex(profiles []config.RelayProfile, name string) int {
-	name = strings.TrimSpace(name)
-	for i, profile := range profiles {
-		if profile.Name == name {
-			return i
-		}
-	}
-	return -1
 }
 
 func initClientConfig(args []string) int {

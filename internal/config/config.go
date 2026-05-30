@@ -173,6 +173,12 @@ func (c ClientConfig) DialTimeout() time.Duration {
 	return time.Duration(c.DialTimeoutSeconds) * time.Second
 }
 
+// Clone 返回客户端配置副本，避免调用方通过 profile 切片修改内部状态。
+func (c ClientConfig) Clone() ClientConfig {
+	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
+	return c
+}
+
 func (c ClientConfig) Redacted() ClientConfig {
 	c.Token = redact(c.Token)
 	c.LocalAuth.Password = redact(c.LocalAuth.Password)
@@ -214,6 +220,99 @@ func (c ClientConfig) ProfileNames() []string {
 	return names
 }
 
+// UpsertRelayProfile 新增或更新 relay profile。
+func (c *ClientConfig) UpsertRelayProfile(profile RelayProfile, replace bool) error {
+	profile.Name = strings.TrimSpace(profile.Name)
+	profile.RelayAddr = strings.TrimSpace(profile.RelayAddr)
+	profile.Token = strings.TrimSpace(profile.Token)
+	if err := validateRelayProfile(profile); err != nil {
+		return err
+	}
+
+	next := c.Clone()
+	index := relayProfileIndex(next.Profiles, profile.Name)
+	if index >= 0 {
+		if !replace {
+			return fmt.Errorf("profile %q 已存在", profile.Name)
+		}
+		next.Profiles[index] = profile
+	} else {
+		next.Profiles = append(next.Profiles, profile)
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// SelectRelayProfile 设置当前默认使用的 relay profile。
+func (c *ClientConfig) SelectRelayProfile(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("profile 名称不能为空")
+	}
+	if _, err := c.ResolveProfile(name); err != nil {
+		return err
+	}
+
+	next := c.Clone()
+	next.ActiveProfile = name
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// RemoveRelayProfile 删除 relay profile，并在删除当前 profile 时清空选择。
+func (c *ClientConfig) RemoveRelayProfile(name string) error {
+	name = strings.TrimSpace(name)
+	index := relayProfileIndex(c.Profiles, name)
+	if index < 0 {
+		return fmt.Errorf("profile %q 不存在", name)
+	}
+
+	next := c.Clone()
+	next.Profiles = append(next.Profiles[:index], next.Profiles[index+1:]...)
+	if next.ActiveProfile == name {
+		next.ActiveProfile = ""
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// RenameRelayProfile 重命名 relay profile，并同步当前默认选择。
+func (c *ClientConfig) RenameRelayProfile(oldName, newName string) error {
+	oldName = strings.TrimSpace(oldName)
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return fmt.Errorf("profile 新名称不能为空")
+	}
+
+	index := relayProfileIndex(c.Profiles, oldName)
+	if index < 0 {
+		return fmt.Errorf("profile %q 不存在", oldName)
+	}
+	if relayProfileIndex(c.Profiles, newName) >= 0 {
+		return fmt.Errorf("profile %q 已存在", newName)
+	}
+
+	next := c.Clone()
+	next.Profiles[index].Name = newName
+	if next.ActiveProfile == oldName {
+		next.ActiveProfile = newName
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
 func validateRelayProfiles(profiles []RelayProfile) error {
 	seen := make(map[string]struct{}, len(profiles))
 	for _, profile := range profiles {
@@ -225,12 +324,23 @@ func validateRelayProfiles(profiles []RelayProfile) error {
 			return fmt.Errorf("duplicate profile %q", name)
 		}
 		seen[name] = struct{}{}
-		if err := validateAddr("profiles.relay_addr", profile.RelayAddr); err != nil {
+		if err := validateRelayProfile(profile); err != nil {
 			return err
 		}
-		if strings.TrimSpace(profile.Token) == "" {
-			return fmt.Errorf("profiles.%s token is required", name)
-		}
+	}
+	return nil
+}
+
+func validateRelayProfile(profile RelayProfile) error {
+	name := strings.TrimSpace(profile.Name)
+	if name == "" {
+		return errors.New("profiles.name is required")
+	}
+	if err := validateAddr("profiles.relay_addr", profile.RelayAddr); err != nil {
+		return err
+	}
+	if strings.TrimSpace(profile.Token) == "" {
+		return fmt.Errorf("profiles.%s token is required", name)
 	}
 	return nil
 }
@@ -238,11 +348,21 @@ func validateRelayProfiles(profiles []RelayProfile) error {
 func findRelayProfile(profiles []RelayProfile, name string) (RelayProfile, bool) {
 	name = strings.TrimSpace(name)
 	for _, profile := range profiles {
-		if profile.Name == name {
+		if strings.TrimSpace(profile.Name) == name {
 			return profile, true
 		}
 	}
 	return RelayProfile{}, false
+}
+
+func relayProfileIndex(profiles []RelayProfile, name string) int {
+	name = strings.TrimSpace(name)
+	for i, profile := range profiles {
+		if strings.TrimSpace(profile.Name) == name {
+			return i
+		}
+	}
+	return -1
 }
 
 func (a ClientAuthConfig) Validate() error {
