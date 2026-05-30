@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"os"
@@ -55,6 +56,23 @@ func TestParseRelayProfilesRejectsDuplicateNames(t *testing.T) {
 
 	if _, err := ParseRelayProfiles(data); err == nil {
 		t.Fatal("ParseRelayProfiles() error = nil, want duplicate error")
+	}
+}
+
+func TestParseRelayProfilesRecognizesAirportSubscription(t *testing.T) {
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n" +
+		"vmess://eyJwcyI6InRva3lvIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ==\r\n"
+	data := []byte(base64.StdEncoding.EncodeToString([]byte(raw)))
+
+	_, err := ParseRelayProfiles(data)
+	if err == nil {
+		t.Fatal("ParseRelayProfiles() error = nil, want unsupported airport subscription error")
+	}
+	message := err.Error()
+	for _, want := range []string{"真实机场订阅", "ss: 1", "vmess: 1", "sing-box", "Xray"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("error = %q, want %q", message, want)
+		}
 	}
 }
 

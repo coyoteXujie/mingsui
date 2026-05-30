@@ -3,12 +3,14 @@ package subscription
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,12 +50,12 @@ func ParseRelayProfiles(data []byte) ([]config.RelayProfile, error) {
 	var profiles []config.RelayProfile
 	if data[0] == '[' {
 		if err := json.Unmarshal(data, &profiles); err != nil {
-			return nil, fmt.Errorf("解析 profile 列表失败: %w", err)
+			return nil, relayProfileParseError(data, fmt.Errorf("解析 profile 列表失败: %w", err))
 		}
 	} else {
 		var doc Document
 		if err := json.Unmarshal(data, &doc); err != nil {
-			return nil, fmt.Errorf("解析订阅失败: %w", err)
+			return nil, relayProfileParseError(data, fmt.Errorf("解析订阅失败: %w", err))
 		}
 		profiles = doc.Profiles
 	}
@@ -67,6 +69,105 @@ func ParseRelayProfiles(data []byte) ([]config.RelayProfile, error) {
 		return nil, err
 	}
 	return cfg.Profiles, nil
+}
+
+type proxySubscriptionInspection struct {
+	Total  int
+	Counts map[string]int
+}
+
+func relayProfileParseError(data []byte, parseErr error) error {
+	inspection := inspectProxySubscription(data)
+	if inspection.Total == 0 {
+		return parseErr
+	}
+	return fmt.Errorf("识别到真实机场订阅（%s，共 %d 个节点），当前版本只支持明隧 relay profile，不能直接连接这些通用代理节点；下一步需要接入 sing-box 或 Xray 作为通用代理内核", formatSchemeCounts(inspection.Counts), inspection.Total)
+}
+
+func inspectProxySubscription(data []byte) proxySubscriptionInspection {
+	candidates := [][]byte{bytes.TrimSpace(data)}
+	if decoded, ok := decodeSubscriptionBase64(data); ok {
+		candidates = append([][]byte{bytes.TrimSpace(decoded)}, candidates...)
+	}
+
+	for _, candidate := range candidates {
+		counts := countProxySchemes(candidate)
+		total := 0
+		for _, count := range counts {
+			total += count
+		}
+		if total > 0 {
+			return proxySubscriptionInspection{Total: total, Counts: counts}
+		}
+	}
+	return proxySubscriptionInspection{}
+}
+
+func decodeSubscriptionBase64(data []byte) ([]byte, bool) {
+	text := strings.Join(strings.Fields(string(data)), "")
+	if text == "" {
+		return nil, false
+	}
+	encodings := []*base64.Encoding{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	}
+	for _, encoding := range encodings {
+		decoded, err := encoding.DecodeString(text)
+		if err == nil && len(bytes.TrimSpace(decoded)) > 0 {
+			return decoded, true
+		}
+	}
+	if remainder := len(text) % 4; remainder != 0 {
+		padded := text + strings.Repeat("=", 4-remainder)
+		for _, encoding := range []*base64.Encoding{base64.StdEncoding, base64.URLEncoding} {
+			decoded, err := encoding.DecodeString(padded)
+			if err == nil && len(bytes.TrimSpace(decoded)) > 0 {
+				return decoded, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func countProxySchemes(data []byte) map[string]int {
+	counts := make(map[string]int)
+	for _, line := range strings.Fields(string(data)) {
+		scheme, _, ok := strings.Cut(line, "://")
+		if !ok {
+			continue
+		}
+		scheme = strings.ToLower(strings.TrimSpace(scheme))
+		if isStandardProxyScheme(scheme) {
+			counts[scheme]++
+		}
+	}
+	return counts
+}
+
+func isStandardProxyScheme(scheme string) bool {
+	switch scheme {
+	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic":
+		return true
+	default:
+		return false
+	}
+}
+
+func formatSchemeCounts(counts map[string]int) string {
+	schemes := make([]string, 0, len(counts))
+	for scheme := range counts {
+		schemes = append(schemes, scheme)
+	}
+	sort.Strings(schemes)
+
+	parts := make([]string, 0, len(schemes))
+	for _, scheme := range schemes {
+		parts = append(parts, fmt.Sprintf("%s: %d", scheme, counts[scheme]))
+	}
+	return strings.Join(parts, "，")
 }
 
 func (l Loader) readSource(ctx context.Context, source string, stdin io.Reader) ([]byte, error) {
