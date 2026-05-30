@@ -116,6 +116,19 @@ mingsui config profile remove jp-tokyo -path ./client.json
 mingsui run -config ./client.json -profile tokyo
 ```
 
+也可以从明隧 JSON 节点订阅导入 profile。订阅内容可以是 `{"version":1,"profiles":[...]}`，也可以直接是 profile 数组：
+
+```bash
+mingsui config profile import -path ./client.json -source ./nodes.json -force
+mingsui config profile import -path ./client.json -source https://example.com/mingsui/nodes.json -force -select tokyo
+mingsui config subscription add team -path ./client.json -url https://example.com/mingsui/nodes.json
+mingsui config subscription list -path ./client.json
+mingsui config subscription sync team -path ./client.json
+mingsui config subscription remove team -path ./client.json
+```
+
+订阅 URL 可能包含访问密钥，因此 `config show` 和 `config subscription list` 默认会隐藏订阅 URL；需要排障时再显式加 `-secrets`。
+
 诊断命令：
 
 ```bash

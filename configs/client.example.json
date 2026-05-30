@@ -18,6 +18,12 @@
       }
     }
   ],
+  "subscriptions": [
+    {
+      "name": "team",
+      "url": "https://example.com/mingsui/nodes.json"
+    }
+  ],
   "local_auth": {
     "enabled": false,
     "username": "",

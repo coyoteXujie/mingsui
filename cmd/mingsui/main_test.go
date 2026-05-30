@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -62,5 +63,59 @@ func TestCheckClientProfileRejectsMissingProfile(t *testing.T) {
 	code := run([]string{"config", "profile", "check", "missing", "-path", path})
 	if code != 1 {
 		t.Fatalf("run(config profile check missing) = %d, want 1", code)
+	}
+}
+
+func TestImportClientProfilesFromFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "nodes.json")
+	data := []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`)
+	if err := os.WriteFile(sourcePath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code := run([]string{"config", "profile", "import", "-path", cfgPath, "-source", sourcePath, "-select", "tokyo"})
+	if code != 0 {
+		t.Fatalf("run(config profile import) = %d, want 0", code)
+	}
+
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if len(cfg.Profiles) != 1 || cfg.Profiles[0].Name != "tokyo" {
+		t.Fatalf("Profiles = %+v, want tokyo", cfg.Profiles)
+	}
+	if cfg.ActiveProfile != "tokyo" {
+		t.Fatalf("ActiveProfile = %q, want tokyo", cfg.ActiveProfile)
+	}
+}
+
+func TestConfigSubscriptionAddAndRemove(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+
+	code := run([]string{"config", "subscription", "add", "team", "-path", path, "-url", "https://example.com/nodes.json"})
+	if code != 0 {
+		t.Fatalf("run(config subscription add) = %d, want 0", code)
+	}
+	cfg, err := config.LoadClient(path)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 1 || cfg.Subscriptions[0].Name != "team" {
+		t.Fatalf("Subscriptions = %+v, want team", cfg.Subscriptions)
+	}
+
+	code = run([]string{"config", "subscription", "remove", "team", "-path", path})
+	if code != 0 {
+		t.Fatalf("run(config subscription remove) = %d, want 0", code)
+	}
+	cfg, err = config.LoadClient(path)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 0 {
+		t.Fatalf("Subscriptions = %+v, want empty", cfg.Subscriptions)
 	}
 }

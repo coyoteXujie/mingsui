@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,16 +34,22 @@ type RelayProfile struct {
 	TLS       ClientTLSConfig `json:"tls"`
 }
 
+type RelaySubscription struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 type ClientConfig struct {
-	LocalAddr          string           `json:"local_addr"`
-	HTTPAddr           string           `json:"http_addr"`
-	RelayAddr          string           `json:"relay_addr"`
-	Token              string           `json:"token"`
-	DialTimeoutSeconds int              `json:"dial_timeout_seconds"`
-	ActiveProfile      string           `json:"active_profile,omitempty"`
-	Profiles           []RelayProfile   `json:"profiles,omitempty"`
-	LocalAuth          ClientAuthConfig `json:"local_auth"`
-	TLS                ClientTLSConfig  `json:"tls"`
+	LocalAddr          string              `json:"local_addr"`
+	HTTPAddr           string              `json:"http_addr"`
+	RelayAddr          string              `json:"relay_addr"`
+	Token              string              `json:"token"`
+	DialTimeoutSeconds int                 `json:"dial_timeout_seconds"`
+	ActiveProfile      string              `json:"active_profile,omitempty"`
+	Profiles           []RelayProfile      `json:"profiles,omitempty"`
+	Subscriptions      []RelaySubscription `json:"subscriptions,omitempty"`
+	LocalAuth          ClientAuthConfig    `json:"local_auth"`
+	TLS                ClientTLSConfig     `json:"tls"`
 }
 
 type RelayTLSConfig struct {
@@ -158,6 +165,9 @@ func (c ClientConfig) Validate() error {
 	if err := validateRelayProfiles(c.Profiles); err != nil {
 		return err
 	}
+	if err := validateRelaySubscriptions(c.Subscriptions); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.ActiveProfile) != "" {
 		if _, ok := findRelayProfile(c.Profiles, c.ActiveProfile); !ok {
 			return fmt.Errorf("active_profile %q not found", c.ActiveProfile)
@@ -176,6 +186,7 @@ func (c ClientConfig) DialTimeout() time.Duration {
 // Clone 返回客户端配置副本，避免调用方通过 profile 切片修改内部状态。
 func (c ClientConfig) Clone() ClientConfig {
 	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
+	c.Subscriptions = append([]RelaySubscription(nil), c.Subscriptions...)
 	return c
 }
 
@@ -185,6 +196,10 @@ func (c ClientConfig) Redacted() ClientConfig {
 	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
 	for i := range c.Profiles {
 		c.Profiles[i].Token = redact(c.Profiles[i].Token)
+	}
+	c.Subscriptions = append([]RelaySubscription(nil), c.Subscriptions...)
+	for i := range c.Subscriptions {
+		c.Subscriptions[i].URL = redact(c.Subscriptions[i].URL)
 	}
 	return c
 }
@@ -220,6 +235,10 @@ func (c ClientConfig) ProfileNames() []string {
 	return names
 }
 
+func (c ClientConfig) RelaySubscription(name string) (RelaySubscription, bool) {
+	return findRelaySubscription(c.Subscriptions, name)
+}
+
 // UpsertRelayProfile 新增或更新 relay profile。
 func (c *ClientConfig) UpsertRelayProfile(profile RelayProfile, replace bool) error {
 	profile.Name = strings.TrimSpace(profile.Name)
@@ -239,6 +258,64 @@ func (c *ClientConfig) UpsertRelayProfile(profile RelayProfile, replace bool) er
 	} else {
 		next.Profiles = append(next.Profiles, profile)
 	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// ImportRelayProfiles 批量导入 relay profile，任意一个无效时不会修改原配置。
+func (c *ClientConfig) ImportRelayProfiles(profiles []RelayProfile, replace bool) error {
+	if len(profiles) == 0 {
+		return fmt.Errorf("没有可导入的 relay profile")
+	}
+
+	next := c.Clone()
+	for _, profile := range profiles {
+		if err := next.UpsertRelayProfile(profile, replace); err != nil {
+			return err
+		}
+	}
+	*c = next
+	return nil
+}
+
+// UpsertRelaySubscription 新增或更新 relay 订阅地址。
+func (c *ClientConfig) UpsertRelaySubscription(sub RelaySubscription, replace bool) error {
+	sub.Name = strings.TrimSpace(sub.Name)
+	sub.URL = strings.TrimSpace(sub.URL)
+	if err := validateRelaySubscription(sub); err != nil {
+		return err
+	}
+
+	next := c.Clone()
+	index := relaySubscriptionIndex(next.Subscriptions, sub.Name)
+	if index >= 0 {
+		if !replace {
+			return fmt.Errorf("subscription %q 已存在", sub.Name)
+		}
+		next.Subscriptions[index] = sub
+	} else {
+		next.Subscriptions = append(next.Subscriptions, sub)
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	*c = next
+	return nil
+}
+
+// RemoveRelaySubscription 删除 relay 订阅地址。
+func (c *ClientConfig) RemoveRelaySubscription(name string) error {
+	name = strings.TrimSpace(name)
+	index := relaySubscriptionIndex(c.Subscriptions, name)
+	if index < 0 {
+		return fmt.Errorf("subscription %q 不存在", name)
+	}
+
+	next := c.Clone()
+	next.Subscriptions = append(next.Subscriptions[:index], next.Subscriptions[index+1:]...)
 	if err := next.Validate(); err != nil {
 		return err
 	}
@@ -313,6 +390,43 @@ func (c *ClientConfig) RenameRelayProfile(oldName, newName string) error {
 	return nil
 }
 
+func validateRelaySubscriptions(subscriptions []RelaySubscription) error {
+	seen := make(map[string]struct{}, len(subscriptions))
+	for _, sub := range subscriptions {
+		name := strings.TrimSpace(sub.Name)
+		if name == "" {
+			return errors.New("subscriptions.name is required")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate subscription %q", name)
+		}
+		seen[name] = struct{}{}
+		if err := validateRelaySubscription(sub); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRelaySubscription(sub RelaySubscription) error {
+	name := strings.TrimSpace(sub.Name)
+	if name == "" {
+		return errors.New("subscriptions.name is required")
+	}
+	rawURL := strings.TrimSpace(sub.URL)
+	if rawURL == "" {
+		return fmt.Errorf("subscriptions.%s url is required", name)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("subscriptions.%s url must be http or https URL", name)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("subscriptions.%s url must be http or https URL", name)
+	}
+	return nil
+}
+
 func validateRelayProfiles(profiles []RelayProfile) error {
 	seen := make(map[string]struct{}, len(profiles))
 	for _, profile := range profiles {
@@ -359,6 +473,26 @@ func relayProfileIndex(profiles []RelayProfile, name string) int {
 	name = strings.TrimSpace(name)
 	for i, profile := range profiles {
 		if strings.TrimSpace(profile.Name) == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func findRelaySubscription(subscriptions []RelaySubscription, name string) (RelaySubscription, bool) {
+	name = strings.TrimSpace(name)
+	for _, sub := range subscriptions {
+		if strings.TrimSpace(sub.Name) == name {
+			return sub, true
+		}
+	}
+	return RelaySubscription{}, false
+}
+
+func relaySubscriptionIndex(subscriptions []RelaySubscription, name string) int {
+	name = strings.TrimSpace(name)
+	for i, sub := range subscriptions {
+		if strings.TrimSpace(sub.Name) == name {
 			return i
 		}
 	}

@@ -135,11 +135,18 @@ func TestClientConfigCloneCopiesProfiles(t *testing.T) {
 	cfg.Profiles = []RelayProfile{
 		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
 	}
+	cfg.Subscriptions = []RelaySubscription{
+		{Name: "team", URL: "https://example.com/nodes.json"},
+	}
 
 	got := cfg.Clone()
 	got.Profiles[0].Token = "changed"
+	got.Subscriptions[0].URL = "https://changed.example.com/nodes.json"
 	if cfg.Profiles[0].Token != "secret" {
 		t.Fatalf("Clone() shared profile slice: %+v", cfg.Profiles[0])
+	}
+	if cfg.Subscriptions[0].URL != "https://example.com/nodes.json" {
+		t.Fatalf("Clone() shared subscription slice: %+v", cfg.Subscriptions[0])
 	}
 }
 
@@ -167,6 +174,80 @@ func TestClientConfigUpsertRelayProfile(t *testing.T) {
 	}
 	if cfg.Profiles[0].RelayAddr != "tokyo2.example.com:9443" {
 		t.Fatalf("RelayAddr = %q, want replaced relay", cfg.Profiles[0].RelayAddr)
+	}
+}
+
+func TestClientConfigImportRelayProfilesIsAtomic(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Profiles = []RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+	}
+
+	err := cfg.ImportRelayProfiles([]RelayProfile{
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "secret"},
+		{Name: "tokyo", RelayAddr: "tokyo2.example.com:9443", Token: "secret"},
+	}, false)
+	if err == nil {
+		t.Fatal("ImportRelayProfiles() error = nil, want duplicate error")
+	}
+	if len(cfg.Profiles) != 1 || cfg.Profiles[0].Name != "tokyo" {
+		t.Fatalf("Profiles = %+v, want original unchanged", cfg.Profiles)
+	}
+}
+
+func TestClientConfigRelaySubscriptions(t *testing.T) {
+	cfg := DefaultClient()
+	sub := RelaySubscription{Name: "team", URL: "https://example.com/nodes.json"}
+
+	if err := cfg.UpsertRelaySubscription(sub, false); err != nil {
+		t.Fatalf("UpsertRelaySubscription() error = %v", err)
+	}
+	if _, ok := cfg.RelaySubscription("team"); !ok {
+		t.Fatal("RelaySubscription(team) ok = false, want true")
+	}
+	if err := cfg.UpsertRelaySubscription(sub, false); err == nil {
+		t.Fatal("UpsertRelaySubscription(duplicate) error = nil, want error")
+	}
+
+	sub.URL = "https://example.com/updated.json"
+	if err := cfg.UpsertRelaySubscription(sub, true); err != nil {
+		t.Fatalf("UpsertRelaySubscription(replace) error = %v", err)
+	}
+	if cfg.Subscriptions[0].URL != "https://example.com/updated.json" {
+		t.Fatalf("URL = %q, want updated", cfg.Subscriptions[0].URL)
+	}
+
+	if err := cfg.RemoveRelaySubscription("team"); err != nil {
+		t.Fatalf("RemoveRelaySubscription() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 0 {
+		t.Fatalf("Subscriptions = %+v, want empty", cfg.Subscriptions)
+	}
+}
+
+func TestClientConfigRejectsInvalidRelaySubscription(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Subscriptions = []RelaySubscription{
+		{Name: "team", URL: "file:///tmp/nodes.json"},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want invalid subscription URL error")
+	}
+}
+
+func TestClientConfigRedactsSubscriptions(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Subscriptions = []RelaySubscription{
+		{Name: "team", URL: "https://token@example.com/nodes.json"},
+	}
+
+	got := cfg.Redacted()
+	if got.Subscriptions[0].URL != RedactedValue {
+		t.Fatalf("subscription URL = %q, want redacted", got.Subscriptions[0].URL)
+	}
+	if cfg.Subscriptions[0].URL != "https://token@example.com/nodes.json" {
+		t.Fatalf("Redacted() mutated original subscription: %+v", cfg.Subscriptions[0])
 	}
 }
 
