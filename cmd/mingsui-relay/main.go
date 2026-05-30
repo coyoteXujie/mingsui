@@ -10,7 +10,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/coyoteXujie/mingsui/internal/buildinfo"
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -33,6 +35,8 @@ func run(args []string) int {
 		return runRelay(args[1:])
 	case "check":
 		return runCheck(args[1:])
+	case "cert":
+		return runCert(args[1:])
 	case "config":
 		return runConfig(args[1:])
 	case "token":
@@ -48,6 +52,43 @@ func run(args []string) int {
 		printUsage()
 		return 2
 	}
+}
+
+func runCert(args []string) int {
+	fs := flag.NewFlagSet("cert", flag.ContinueOnError)
+	certPath := fs.String("cert", "relay.crt", "证书输出路径")
+	keyPath := fs.String("key", "relay.key", "私钥输出路径")
+	hosts := fs.String("host", "localhost,127.0.0.1", "证书主机名或 IP，多个值用英文逗号分隔")
+	days := fs.Int("days", 365, "证书有效天数")
+	keyBits := fs.Int("rsa-bits", 2048, "RSA 密钥长度")
+	force := fs.Bool("force", false, "覆盖已存在的证书和私钥")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *days <= 0 {
+		fmt.Fprintln(os.Stderr, "证书有效天数必须大于 0")
+		return 1
+	}
+
+	certPEM, keyPEM, err := security.GenerateSelfSignedCertificate(security.CertificateOptions{
+		Hosts:      strings.Split(*hosts, ","),
+		ValidFor:   time.Duration(*days) * 24 * time.Hour,
+		RSAKeyBits: *keyBits,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "生成证书失败: %v\n", err)
+		return 1
+	}
+	if err := security.WriteCertificateFiles(*certPath, *keyPath, certPEM, keyPEM, *force); err != nil {
+		fmt.Fprintf(os.Stderr, "写入证书失败: %v\n", err)
+		return 1
+	}
+
+	fmt.Printf("已写入证书: %s\n", *certPath)
+	fmt.Printf("已写入私钥: %s\n", *keyPath)
+	fmt.Println("relay 配置中设置 tls.enabled=true，并填写 tls.cert_file / tls.key_file。")
+	fmt.Println("客户端可以把 tls.ca_file 指向这个证书文件。")
+	return 0
 }
 
 func runToken(args []string) int {
@@ -256,6 +297,7 @@ func printUsage() {
 用法:
   mingsui-relay serve [flags]
   mingsui-relay check [flags]
+  mingsui-relay cert [flags]
   mingsui-relay config init [flags]
   mingsui-relay config path
   mingsui-relay token [flags]
@@ -263,6 +305,7 @@ func printUsage() {
 
 示例:
   TOKEN=$(mingsui-relay token)
+  mingsui-relay cert -host example.com,127.0.0.1 -cert relay.crt -key relay.key
   mingsui-relay config init -listen 0.0.0.0:9443 -token "$TOKEN"
   mingsui-relay check -config %s
   mingsui-relay serve -config %s

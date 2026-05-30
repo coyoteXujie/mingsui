@@ -97,6 +97,41 @@ mingsui-relay config init -path ./relay.json
 
 自动生成后会在终端打印 token，需要把同一个 token 写入客户端配置。
 
+## TLS
+
+relay 可以启用 TLS。开发或自托管测试时，可以先生成自签名证书：
+
+```bash
+mingsui-relay cert -host example.com,127.0.0.1 -cert relay.crt -key relay.key
+```
+
+relay 配置中启用 TLS：
+
+```json
+{
+  "tls": {
+    "enabled": true,
+    "cert_file": "relay.crt",
+    "key_file": "relay.key"
+  }
+}
+```
+
+客户端配置中启用 TLS，并把 `ca_file` 指向同一个证书文件：
+
+```json
+{
+  "tls": {
+    "enabled": true,
+    "server_name": "example.com",
+    "ca_file": "relay.crt",
+    "insecure_skip_verify": false
+  }
+}
+```
+
+生产环境建议使用正式 CA 签发的证书，不要开启 `insecure_skip_verify`。
+
 ## 安全边界
 
 第一版 relay 使用共享 token 鉴权。生产环境至少需要：
