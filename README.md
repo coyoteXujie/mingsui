@@ -72,7 +72,10 @@ curl -x http://local-user:local-pass@127.0.0.1:18081 https://example.com
 ```bash
 make build
 make test
+make dist APP_VERSION=v0.1.0
 ```
+
+跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。详细流程见 [docs/release.md](docs/release.md)。
 
 ## 配置
 
