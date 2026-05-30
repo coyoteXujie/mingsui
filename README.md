@@ -95,6 +95,16 @@ mingsui-relay config show -path ./relay.json
 
 `config show` 默认会隐藏 token 和本地代理密码；只有显式加 `-secrets` 才会输出真实敏感值。
 
+客户端支持多个 relay profile。可以把不同服务器写入同一个客户端配置，然后选择默认 profile，或启动时临时指定：
+
+```bash
+mingsui config profile add tokyo -path ./client.json -relay tokyo.example.com:9443 -token "$TOKEN"
+mingsui config profile add tls-node -path ./client.json -relay relay.example.com:9443 -token "$TOKEN" -tls -server-name relay.example.com
+mingsui config profile select tokyo -path ./client.json
+mingsui config profile list -path ./client.json
+mingsui run -config ./client.json -profile tokyo
+```
+
 诊断命令：
 
 ```bash

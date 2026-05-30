@@ -4,6 +4,20 @@
   "relay_addr": "127.0.0.1:9443",
   "token": "paste-generated-token-here",
   "dial_timeout_seconds": 10,
+  "active_profile": "",
+  "profiles": [
+    {
+      "name": "example",
+      "relay_addr": "example.com:9443",
+      "token": "paste-generated-token-here",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.com",
+        "ca_file": "",
+        "insecure_skip_verify": false
+      }
+    }
+  ],
   "local_auth": {
     "enabled": false,
     "username": "",

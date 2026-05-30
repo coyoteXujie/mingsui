@@ -5,7 +5,7 @@
 第一阶段桌面端功能：
 
 - 启动/停止本地代理。
-- 编辑 relay 地址和 token。
+- 编辑 relay 地址、token 和 relay profile。
 - 编辑本地代理认证用户名和密码。
 - 调用 `CheckRelayStatus` 验证 relay 地址和 token，并展示 relay 运行指标。
 - 显示连接状态、当前本地监听地址和日志。

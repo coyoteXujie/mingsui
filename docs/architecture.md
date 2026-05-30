@@ -24,6 +24,8 @@ target host
 
 客户端收到 SOCKS5 CONNECT 或 HTTP CONNECT 请求后，会连接 relay，发送带 token 的 `ConnectRequest`，relay 接受后开始双向转发字节流。普通 HTTP 请求会被转换成 origin-form 后转发给目标服务器。
 
+客户端配置支持多个 relay profile。`active_profile` 会覆盖顶层 `relay_addr`、`token` 和 `tls`，命令行 `-profile` 可以临时选择其他 profile；命令行 `-relay` / `-token` 仍可在最后覆盖实际连接目标。
+
 ## Relay 服务端
 
 relay 监听公网或内网地址，默认是 `0.0.0.0:9443`。它负责：

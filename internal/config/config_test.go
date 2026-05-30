@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -19,7 +20,7 @@ func TestWriteAndLoadClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadClient() error = %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
@@ -96,6 +97,74 @@ func TestClientConfigRedacted(t *testing.T) {
 	}
 	if cfg.Token != "secret" || cfg.LocalAuth.Password != "pass" {
 		t.Fatalf("Redacted() mutated original config: %+v", cfg)
+	}
+}
+
+func TestClientConfigProfiles(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Profiles = []RelayProfile{
+		{
+			Name:      "tokyo",
+			RelayAddr: "tokyo.example.com:9443",
+			Token:     "tokyo-secret",
+			TLS: ClientTLSConfig{
+				Enabled:    true,
+				ServerName: "tokyo.example.com",
+			},
+		},
+	}
+	cfg.ActiveProfile = "tokyo"
+
+	resolved, err := cfg.ResolveProfile("")
+	if err != nil {
+		t.Fatalf("ResolveProfile() error = %v", err)
+	}
+	if resolved.RelayAddr != "tokyo.example.com:9443" {
+		t.Fatalf("RelayAddr = %q, want tokyo relay", resolved.RelayAddr)
+	}
+	if resolved.Token != "tokyo-secret" {
+		t.Fatalf("Token = %q, want profile token", resolved.Token)
+	}
+	if !resolved.TLS.Enabled || resolved.TLS.ServerName != "tokyo.example.com" {
+		t.Fatalf("TLS = %+v, want profile TLS", resolved.TLS)
+	}
+}
+
+func TestClientConfigResolveProfileMissing(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Profiles = []RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+	}
+
+	if _, err := cfg.ResolveProfile("missing"); err == nil {
+		t.Fatal("ResolveProfile() error = nil, want missing profile error")
+	}
+}
+
+func TestClientConfigRejectsDuplicateProfiles(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Profiles = []RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "tokyo", RelayAddr: "tokyo2.example.com:9443", Token: "secret"},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want duplicate profile error")
+	}
+}
+
+func TestClientConfigRedactsProfiles(t *testing.T) {
+	cfg := DefaultClient()
+	cfg.Profiles = []RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+	}
+
+	got := cfg.Redacted()
+	if got.Profiles[0].Token != RedactedValue {
+		t.Fatalf("profile token = %q, want redacted", got.Profiles[0].Token)
+	}
+	if cfg.Profiles[0].Token != "secret" {
+		t.Fatalf("Redacted() mutated original profile: %+v", cfg.Profiles[0])
 	}
 }
 

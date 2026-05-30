@@ -26,12 +26,21 @@ type ClientAuthConfig struct {
 	Password string `json:"password"`
 }
 
+type RelayProfile struct {
+	Name      string          `json:"name"`
+	RelayAddr string          `json:"relay_addr"`
+	Token     string          `json:"token"`
+	TLS       ClientTLSConfig `json:"tls"`
+}
+
 type ClientConfig struct {
 	LocalAddr          string           `json:"local_addr"`
 	HTTPAddr           string           `json:"http_addr"`
 	RelayAddr          string           `json:"relay_addr"`
 	Token              string           `json:"token"`
 	DialTimeoutSeconds int              `json:"dial_timeout_seconds"`
+	ActiveProfile      string           `json:"active_profile,omitempty"`
+	Profiles           []RelayProfile   `json:"profiles,omitempty"`
 	LocalAuth          ClientAuthConfig `json:"local_auth"`
 	TLS                ClientTLSConfig  `json:"tls"`
 }
@@ -146,6 +155,14 @@ func (c ClientConfig) Validate() error {
 	if err := c.LocalAuth.Validate(); err != nil {
 		return err
 	}
+	if err := validateRelayProfiles(c.Profiles); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.ActiveProfile) != "" {
+		if _, ok := findRelayProfile(c.Profiles, c.ActiveProfile); !ok {
+			return fmt.Errorf("active_profile %q not found", c.ActiveProfile)
+		}
+	}
 	return nil
 }
 
@@ -159,7 +176,73 @@ func (c ClientConfig) DialTimeout() time.Duration {
 func (c ClientConfig) Redacted() ClientConfig {
 	c.Token = redact(c.Token)
 	c.LocalAuth.Password = redact(c.LocalAuth.Password)
+	c.Profiles = append([]RelayProfile(nil), c.Profiles...)
+	for i := range c.Profiles {
+		c.Profiles[i].Token = redact(c.Profiles[i].Token)
+	}
 	return c
+}
+
+func (c ClientConfig) ResolveProfile(profileName string) (ClientConfig, error) {
+	name := strings.TrimSpace(profileName)
+	if name == "" {
+		name = strings.TrimSpace(c.ActiveProfile)
+	}
+	if name == "" {
+		return c, nil
+	}
+
+	profile, ok := findRelayProfile(c.Profiles, name)
+	if !ok {
+		return ClientConfig{}, fmt.Errorf("profile %q not found", name)
+	}
+	c.ActiveProfile = profile.Name
+	c.RelayAddr = profile.RelayAddr
+	c.Token = profile.Token
+	c.TLS = profile.TLS
+	if err := c.Validate(); err != nil {
+		return ClientConfig{}, err
+	}
+	return c, nil
+}
+
+func (c ClientConfig) ProfileNames() []string {
+	names := make([]string, 0, len(c.Profiles))
+	for _, profile := range c.Profiles {
+		names = append(names, profile.Name)
+	}
+	return names
+}
+
+func validateRelayProfiles(profiles []RelayProfile) error {
+	seen := make(map[string]struct{}, len(profiles))
+	for _, profile := range profiles {
+		name := strings.TrimSpace(profile.Name)
+		if name == "" {
+			return errors.New("profiles.name is required")
+		}
+		if _, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate profile %q", name)
+		}
+		seen[name] = struct{}{}
+		if err := validateAddr("profiles.relay_addr", profile.RelayAddr); err != nil {
+			return err
+		}
+		if strings.TrimSpace(profile.Token) == "" {
+			return fmt.Errorf("profiles.%s token is required", name)
+		}
+	}
+	return nil
+}
+
+func findRelayProfile(profiles []RelayProfile, name string) (RelayProfile, bool) {
+	name = strings.TrimSpace(name)
+	for _, profile := range profiles {
+		if profile.Name == name {
+			return profile, true
+		}
+	}
+	return RelayProfile{}, false
 }
 
 func (a ClientAuthConfig) Validate() error {

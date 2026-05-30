@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
@@ -20,7 +21,7 @@ func TestNewAppUsesDefaultConfigWhenFileMissing(t *testing.T) {
 	if app.ConfigPath() != path {
 		t.Fatalf("ConfigPath() = %q, want %q", app.ConfigPath(), path)
 	}
-	if got := app.Config(); got != config.DefaultClient() {
+	if got := app.Config(); !reflect.DeepEqual(got, config.DefaultClient()) {
 		t.Fatalf("Config() = %+v, want default %+v", got, config.DefaultClient())
 	}
 }
@@ -43,7 +44,7 @@ func TestAppSaveConfigAndReload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp(reload) error = %v", err)
 	}
-	if got := reloaded.Config(); got != want {
+	if got := reloaded.Config(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("reloaded Config() = %+v, want %+v", got, want)
 	}
 }

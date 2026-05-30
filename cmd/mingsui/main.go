@@ -78,6 +78,7 @@ func runDoctor(args []string) int {
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
 	relayAddr := fs.String("relay", "", "relay 服务端地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	profileName := fs.String("profile", "", "使用指定 relay profile")
 	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
 	authUser := fs.String("auth-user", "", "本地代理认证用户名")
 	authPass := fs.String("auth-pass", "", "本地代理认证密码")
@@ -95,6 +96,15 @@ func runDoctor(args []string) int {
 			return writeDiagnosticReport(report)
 		}
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	cfg, err = cfg.ResolveProfile(*profileName)
+	if err != nil {
+		report.Fail(fmt.Sprintf("选择 profile 失败: %v", err))
+		if *jsonOutput {
+			return writeDiagnosticReport(report)
+		}
+		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 		return 1
 	}
 	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
@@ -182,6 +192,7 @@ func runClient(args []string) int {
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
 	relayAddr := fs.String("relay", "", "relay 服务端地址")
 	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	profileName := fs.String("profile", "", "使用指定 relay profile")
 	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
 	authUser := fs.String("auth-user", "", "本地代理认证用户名")
 	authPass := fs.String("auth-pass", "", "本地代理认证密码")
@@ -192,6 +203,11 @@ func runClient(args []string) int {
 	cfg, err := loadClientOrDefault(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	cfg, err = cfg.ResolveProfile(*profileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 		return 1
 	}
 	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
@@ -340,11 +356,177 @@ func runConfig(args []string) int {
 		return 0
 	case "show":
 		return showClientConfig(args[1:])
+	case "profile":
+		return runConfigProfile(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知配置命令 %q\n\n", args[0])
 		printConfigUsage()
 		return 2
 	}
+}
+
+func runConfigProfile(args []string) int {
+	if len(args) == 0 {
+		printConfigProfileUsage()
+		return 2
+	}
+
+	switch args[0] {
+	case "list":
+		return listClientProfiles(args[1:])
+	case "add":
+		return addClientProfile(args[1:])
+	case "select":
+		return selectClientProfile(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "未知 profile 命令 %q\n\n", args[0])
+		printConfigProfileUsage()
+		return 2
+	}
+}
+
+func listClientProfiles(args []string) int {
+	fs := flag.NewFlagSet("config profile list", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if len(cfg.Profiles) == 0 {
+		fmt.Fprintln(os.Stdout, "没有 relay profile")
+		return 0
+	}
+	for _, profile := range cfg.Profiles {
+		marker := " "
+		if profile.Name == cfg.ActiveProfile {
+			marker = "*"
+		}
+		fmt.Fprintf(os.Stdout, "%s %s %s\n", marker, profile.Name, profile.RelayAddr)
+	}
+	return 0
+}
+
+func addClientProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "profile 名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config profile add", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	relayAddr := fs.String("relay", "", "relay 服务端地址")
+	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	tlsEnabled := fs.Bool("tls", false, "为该 profile 启用 relay TLS")
+	tlsServerName := fs.String("server-name", "", "relay TLS ServerName")
+	tlsCAFile := fs.String("ca-file", "", "relay TLS CA 文件")
+	tlsInsecure := fs.Bool("insecure-skip-verify", false, "跳过 relay TLS 证书校验")
+	force := fs.Bool("force", false, "覆盖同名 profile")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	cfg, err := loadClientOrDefault(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := upsertRelayProfile(&cfg, config.RelayProfile{
+		Name:      name,
+		RelayAddr: *relayAddr,
+		Token:     *token,
+		TLS: config.ClientTLSConfig{
+			Enabled:            *tlsEnabled,
+			ServerName:         *tlsServerName,
+			CAFile:             *tlsCAFile,
+			InsecureSkipVerify: *tlsInsecure,
+		},
+	}, *force); err != nil {
+		fmt.Fprintf(os.Stderr, "写入 profile 失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已写入 profile %s\n", name)
+	return 0
+}
+
+func selectClientProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "profile 名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config profile select", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := selectRelayProfile(&cfg, name); err != nil {
+		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已选择 profile %s\n", name)
+	return 0
+}
+
+func upsertRelayProfile(cfg *config.ClientConfig, profile config.RelayProfile, replace bool) error {
+	if strings.TrimSpace(profile.Name) == "" {
+		return fmt.Errorf("profile 名称不能为空")
+	}
+	if strings.TrimSpace(profile.RelayAddr) == "" {
+		return fmt.Errorf("profile relay 地址不能为空")
+	}
+	if strings.TrimSpace(profile.Token) == "" {
+		return fmt.Errorf("profile token 不能为空")
+	}
+
+	index := relayProfileIndex(cfg.Profiles, profile.Name)
+	if index >= 0 {
+		if !replace {
+			return fmt.Errorf("profile %q 已存在", profile.Name)
+		}
+		cfg.Profiles[index] = profile
+		return cfg.Validate()
+	}
+	cfg.Profiles = append(cfg.Profiles, profile)
+	return cfg.Validate()
+}
+
+func selectRelayProfile(cfg *config.ClientConfig, name string) error {
+	if _, err := cfg.ResolveProfile(name); err != nil {
+		return err
+	}
+	cfg.ActiveProfile = name
+	return cfg.Validate()
+}
+
+func relayProfileIndex(profiles []config.RelayProfile, name string) int {
+	name = strings.TrimSpace(name)
+	for i, profile := range profiles {
+		if profile.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 func initClientConfig(args []string) int {
@@ -421,6 +603,7 @@ func printUsage() {
   mingsui doctor [flags]
   mingsui config init [flags]
   mingsui config path
+  mingsui config profile add|list|select [flags]
   mingsui config show [flags]
   mingsui token [flags]
   mingsui version
@@ -428,6 +611,8 @@ func printUsage() {
 示例:
   TOKEN=$(mingsui token)
   mingsui config init -relay example.com:9443 -token "$TOKEN"
+  mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+  mingsui run -profile tokyo -config %s
   mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
   mingsui config show -path %s
   mingsui doctor -config %s
@@ -436,14 +621,22 @@ func printUsage() {
   curl --socks5-hostname 127.0.0.1:18080 https://example.com
   curl -x http://127.0.0.1:18081 https://example.com
 
-`, config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath())
+`, config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath())
 }
 
 func printConfigUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config init [flags]
   mingsui config path
+  mingsui config profile add|list|select [flags]
   mingsui config show [flags]`)
+}
+
+func printConfigProfileUsage() {
+	fmt.Fprintln(os.Stderr, `用法:
+  mingsui config profile list [flags]
+  mingsui config profile add <name> -relay <addr> -token <token> [flags]
+  mingsui config profile select <name> [flags]`)
 }
 
 func writeJSON(w io.Writer, value any) error {
