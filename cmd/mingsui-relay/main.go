@@ -189,8 +189,7 @@ func runCheck(args []string) int {
 	if !*jsonOutput {
 		fmt.Fprintf(os.Stdout, "配置文件: %s\n", *cfgPath)
 	}
-	if cfg.Token == "change-me" {
-		warning := "当前使用默认 token，生产环境必须修改"
+	for _, warning := range relayWarnings(cfg) {
 		report.AddWarning(warning)
 		if !*jsonOutput {
 			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
@@ -340,8 +339,8 @@ func runRelay(args []string) int {
 		fmt.Fprintf(os.Stderr, "配置不正确: %v\n", err)
 		return 1
 	}
-	if cfg.Token == "change-me" {
-		fmt.Fprintln(os.Stderr, "警告: 当前使用默认 token，对外暴露 relay 前必须修改")
+	for _, warning := range relayWarnings(cfg) {
+		fmt.Fprintf(os.Stderr, "警告: %s\n", warning)
 	}
 
 	logger := log.New(os.Stderr, "mingsui relay: ", log.LstdFlags)
@@ -374,6 +373,35 @@ func applyRelayOverrides(cfg *config.RelayConfig, listenAddr, token string, allo
 	if maxConnections >= 0 {
 		cfg.MaxConnections = maxConnections
 	}
+}
+
+func relayWarnings(cfg config.RelayConfig) []string {
+	var warnings []string
+	if cfg.Token == "change-me" {
+		warnings = append(warnings, "当前使用默认 token，生产环境必须修改")
+	}
+	if cfg.AllowPrivateNetworks {
+		warnings = append(warnings, "relay 已允许访问私有和本地目标网络，仅应在可信环境使用")
+	}
+	if cfg.MaxConnections == 0 {
+		warnings = append(warnings, "未设置最大活跃连接数，公网环境建议设置 max_connections")
+	}
+	if !cfg.TLS.Enabled && !listenAddrIsLoopback(cfg.ListenAddr) {
+		warnings = append(warnings, "relay 监听在非 loopback 地址且未启用 TLS，token 会明文传输")
+	}
+	return warnings
+}
+
+func listenAddrIsLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return strings.EqualFold(host, "localhost")
+	}
+	return ip.IsLoopback()
 }
 
 func checkListen(name, label, addr string) diagnostic.Check {

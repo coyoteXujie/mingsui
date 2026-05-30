@@ -217,6 +217,8 @@ sudo systemctl status mingsui-relay
 - 保持 `allow_private_networks=false`，避免 relay 被用来访问内网地址。
 - 增加用户体系、设备授权、限速、审计和滥用检测。
 
+`mingsui-relay check` 会对默认 token、未启用 TLS、允许访问内网目标和未设置连接上限等情况给出警告。上线前应先处理这些警告。
+
 ## 后续路线
 
 1. 稳定核心代理链路：SOCKS5、HTTP/CONNECT、TLS relay、连接状态。

@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,6 +78,52 @@ func TestApplyRelayOverridesMaxConnections(t *testing.T) {
 	}
 }
 
+func TestRelayWarnings(t *testing.T) {
+	cfg := config.DefaultRelay()
+	cfg.ListenAddr = "0.0.0.0:9443"
+	cfg.Token = "change-me"
+	cfg.AllowPrivateNetworks = true
+	cfg.MaxConnections = 0
+
+	warnings := relayWarnings(cfg)
+	assertHasWarning(t, warnings, "当前使用默认 token")
+	assertHasWarning(t, warnings, "允许访问私有和本地目标网络")
+	assertHasWarning(t, warnings, "未设置最大活跃连接数")
+	assertHasWarning(t, warnings, "未启用 TLS")
+}
+
+func TestRelayWarningsAcceptsLocalLimitedRelay(t *testing.T) {
+	cfg := config.DefaultRelay()
+	cfg.ListenAddr = "127.0.0.1:9443"
+	cfg.Token = "secret"
+	cfg.MaxConnections = 32
+
+	if warnings := relayWarnings(cfg); len(warnings) != 0 {
+		t.Fatalf("relayWarnings() = %v, want no warnings", warnings)
+	}
+}
+
+func TestListenAddrIsLoopback(t *testing.T) {
+	tests := []struct {
+		addr string
+		want bool
+	}{
+		{addr: "127.0.0.1:9443", want: true},
+		{addr: "localhost:9443", want: true},
+		{addr: "[::1]:9443", want: true},
+		{addr: "0.0.0.0:9443", want: false},
+		{addr: "10.0.0.2:9443", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.addr, func(t *testing.T) {
+			if got := listenAddrIsLoopback(tt.addr); got != tt.want {
+				t.Fatalf("listenAddrIsLoopback() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func writeTestCertificate(t *testing.T) (string, string) {
 	t.Helper()
 
@@ -95,4 +142,15 @@ func writeTestCertificate(t *testing.T) (string, string) {
 		t.Fatalf("WriteCertificateFiles() error = %v", err)
 	}
 	return certPath, keyPath
+}
+
+func assertHasWarning(t *testing.T, warnings []string, want string) {
+	t.Helper()
+
+	for _, warning := range warnings {
+		if strings.Contains(warning, want) {
+			return
+		}
+	}
+	t.Fatalf("warnings %v do not contain %q", warnings, want)
 }
