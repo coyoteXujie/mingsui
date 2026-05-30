@@ -17,3 +17,12 @@
 - `Start(ctx)`：启动本地 SOCKS5/HTTP 代理。
 - `Stop(ctx)`：停止本地代理。
 - `Status()`：读取运行状态、本地监听地址、relay 地址和最近一次错误。
+
+如果要直接做 Wails 绑定，建议优先绑定 `internal/desktop.App`：
+
+- `ConfigPath()`：返回当前配置文件路径。
+- `Config()`：读取当前客户端配置。
+- `SaveConfig(cfg)`：保存配置，并刷新运行控制器。
+- `Start(ctx)` / `Stop(ctx)`：控制本地代理。
+- `Status()`：返回桌面 UI 可展示的运行状态。
+- `CheckRelay(ctx)`：执行 relay 连接测试。
