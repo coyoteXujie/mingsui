@@ -11,9 +11,12 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/subscription"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
+
+var proxyCheckRunner = proxycheck.Check
 
 type App struct {
 	mu         sync.Mutex
@@ -366,6 +369,36 @@ func (a *App) CheckProxyKernel(ctx context.Context) (config.ProxyProfile, error)
 		return config.ProxyProfile{}, err
 	}
 	return proxy, nil
+}
+
+func (a *App) CheckProxyProfiles(ctx context.Context, opts proxycheck.Options, selectBest bool) (proxycheck.Report, error) {
+	a.mu.Lock()
+	cfg := a.cfg.Clone()
+	running := a.controller.Status().Running || a.kernel.Status().Running
+	a.mu.Unlock()
+	if running {
+		return proxycheck.Report{}, errors.New("客户端运行中，请先断开再测速选优")
+	}
+
+	report, err := proxyCheckRunner(ctx, cfg, opts)
+	if err != nil {
+		return report, err
+	}
+	if !selectBest {
+		return report, nil
+	}
+	best, ok := report.Best()
+	if !ok {
+		return report, proxycheck.ErrNoHealthyNode
+	}
+	if err := cfg.SelectProxyProfile(best.Name); err != nil {
+		return report, err
+	}
+	if err := a.SaveConfig(cfg); err != nil {
+		return report, err
+	}
+	report.Selected = best.Name
+	return report, nil
 }
 
 func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) {

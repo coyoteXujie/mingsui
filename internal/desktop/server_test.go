@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 )
 
 func TestHTTPHandlerState(t *testing.T) {
@@ -168,6 +170,45 @@ func TestHTTPHandlerRejectsUnsupportedProxySelection(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("select status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHTTPHandlerCheckProxyProfilesSelectsBest(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "osaka", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "tokyo", Protocol: "ss", Tested: true, OK: true, LatencyMS: 120},
+			{Name: "osaka", Protocol: "ss", Tested: true, OK: true, LatencyMS: 60},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy/check", bytes.NewReader([]byte(`{"select_best":true}`)))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if app.Config().ActiveProxyProfile != "osaka" {
+		t.Fatalf("ActiveProxyProfile = %q, want osaka", app.Config().ActiveProxyProfile)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 )
 
 func TestNewAppUsesDefaultConfigWhenFileMissing(t *testing.T) {
@@ -237,6 +238,40 @@ func TestAppImportMainlandProxyProfilesDoesNotSelect(t *testing.T) {
 	cfg := app.Config()
 	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
 		t.Fatalf("Config() = %+v, want mainland proxy imported without active selection", cfg)
+	}
+}
+
+func TestAppCheckProxyProfilesSelectsBest(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "osaka", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "tokyo", Protocol: "ss", Tested: true, OK: true, LatencyMS: 180},
+			{Name: "osaka", Protocol: "ss", Tested: true, OK: true, LatencyMS: 70},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	report, err := app.CheckProxyProfiles(context.Background(), proxycheck.Options{}, true)
+	if err != nil {
+		t.Fatalf("CheckProxyProfiles() error = %v", err)
+	}
+	if report.Selected != "osaka" || app.Config().ActiveProxyProfile != "osaka" {
+		t.Fatalf("Selected/App config = %q/%q, want osaka", report.Selected, app.Config().ActiveProxyProfile)
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 )
 
 func TestLocalProxyMayBeExposed(t *testing.T) {
@@ -303,6 +305,46 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	}
 	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 2 {
 		t.Fatalf("Config() = %+v, want osaka removed and active proxy cleared", got)
+	}
+}
+
+func TestConfigProxyCheckSelectBest(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "osaka", Protocol: "vmess", URL: "vmess://eyJwcyI6Im9zYWthIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ=="},
+		{Name: "中国大陆", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn"},
+	}
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{
+			TargetURL: opts.TargetURL,
+			Results: []proxycheck.Result{
+				{Name: "tokyo", Protocol: "ss", Exportable: true, AutoSelectable: true, Tested: true, OK: true, LatencyMS: 200},
+				{Name: "osaka", Protocol: "vmess", Exportable: true, AutoSelectable: true, Tested: true, OK: true, LatencyMS: 80},
+				{Name: "中国大陆", Protocol: "ss", Exportable: true, AutoSelectable: false, SkipReason: "国内节点不自动选择"},
+			},
+		}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	if code := run([]string{"config", "proxy", "check", "-path", cfgPath, "-select-best", "-json"}); code != 0 {
+		t.Fatalf("run(config proxy check -select-best) = %d, want 0", code)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProxyProfile != "osaka" {
+		t.Fatalf("ActiveProxyProfile = %q, want osaka", got.ActiveProxyProfile)
 	}
 }
 

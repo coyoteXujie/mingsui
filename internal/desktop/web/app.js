@@ -329,6 +329,14 @@ function bind() {
     const result = await api("/api/check", { method: "POST", body: {} });
     setMessage(result.message, "ok");
   }));
+  $("bestProxyBtn").addEventListener("click", () => runAction(async () => {
+    const result = await api("/api/proxy/check", {
+      method: "POST",
+      body: { select_best: true, timeout_seconds: 10 },
+    });
+    setMessage(result.message, "ok");
+    await refresh();
+  }));
   $("systemProxyOnBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/system-proxy/enable", { method: "POST", body: {} });
     setMessage(result.message, "ok");

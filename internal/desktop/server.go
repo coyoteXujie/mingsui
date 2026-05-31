@@ -13,6 +13,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
@@ -38,6 +39,7 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 	mux.HandleFunc("/api/profile/select", method(http.MethodPost, handleSelectProfile(app)))
 	mux.HandleFunc("/api/profile/check", method(http.MethodPost, handleCheckProfile(app)))
 	mux.HandleFunc("/api/proxy/select", method(http.MethodPost, handleSelectProxyProfile(app)))
+	mux.HandleFunc("/api/proxy/check", method(http.MethodPost, handleCheckProxyProfiles(app)))
 	mux.HandleFunc("/api/profiles/import", method(http.MethodPost, handleImportProfiles(app)))
 	mux.HandleFunc("/api/subscription", method(http.MethodPost, handleSaveSubscription(app)))
 	mux.HandleFunc("/api/subscription/delete", method(http.MethodPost, handleDeleteSubscription(app)))
@@ -54,11 +56,12 @@ type stateResponse struct {
 }
 
 type messageResponse struct {
-	OK      bool                `json:"ok"`
-	Message string              `json:"message,omitempty"`
-	Mode    string              `json:"mode,omitempty"`
-	Health  *client.RelayHealth `json:"health,omitempty"`
-	Count   int                 `json:"count,omitempty"`
+	OK         bool                `json:"ok"`
+	Message    string              `json:"message,omitempty"`
+	Mode       string              `json:"mode,omitempty"`
+	Health     *client.RelayHealth `json:"health,omitempty"`
+	Count      int                 `json:"count,omitempty"`
+	ProxyCheck *proxycheck.Report  `json:"proxy_check,omitempty"`
 }
 
 type proxyCapability struct {
@@ -69,6 +72,13 @@ type proxyCapability struct {
 
 type profileNameRequest struct {
 	Name string `json:"name"`
+}
+
+type proxyCheckRequest struct {
+	URL            string `json:"url"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	Limit          int    `json:"limit"`
+	SelectBest     bool   `json:"select_best"`
 }
 
 type profileRequest struct {
@@ -268,6 +278,38 @@ func handleSelectProxyProfile(app *App) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "机场节点已选择"})
+	}
+}
+
+func handleCheckProxyProfiles(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req proxyCheckRequest
+		if err := readJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		timeout := time.Duration(req.TimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = proxycheck.DefaultTimeout
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+		defer cancel()
+		report, err := app.CheckProxyProfiles(ctx, proxycheck.Options{
+			TargetURL: req.URL,
+			Timeout:   timeout,
+			Limit:     req.Limit,
+		}, req.SelectBest)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, messageResponse{OK: false, Message: err.Error(), ProxyCheck: &report})
+			return
+		}
+		message := "测速完成"
+		if req.SelectBest && report.Selected != "" {
+			message = "测速完成，已选择 " + report.Selected
+		} else if report.BestName != "" {
+			message = "测速完成，最快节点 " + report.BestName
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: message, ProxyCheck: &report})
 	}
 }
 

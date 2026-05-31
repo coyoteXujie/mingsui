@@ -23,9 +23,12 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/diagnostic"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/protocol"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/security"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
+
+var proxyCheckRunner = proxycheck.Check
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -1255,6 +1258,8 @@ func runConfigProxy(args []string) int {
 		return listProxyProfiles(args[1:])
 	case "select":
 		return selectProxyProfile(args[1:])
+	case "check":
+		return checkProxyProfiles(args[1:])
 	case "remove":
 		return removeProxyProfile(args[1:])
 	default:
@@ -1368,6 +1373,94 @@ func selectProxyProfile(args []string) int {
 	}
 	fmt.Printf("已选择机场节点 %s\n", name)
 	return 0
+}
+
+func checkProxyProfiles(args []string) int {
+	fs := flag.NewFlagSet("config proxy check", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	targetURL := fs.String("url", proxycheck.DefaultTargetURL, "测速 URL")
+	timeout := fs.Duration("timeout", proxycheck.DefaultTimeout, "每个节点测速超时时间")
+	limit := fs.Int("limit", 0, "最多检测多少个候选节点，0 表示不限制")
+	selectBest := fs.Bool("select-best", false, "测速成功后选择最快的国外节点")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出测速结果")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	report, checkErr := proxyCheckRunner(ctx, cfg, proxycheck.Options{
+		TargetURL: *targetURL,
+		Timeout:   *timeout,
+		Limit:     *limit,
+	})
+	if checkErr == nil && *selectBest {
+		best, ok := report.Best()
+		if !ok {
+			checkErr = proxycheck.ErrNoHealthyNode
+			report.Error = checkErr.Error()
+		} else {
+			if err := cfg.SelectProxyProfile(best.Name); err != nil {
+				fmt.Fprintf(os.Stderr, "选择最快节点失败: %v\n", err)
+				return 1
+			}
+			if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+				fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+				return 1
+			}
+			report.Selected = best.Name
+		}
+	}
+	if *jsonOutput {
+		if err := writeJSON(os.Stdout, report); err != nil {
+			fmt.Fprintf(os.Stderr, "输出测速结果失败: %v\n", err)
+			return 1
+		}
+		if checkErr != nil {
+			return 1
+		}
+		return 0
+	}
+	printProxyCheckReport(report)
+	if checkErr != nil {
+		fmt.Fprintf(os.Stderr, "测速失败: %v\n", checkErr)
+		return 1
+	}
+	if *selectBest && report.Selected != "" {
+		best, _ := report.Best()
+		fmt.Fprintf(os.Stdout, "已选择最快国外节点: %s (%d ms)\n", report.Selected, best.LatencyMS)
+	}
+	return 0
+}
+
+func printProxyCheckReport(report proxycheck.Report) {
+	fmt.Fprintf(os.Stdout, "检测目标: %s\n", report.TargetURL)
+	for _, result := range report.Results {
+		protocol := strings.ToUpper(result.Protocol)
+		if protocol == "" {
+			protocol = "-"
+		}
+		switch {
+		case !result.Tested:
+			reason := result.SkipReason
+			if reason == "" {
+				reason = "未检测"
+			}
+			fmt.Fprintf(os.Stdout, "[跳过] %s %s %s\n", result.Name, protocol, reason)
+		case result.OK:
+			fmt.Fprintf(os.Stdout, "[正常] %s %s %d ms\n", result.Name, protocol, result.LatencyMS)
+		default:
+			fmt.Fprintf(os.Stdout, "[失败] %s %s %s\n", result.Name, protocol, result.Error)
+		}
+	}
+	if best, ok := report.Best(); ok {
+		fmt.Fprintf(os.Stdout, "最快可用国外节点: %s (%d ms)\n", best.Name, best.LatencyMS)
+	}
 }
 
 func writeJSONOrError(value any) int {
@@ -1722,7 +1815,7 @@ func printUsage() {
   mingsui config init [flags]
   mingsui config path
   mingsui config profile add|list|select|remove|rename|check|import|export [flags]
-  mingsui config proxy list|select|remove [flags]
+  mingsui config proxy list|select|check|remove [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]
   mingsui token [flags]
@@ -1742,6 +1835,7 @@ func printUsage() {
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
   mingsui config proxy list
   mingsui config proxy select tokyo
+  mingsui config proxy check -select-best
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
   mingsui config profile export -output ./nodes.json -secrets
@@ -1777,7 +1871,7 @@ func printConfigUsage() {
   mingsui config init [flags]
   mingsui config path
   mingsui config profile add|list|select|remove|rename|check|import|export [flags]
-  mingsui config proxy list|select|remove [flags]
+  mingsui config proxy list|select|check|remove [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]`)
 }
@@ -1798,6 +1892,7 @@ func printConfigProxyUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config proxy list [flags]
   mingsui config proxy select <name> [-force] [flags]
+  mingsui config proxy check [-select-best] [flags]
   mingsui config proxy remove <name> [flags]`)
 }
 
