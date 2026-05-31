@@ -211,6 +211,40 @@ func TestTopLevelImportDoesNotAutoSelectMainlandProxyProfile(t *testing.T) {
 	}
 }
 
+func TestTopLevelImportCheckSelectsBestProxyProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "tokyo", Protocol: "ss", Tested: true, OK: true, LatencyMS: 220},
+			{Name: "osaka", Protocol: "ss", Tested: true, OK: true, LatencyMS: 90},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath, "-check"})
+	if code != 0 {
+		t.Fatalf("run(import -check) = %d, want 0", code)
+	}
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "osaka" {
+		t.Fatalf("ActiveProxyProfile = %q, want osaka", cfg.ActiveProxyProfile)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "airport", "https://example.com/sub", true); err != nil {
@@ -638,7 +672,7 @@ func TestSyncSubscriptionDataRelayProfiles(t *testing.T) {
 	cfgPath := filepath.Join(dir, "client.json")
 	cfg := config.DefaultClient()
 
-	code := syncSubscriptionData(cfg, cfgPath, "team", []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), true, "", true)
+	code := syncSubscriptionData(cfg, cfgPath, "team", []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), true, "", true, proxyCheckSettings{})
 	if code != 0 {
 		t.Fatalf("syncSubscriptionData(relay) = %d, want 0", code)
 	}
@@ -658,7 +692,7 @@ func TestSyncSubscriptionDataProxyProfiles(t *testing.T) {
 	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
 		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
 
-	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true)
+	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, proxyCheckSettings{})
 	if code != 0 {
 		t.Fatalf("syncSubscriptionData(proxy) = %d, want 0", code)
 	}
@@ -668,6 +702,37 @@ func TestSyncSubscriptionDataProxyProfiles(t *testing.T) {
 	}
 	if got.ActiveProxyProfile != "tokyo" || len(got.ProxyProfiles) != 2 {
 		t.Fatalf("Config() = %+v, want synced active exportable proxy profile", got)
+	}
+}
+
+func TestSyncSubscriptionDataCheckSelectsBestProxyProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka\r\n"
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "tokyo", Protocol: "ss", Tested: true, OK: true, LatencyMS: 160},
+			{Name: "osaka", Protocol: "ss", Tested: true, OK: true, LatencyMS: 60},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, proxyCheckSettings{Enabled: true})
+	if code != 0 {
+		t.Fatalf("syncSubscriptionData(proxy check) = %d, want 0", code)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProxyProfile != "osaka" {
+		t.Fatalf("ActiveProxyProfile = %q, want osaka", got.ActiveProxyProfile)
 	}
 }
 

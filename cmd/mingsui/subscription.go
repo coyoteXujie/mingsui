@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
+	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/subscription"
 )
 
@@ -31,6 +34,10 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	selectName := fs.String("select", "", "导入后选择指定节点")
 	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个节点")
 	subscriptionName := fs.String("subscription", "", "导入成功后把 HTTP(S) 来源保存为指定订阅名称")
+	checkSettings := proxyCheckSettings{}
+	if allowProxy {
+		checkSettings.bind(fs)
+	}
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -52,7 +59,8 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 
 	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil && allowProxy {
-		return importProxyProfiles(cfg, *cfgPath, data, *source, strings.TrimSpace(*subscriptionName), *force, strings.TrimSpace(*selectName), *selectFirst, err)
+		checkSettings.read()
+		return importProxyProfiles(cfg, *cfgPath, data, *source, strings.TrimSpace(*subscriptionName), *force, strings.TrimSpace(*selectName), *selectFirst, checkSettings, err)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
@@ -84,7 +92,47 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	return 0
 }
 
-func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, source, subscriptionName string, force bool, selectedName string, selectFirst bool, relayErr error) int {
+type proxyCheckSettings struct {
+	Enabled    bool
+	TargetURL  string
+	Timeout    time.Duration
+	Limit      int
+	enabledPtr *bool
+	urlPtr     *string
+	timeoutPtr *time.Duration
+	limitPtr   *int
+}
+
+func (s *proxyCheckSettings) bind(fs *flag.FlagSet) {
+	s.enabledPtr = fs.Bool("check", false, "导入或同步机场后测速并选择最快国外节点")
+	s.urlPtr = fs.String("check-url", proxycheck.DefaultTargetURL, "机场节点测速 URL")
+	s.timeoutPtr = fs.Duration("check-timeout", proxycheck.DefaultTimeout, "每个机场节点测速超时时间")
+	s.limitPtr = fs.Int("check-limit", 0, "最多检测多少个候选机场节点，0 表示不限制")
+}
+
+func (s *proxyCheckSettings) read() {
+	if s.enabledPtr == nil {
+		return
+	}
+	s.Enabled = *s.enabledPtr
+	s.TargetURL = *s.urlPtr
+	s.Timeout = *s.timeoutPtr
+	s.Limit = *s.limitPtr
+}
+
+func (s proxyCheckSettings) options() proxycheck.Options {
+	return proxycheck.Options{
+		TargetURL: s.TargetURL,
+		Timeout:   s.Timeout,
+		Limit:     s.Limit,
+	}
+}
+
+func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, source, subscriptionName string, force bool, selectedName string, selectFirst bool, check proxyCheckSettings, relayErr error) int {
+	if check.Enabled && selectedName != "" {
+		fmt.Fprintln(os.Stderr, "不能同时使用 -select 和 -check；测速选优会自动选择最快国外节点")
+		return 2
+	}
 	profiles, err := subscription.ParseProxyProfiles(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", relayErr)
@@ -114,6 +162,33 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, s
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
+	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
+		return code
+	}
+	return 0
+}
+
+func checkAndPersistBestProxyProfile(cfgPath string, cfg *config.ClientConfig, check proxyCheckSettings) int {
+	if !check.Enabled {
+		return 0
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	report, err := proxyCheckRunner(ctx, *cfg, check.options())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "机场节点已保存，但测速选优失败: %v\n", err)
+		return 1
+	}
+	if err := selectBestProxyProfileFromReport(cfg, &report); err != nil {
+		fmt.Fprintf(os.Stderr, "机场节点已保存，但选择最快节点失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(cfgPath, *cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入测速选择失败: %v\n", err)
+		return 1
+	}
+	best, _ := report.Best()
+	fmt.Fprintf(os.Stdout, "已测速选择最快国外节点 %s (%d ms)\n", report.Selected, best.LatencyMS)
 	return 0
 }
 
@@ -336,9 +411,12 @@ func syncClientSubscription(args []string) int {
 	force := fs.Bool("force", true, "覆盖同名 profile")
 	selectName := fs.String("select", "", "同步后选择指定 profile")
 	selectFirst := fs.Bool("select-first", true, "未指定 -select 且当前未选择节点时选择同步到的第一个节点")
+	checkSettings := proxyCheckSettings{}
+	checkSettings.bind(fs)
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
+	checkSettings.read()
 
 	cfg, err := config.LoadClient(*cfgPath)
 	if err != nil {
@@ -356,13 +434,13 @@ func syncClientSubscription(args []string) int {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
 		return 1
 	}
-	return syncSubscriptionData(cfg, *cfgPath, name, data, *force, strings.TrimSpace(*selectName), *selectFirst)
+	return syncSubscriptionData(cfg, *cfgPath, name, data, *force, strings.TrimSpace(*selectName), *selectFirst, checkSettings)
 }
 
-func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool) int {
+func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, check proxyCheckSettings) int {
 	profiles, relayErr := subscription.ParseRelayProfiles(data)
 	if relayErr != nil {
-		return syncProxySubscription(cfg, cfgPath, subscriptionName, data, force, selectedName, selectFirst, relayErr)
+		return syncProxySubscription(cfg, cfgPath, subscriptionName, data, force, selectedName, selectFirst, check, relayErr)
 	}
 	if err := cfg.ImportRelayProfiles(profiles, force); err != nil {
 		fmt.Fprintf(os.Stderr, "导入 profile 失败: %v\n", err)
@@ -385,7 +463,11 @@ func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName str
 	return 0
 }
 
-func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, relayErr error) int {
+func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, check proxyCheckSettings, relayErr error) int {
+	if check.Enabled && selectedName != "" {
+		fmt.Fprintln(os.Stderr, "不能同时使用 -select 和 -check；测速选优会自动选择最快国外节点")
+		return 2
+	}
 	profiles, err := subscription.ParseProxyProfiles(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "同步订阅失败: %v\n", relayErr)
@@ -411,6 +493,9 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
+	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
+		return code
+	}
 	return 0
 }
 
@@ -442,5 +527,5 @@ func printConfigSubscriptionUsage() {
   mingsui config subscription list [flags]
   mingsui config subscription add <name> -url <url> [flags]
   mingsui config subscription remove <name> [flags]
-  mingsui config subscription sync <name> [-select <node>] [flags]`)
+  mingsui config subscription sync <name> [-select <node>|-check] [flags]`)
 }

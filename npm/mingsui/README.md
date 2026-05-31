@@ -7,13 +7,14 @@
 ```bash
 npm install -g mingsui
 mingsui version
+mingsui import -source <subscription-url> -check
 mingsui status
 mingsui config proxy check -select-best
 mingsui exec -connect -- curl https://example.com
 ```
 
 `mingsui exec -connect` 会临时启动当前选择的连接，只把代理环境注入这个子命令，适合 AI Agent 和自动化脚本。
-`mingsui config proxy check -select-best` 会只在可自动选择的国外机场节点里测速选优，不会把看起来是国内或回国线路的节点设为默认。
+`mingsui import -check` 和 `mingsui config proxy check -select-best` 会只在可自动选择的国外机场节点里测速选优，不会把看起来是国内或回国线路的节点设为默认。
 
 本地开发或发版前可以从仓库构建 npm tarball：
 

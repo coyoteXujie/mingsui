@@ -1400,20 +1400,14 @@ func checkProxyProfiles(args []string) int {
 		Limit:     *limit,
 	})
 	if checkErr == nil && *selectBest {
-		best, ok := report.Best()
-		if !ok {
-			checkErr = proxycheck.ErrNoHealthyNode
+		if err := selectBestProxyProfileFromReport(&cfg, &report); err != nil {
+			checkErr = err
 			report.Error = checkErr.Error()
 		} else {
-			if err := cfg.SelectProxyProfile(best.Name); err != nil {
-				fmt.Fprintf(os.Stderr, "选择最快节点失败: %v\n", err)
-				return 1
-			}
 			if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 				fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 				return 1
 			}
-			report.Selected = best.Name
 		}
 	}
 	if *jsonOutput {
@@ -1436,6 +1430,18 @@ func checkProxyProfiles(args []string) int {
 		fmt.Fprintf(os.Stdout, "已选择最快国外节点: %s (%d ms)\n", report.Selected, best.LatencyMS)
 	}
 	return 0
+}
+
+func selectBestProxyProfileFromReport(cfg *config.ClientConfig, report *proxycheck.Report) error {
+	best, ok := report.Best()
+	if !ok {
+		return proxycheck.ErrNoHealthyNode
+	}
+	if err := cfg.SelectProxyProfile(best.Name); err != nil {
+		return err
+	}
+	report.Selected = best.Name
+	return nil
 }
 
 func printProxyCheckReport(report proxycheck.Report) {
@@ -1824,6 +1830,7 @@ func printUsage() {
 示例:
   TOKEN=$(mingsui token)
   mingsui import -source ./nodes.json
+  mingsui import -source https://example.com/airport/sub -check
   mingsui connect
   mingsui status
   eval "$(mingsui env)"
@@ -1835,6 +1842,7 @@ func printUsage() {
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
   mingsui config proxy list
   mingsui config proxy select tokyo
+  mingsui config proxy check -select-best
   mingsui config proxy check -select-best
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force

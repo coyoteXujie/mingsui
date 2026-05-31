@@ -78,18 +78,18 @@ Use `mingsui connect` when a long-running local proxy is needed. Keep it running
 For a subscription import:
 
 ```bash
-mingsui import -source <file-or-url>
-mingsui import -source <subscription-url> -subscription airport
+mingsui import -source <file-or-url> -check
+mingsui import -source <subscription-url> -subscription airport -check
 mingsui status
 mingsui config proxy list
 mingsui config proxy check -select-best
 mingsui config proxy select <node-name>
 mingsui config subscription add airport -url <subscription-url>
-mingsui config subscription sync airport
+mingsui config subscription sync airport -check
 ```
 
 Automatic airport-node selection skips nodes that look like Mainland China, domestic, or return-to-China lines. Use `mingsui config proxy list` to inspect which node is selected and which nodes are not auto-selectable.
-Use `mingsui config proxy check -select-best` to test auto-selectable foreign nodes through Mihomo and persist the fastest working node.
+Use `mingsui import -check`, `mingsui config subscription sync <name> -check`, or `mingsui config proxy check -select-best` to test auto-selectable foreign nodes through Mihomo and persist the fastest working node.
 
 If the active profile is an airport node and direct connect reports that the general proxy kernel is not connected yet, export a Mihomo config for manual kernel testing:
 

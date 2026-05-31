@@ -40,7 +40,7 @@ mingsui version
 导入机场订阅：
 
 ```bash
-mingsui import -source "https://example.com/api/v1/client/subscribe?token=..."
+mingsui import -source "https://example.com/api/v1/client/subscribe?token=..." -check
 mingsui status
 mingsui config proxy check -select-best
 ```
@@ -166,17 +166,17 @@ mingsui config show -path ./client.json
 
 ```bash
 mingsui import -source <机场订阅地址>
-mingsui import -source <机场订阅地址> -subscription airport
+mingsui import -source <机场订阅地址> -subscription airport -check
 mingsui status
 mingsui config proxy list
 mingsui config proxy check -select-best
 mingsui config proxy select <节点名称>
 mingsui config subscription add airport -url <机场订阅地址>
-mingsui config subscription sync airport
+mingsui config subscription sync airport -check
 mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 
-`mingsui config proxy check -select-best` 会临时启动 Mihomo，对可自动选择的国外节点做连通性测速，并把最快可用节点保存为当前选择；看起来是国内/回国线路的节点会被跳过。
+导入或同步机场时加 `-check` 会临时启动 Mihomo，对可自动选择的国外节点做连通性测速，并把最快可用节点保存为当前选择；看起来是国内/回国线路的节点会被跳过。已经导入后，也可以随时运行 `mingsui config proxy check -select-best` 重新选优。
 
 订阅 URL 可能包含访问密钥，不要把完整 URL、导出的 Mihomo 配置或节点链接发到日志和工单里。
 
