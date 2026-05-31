@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"strconv"
@@ -14,8 +15,12 @@ import (
 )
 
 type Options struct {
-	Mode     string
-	LogLevel string
+	Mode       string
+	LogLevel   string
+	BinaryPath string
+	WorkDir    string
+	Stdout     io.Writer
+	Stderr     io.Writer
 }
 
 func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {

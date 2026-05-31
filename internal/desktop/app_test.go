@@ -184,8 +184,9 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	if cfg.ActiveProxyProfile != "tokyo" || len(cfg.ProxyProfiles) != 1 {
 		t.Fatalf("Config() = %+v, want imported active proxy profile", cfg)
 	}
+	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(t.TempDir(), "missing-mihomo"))
 	if err := app.Start(context.Background()); err == nil {
-		t.Fatal("Start() error = nil, want sing-box pending error for proxy profile")
+		t.Fatal("Start() error = nil, want missing Mihomo error for proxy profile")
 	}
 }
 

@@ -156,7 +156,7 @@ function renderProxyProfiles(profiles, active) {
     const title = document.createElement("strong");
     title.textContent = profile.name === active ? `${profile.name} · 当前` : profile.name;
     const addr = document.createElement("span");
-    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · 等待通用代理内核`;
+    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · Mihomo`;
     info.append(title, addr);
 
     const actions = document.createElement("div");

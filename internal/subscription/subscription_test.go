@@ -69,7 +69,7 @@ func TestParseRelayProfilesRecognizesAirportSubscription(t *testing.T) {
 		t.Fatal("ParseRelayProfiles() error = nil, want unsupported airport subscription error")
 	}
 	message := err.Error()
-	for _, want := range []string{"真实机场订阅", "ss: 1", "vmess: 1", "sing-box", "Xray"} {
+	for _, want := range []string{"真实机场订阅", "ss: 1", "vmess: 1", "mingsui import"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error = %q, want %q", message, want)
 		}

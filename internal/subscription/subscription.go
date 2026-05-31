@@ -241,7 +241,7 @@ func relayProfileParseError(data []byte, parseErr error) error {
 	if inspection.Total == 0 {
 		return parseErr
 	}
-	return fmt.Errorf("识别到真实机场订阅（%s，共 %d 个节点），当前版本只支持明隧 relay profile，不能直接连接这些通用代理节点；下一步需要接入 sing-box 或 Xray 作为通用代理内核", formatSchemeCounts(inspection.Counts), inspection.Total)
+	return fmt.Errorf("识别到真实机场订阅（%s，共 %d 个节点）；当前命令只导入明隧 relay profile，请使用 mingsui import 导入机场节点", formatSchemeCounts(inspection.Counts), inspection.Total)
 }
 
 func inspectProxySubscription(data []byte) proxySubscriptionInspection {

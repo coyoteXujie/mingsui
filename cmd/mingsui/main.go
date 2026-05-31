@@ -288,8 +288,8 @@ func runClientCommand(name string, args []string, autoProfileDefault bool) int {
 	}
 	if name == "connect" && *profileName == "" && *relayAddr == "" && *token == "" {
 		if proxy, ok := resolveClientProxyProfile(cfg, true); ok {
-			fmt.Fprintf(os.Stderr, "当前选择的是机场节点 %s（%s），通用代理内核尚未接入；下一步接入 sing-box 后可直接连接\n", proxy.Name, proxy.Protocol)
-			return 1
+			applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", *authEnabled, *authUser, *authPass)
+			return runProxyKernel(cfg, proxy)
 		}
 	}
 	var selectedProfile string
@@ -325,6 +325,22 @@ func runClientCommand(name string, args []string, autoProfileDefault bool) int {
 
 	if err := service.Serve(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "运行客户端失败: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runProxyKernel(cfg config.ClientConfig, proxy config.ProxyProfile) int {
+	if localProxyMayBeExposed(cfg) {
+		fmt.Fprintln(os.Stderr, "警告: 本地代理监听在非 loopback 地址")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	fmt.Fprintf(os.Stderr, "使用机场节点: %s（%s）\n", proxy.Name, proxy.Protocol)
+	fmt.Fprintln(os.Stderr, "正在启动 Mihomo 内核；停止当前进程即可断开")
+	if err := mihomo.Run(ctx, cfg, mihomo.Options{Stdout: os.Stderr, Stderr: os.Stderr}); err != nil {
+		fmt.Fprintf(os.Stderr, "启动 Mihomo 失败: %v\n", err)
 		return 1
 	}
 	return 0
@@ -388,7 +404,7 @@ func runStatus(args []string) int {
 		status.ProxyProtocol = proxy.Protocol
 		status.LocalAddr = cfg.LocalAddr
 		status.HTTPAddr = cfg.HTTPAddr
-		status.Message = "当前选择的是机场节点，通用代理内核尚未接入"
+		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo 内核"
 		return writeCLIStatus(status, *jsonOutput)
 	}
 	var selectedProfile string

@@ -1,226 +1,159 @@
 # MingSui 明隧
 
-MingSui 是一个 Go 编写的桌面端与命令行网络代理产品雏形。当前仓库先落地核心链路：本地 SOCKS5/HTTP 客户端连接远端 relay，relay 负责拨出目标 TCP 连接。
+MingSui 是一个面向人和 AI Agent 的代理连接产品。
 
-> 当前版本是产品 MVP 的基础骨架，不是已经可公开运营的成熟代理服务。
+- 桌面端给人用：导入订阅、选择节点、点击连接。
+- CLI 给 AI 和自动化用：导入订阅、连接、输出状态、给子命令注入代理环境。
+- CLI 和桌面端共用同一套客户端配置。
+
+当前优先支持 Mihomo 作为通用代理内核。机场订阅导入后，明隧会生成 Mihomo 配置并拉起内核；自建 relay profile 仍使用明隧自己的 relay 链路。
 
 ## 主要组件
 
-- `mingsui`: 客户端 CLI，启动本地 SOCKS5 和 HTTP 代理。
-- `mingsui-relay`: 远端 relay 服务，负责鉴权和转发。
-- `mingsui-desktop`: 本机桌面控制台，提供启动、停止、检测、profile 和订阅管理界面。
-- `internal/client`: 本地 SOCKS5 和 relay 连接逻辑。
-- `internal/relay`: relay 服务端逻辑。
-- `internal/protocol`: 客户端和 relay 之间的轻量协议。
-- `desktop`: 桌面端路线说明，后续用 Wails 复用同一套 Go core。
+- `mingsui`: CLI 客户端，给 AI Agent、脚本和开发者使用。
+- `mingsui-desktop`: 桌面端控制台，给普通用户使用。
+- `mingsui-relay`: 可选的自建 relay 服务端。
+- `mihomo`: 默认通用代理内核，用来连接机场订阅里的节点。
 
-## 当前能力边界
+## 安装
 
-`mingsui connect`/`mingsui run` 当前启动的是本机代理端口，不会自动修改系统代理，也不会自动开启虚拟网卡/TUN。
+CLI 面向 AI Agent 和自动化环境，正式发布后通过 npm 安装：
 
-- 给 AI CLI、脚本、`curl`、`npm` 这类命令用：通过 `mingsui env` 或 `mingsui exec` 给子进程设置代理环境变量。
-- 给浏览器用：需要浏览器或系统代理指向本机 HTTP/SOCKS5 端口；后续桌面端会把“系统代理”和“TUN”做成开关。
-- 机场订阅：当前可以导入标准订阅、选择节点、导出 Mihomo 配置；直接由明隧托管 Mihomo 进程是下一步要接入的能力。
+```bash
+npm install -g mingsui
+mingsui version
+```
+
+桌面端面向普通用户：
+
+- Linux 使用 `.deb` 安装包。
+- Windows 使用带 `mingsui-desktop.exe` 的发布包。
+
+源码开发、本地打包和本地 npm 安装见 [docs/development.md](docs/development.md)。
 
 ## 快速开始
 
-构建：
+导入机场订阅：
 
 ```bash
-mkdir -p bin
-go build -o bin/mingsui ./cmd/mingsui
-go build -o bin/mingsui-relay ./cmd/mingsui-relay
-go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
+mingsui import -source "https://example.com/api/v1/client/subscribe?token=..."
+mingsui status
 ```
 
-先在同一个终端里生成 token，然后启动 relay：
+连接：
 
 ```bash
-TOKEN=$(./bin/mingsui-relay token)
-./bin/mingsui-relay config init -path ./relay.json -token "$TOKEN" -allow-private -max-connections 256
-./bin/mingsui-relay check -config ./relay.json
-./bin/mingsui-relay serve -config ./relay.json
+mingsui connect
 ```
 
-继续使用同一个 `TOKEN`，初始化并启动客户端：
+`mingsui connect` 会保持前台运行。停止这个进程就会断开连接。
+
+让某个命令走明隧代理：
 
 ```bash
-./bin/mingsui config init -path ./client.json -relay 127.0.0.1:9443 -token "$TOKEN"
-./bin/mingsui doctor -config ./client.json
-./bin/mingsui run -config ./client.json
+mingsui exec -- curl https://example.com
 ```
 
-测试 SOCKS5：
+或者把代理环境变量写入当前 shell：
 
 ```bash
-curl --socks5-hostname 127.0.0.1:18080 https://example.com
-```
-
-测试 HTTP 代理：
-
-```bash
-curl -x http://127.0.0.1:18081 https://example.com
-```
-
-给 AI 或命令行工具使用时，推荐两种方式。
-
-第一种，只让单个子命令走明隧代理：
-
-```bash
-./bin/mingsui exec -config ./client.json -- curl https://example.com
-```
-
-第二种，把代理环境变量写入当前 shell，之后这个 shell 启动的命令都会继承这些变量：
-
-```bash
-eval "$(./bin/mingsui env -config ./client.json)"
+eval "$(mingsui env)"
 curl https://example.com
 ```
 
-`mingsui env` 只输出 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 等环境变量；它不会影响已经打开的浏览器，也不会修改系统代理。
+`mingsui env` 只影响当前 shell 以及后续子进程，不会反向修改已经运行的 Codex、Claude、浏览器或系统代理。
 
-启动本机桌面控制台：
+## 桌面端
+
+桌面端和 CLI 使用同一份配置。普通用户的目标流程是：
+
+1. 打开明隧桌面端。
+2. 粘贴机场订阅或登录账号。
+3. 选择节点。
+4. 点击连接。
+
+当前开发版桌面控制台启动方式：
 
 ```bash
-./bin/mingsui-desktop -config ./client.json
+mingsui-desktop
 ```
 
 命令会打印一个只监听本机的控制台地址，例如 `http://127.0.0.1:18200`。
 
-如果本地代理需要监听到局域网地址，建议启用本地代理认证：
+## 能力边界
 
-```bash
-./bin/mingsui config init -path ./client.json \
-  -relay 127.0.0.1:9443 \
-  -token "$TOKEN" \
-  -local 0.0.0.0:18080 \
-  -http 0.0.0.0:18081 \
-  -auth-user local-user \
-  -auth-pass local-pass
+明隧 CLI 默认不修改系统代理，也不开启 TUN/虚拟网卡。
 
-curl --socks5-hostname local-user:local-pass@127.0.0.1:18080 https://example.com
-curl -x http://local-user:local-pass@127.0.0.1:18081 https://example.com
-```
+- 给 AI CLI、脚本、`curl`、`npm`、`git` 用：推荐 `mingsui exec` 或 `mingsui env`。
+- 给浏览器用：当前需要浏览器或系统代理指向本机代理端口；后续桌面端会提供系统代理/TUN 开关。
+- 本机默认 SOCKS5 端口：`127.0.0.1:18080`。
+- 如果配置了 HTTP 代理端口，默认示例是：`127.0.0.1:18081`。
 
-如果本机安装了 `make`，也可以直接运行：
+## AI Agent
 
-```bash
-make build
-make test
-make dist APP_VERSION=v0.1.0
-make desktop-deb APP_VERSION=v0.1.0
-make npm-package APP_VERSION=v0.1.0
-```
-
-跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。Linux 桌面端会生成 `.deb`，Windows 包内包含 `mingsui-desktop.exe`，CLI 也可以生成 npm 安装包给 AI Agent 或自动化脚本使用。详细流程见 [docs/release.md](docs/release.md)。
-
-CLI 的 npm 包本地测试示例。刚 clone 仓库时 `dist/mingsui-0.1.0.tgz` 不存在，需要先生成：
-
-```bash
-APP_VERSION=v0.1.0 sh scripts/build-npm.sh
-npm install -g ./dist/mingsui-0.1.0.tgz
-mingsui version
-mingsui status
-```
-
-给 Codex 这类 AI Agent 使用时，可以安装仓库内置 Skill：
+仓库内置 Codex Skill：
 
 ```bash
 mkdir -p ~/.codex/skills
 cp -R skills/mingsui-cli ~/.codex/skills/
 ```
 
-之后新启动的 Codex 会在需要代理联网、检查明隧状态、给命令注入代理环境变量时触发 `mingsui-cli` Skill。
+新启动的 Codex 会在需要代理联网、检查明隧状态、给命令注入代理环境变量时触发 `mingsui-cli` Skill。
 
-开发时可以直接跑完整测试：
+## 自建 relay
+
+如果不用机场订阅，也可以部署明隧 relay。先在同一个终端里生成 token，然后启动 relay：
 
 ```bash
-go test ./...
+TOKEN=$(mingsui-relay token)
+mingsui-relay config init -path ./relay.json -token "$TOKEN" -allow-private -max-connections 256
+mingsui-relay check -config ./relay.json
+mingsui-relay serve -config ./relay.json
 ```
 
-其中 `internal/e2e` 会启动本机 relay、客户端和目标服务，验证 SOCKS5 与 HTTP 代理完整链路。如果当前环境禁止监听本机端口，这组集成测试会自动跳过。
+继续使用同一个 `TOKEN`，初始化并启动客户端：
+
+```bash
+mingsui config init -path ./client.json -relay 127.0.0.1:9443 -token "$TOKEN"
+mingsui doctor -config ./client.json
+mingsui run -config ./client.json
+```
+
+测试：
+
+```bash
+curl --socks5-hostname 127.0.0.1:18080 https://example.com
+curl -x http://127.0.0.1:18081 https://example.com
+```
 
 ## 配置
 
-示例配置在 `configs/`：
-
-- `configs/client.example.json`
-- `configs/relay.example.json`
-
-默认配置路径：
+CLI 和桌面端默认共用同一个客户端配置路径：
 
 ```bash
 mingsui config path
-mingsui-relay config path
 mingsui config show -path ./client.json
-mingsui-relay config show -path ./relay.json
 ```
-
-`mingsui` CLI 和 `mingsui-desktop` 默认共用同一个客户端配置路径，也就是 `mingsui config path` 输出的位置。只有显式传 `-config` 时才会使用另外的配置文件。
 
 `config show` 默认会隐藏 token 和本地代理密码；只有显式加 `-secrets` 才会输出真实敏感值。
 
-客户端支持多个 relay profile。可以把不同服务器写入同一个客户端配置，然后选择默认 profile，或启动时临时指定：
+常用命令：
 
 ```bash
-mingsui config profile add tokyo -path ./client.json -relay tokyo.example.com:9443 -token "$TOKEN"
-mingsui config profile add tls-node -path ./client.json -relay relay.example.com:9443 -token "$TOKEN" -tls -server-name relay.example.com
-mingsui config profile check tokyo -path ./client.json
-mingsui config profile select tokyo -path ./client.json
-mingsui config profile list -path ./client.json
-mingsui config profile rename tokyo jp-tokyo -path ./client.json
-mingsui config profile remove jp-tokyo -path ./client.json
-mingsui run -config ./client.json -profile tokyo
-```
-
-也可以从明隧 JSON 节点订阅导入 profile。订阅内容可以是 `{"version":1,"profiles":[...]}`，也可以直接是 profile 数组：
-
-```bash
-mingsui config profile import -path ./client.json -source ./nodes.json -force
-mingsui config profile import -path ./client.json -source https://example.com/mingsui/nodes.json -force -select tokyo
-mingsui config subscription add team -path ./client.json -url https://example.com/mingsui/nodes.json
-mingsui config subscription list -path ./client.json
-mingsui config subscription sync team -path ./client.json
-mingsui config subscription remove team -path ./client.json
-mingsui config profile export -path ./client.json -output ./nodes.json -secrets
-```
-
-订阅 URL 可能包含访问密钥，因此 `config show` 和 `config subscription list` 默认会隐藏订阅 URL；需要排障时再显式加 `-secrets`。
-
-也可以直接从常见机场订阅导入节点：
-
-```bash
-mingsui import -source "https://example.com/api/v1/client/subscribe?token=..." -path ./client.json
-mingsui status -config ./client.json
-mingsui kernel export -config ./client.json -output /tmp/mingsui-mihomo.yaml
-```
-
-当前这条链路会把机场节点保存到 CLI 和桌面端共用的配置里，并能导出 Mihomo 配置。明隧直接启动和托管 Mihomo 内核仍在接入中；临时测试可以用本机已有的 Mihomo 加载 `/tmp/mingsui-mihomo.yaml`。
-
-## AI CLI 使用
-
-AI Agent 的关键点是：不要指望 CLI 改变父进程或整个系统的网络设置。用下面的方式把代理作用域控制在当前任务里：
-
-```bash
+mingsui import -source <机场订阅地址>
 mingsui status
-mingsui connect
+mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 
-`mingsui connect` 是前台进程，需要保持运行。另一个终端或子进程里执行：
+订阅 URL 可能包含访问密钥，不要把完整 URL、导出的 Mihomo 配置或节点链接发到日志和工单里。
+
+自建 relay profile 管理：
 
 ```bash
-mingsui exec -- curl https://example.com
-eval "$(mingsui env)"
+mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+mingsui config profile select tokyo
+mingsui config profile list
 ```
-
-`mingsui exec` 会把代理变量注入到后面的命令；`eval "$(mingsui env)"` 只影响当前 shell 以及它之后启动的子进程。已经运行中的 Codex、Claude、浏览器不会被反向修改。
-
-如果要让浏览器联网，当前需要在浏览器或系统代理中手动配置：
-
-- HTTP 代理：`127.0.0.1:18081`
-- SOCKS5 代理：`127.0.0.1:18080`
-
-等桌面端接入系统代理/TUN 后，普通用户就不需要手动配置这些地址。
 
 诊断命令：
 
@@ -328,8 +261,8 @@ sudo systemctl status mingsui-relay
 
 ## 后续路线
 
-1. 稳定核心代理链路：SOCKS5、HTTP/CONNECT、TLS relay、连接状态。
-2. 增加配置订阅、节点选择、自动重连和健康检查。
-3. 用 Wails 构建桌面端，复用 Go core。
-4. 增加账号、授权、计费、流量统计和服务端控制台。
-5. 做跨平台打包和自动更新。
+1. 桌面端系统代理/TUN 开关。
+2. Mihomo 内核随安装包分发，减少本机依赖。
+3. 节点延迟测试、自动选择和失败重连。
+4. 账号登录、套餐状态、设备授权和计费。
+5. 自动更新、签名发布和崩溃/日志诊断。

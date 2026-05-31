@@ -10,6 +10,7 @@ import (
 
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/subscription"
 )
 
@@ -19,6 +20,7 @@ type App struct {
 	cfg        config.ClientConfig
 	logger     *log.Logger
 	controller *client.Controller
+	kernel     *mihomo.Controller
 }
 
 func NewApp(cfgPath string, logger *log.Logger) (*App, error) {
@@ -46,6 +48,7 @@ func NewApp(cfgPath string, logger *log.Logger) (*App, error) {
 		cfg:        cfg,
 		logger:     logger,
 		controller: controller,
+		kernel:     mihomo.NewController(cfg, mihomo.Options{Stdout: logger.Writer(), Stderr: logger.Writer()}),
 	}, nil
 }
 
@@ -69,7 +72,7 @@ func (a *App) SaveConfig(cfg config.ClientConfig) error {
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.controller.Status().Running {
+	if a.controller.Status().Running || a.kernel.Status().Running {
 		return errors.New("客户端运行中，请停止后再修改配置")
 	}
 
@@ -86,6 +89,7 @@ func (a *App) SaveConfig(cfg config.ClientConfig) error {
 	}
 	a.cfg = saved
 	a.controller = controller
+	a.kernel = mihomo.NewController(saved, mihomo.Options{Stdout: a.logger.Writer(), Stderr: a.logger.Writer()})
 	return nil
 }
 
@@ -246,7 +250,11 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 
 func (a *App) Start(ctx context.Context) error {
 	if proxy, ok := activeProxyProfile(a.Config()); ok {
-		return errors.New("当前选择的是机场节点 " + proxy.Name + "，通用代理内核尚未接入")
+		a.logger.Printf("启动 Mihomo 内核: %s (%s)", proxy.Name, proxy.Protocol)
+		a.mu.Lock()
+		kernel := a.kernel
+		a.mu.Unlock()
+		return kernel.Start(ctx)
 	}
 	a.mu.Lock()
 	controller := a.controller
@@ -257,14 +265,23 @@ func (a *App) Start(ctx context.Context) error {
 func (a *App) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	controller := a.controller
+	kernel := a.kernel
 	a.mu.Unlock()
+	if err := kernel.Stop(ctx); err != nil {
+		return err
+	}
 	return controller.Stop(ctx)
 }
 
 func (a *App) Status() client.RuntimeStatus {
 	a.mu.Lock()
 	controller := a.controller
+	kernel := a.kernel
+	cfg := a.cfg
 	a.mu.Unlock()
+	if _, ok := activeProxyProfile(cfg); ok {
+		return kernelClientStatus(kernel.Status())
+	}
 	return controller.Status()
 }
 
@@ -285,7 +302,10 @@ func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) 
 	a.mu.Unlock()
 
 	if proxy, ok := activeProxyProfile(cfg); ok {
-		return client.RelayHealth{}, errors.New("当前选择的是机场节点 " + proxy.Name + "，通用代理内核尚未接入")
+		if _, err := mihomo.Prepare(cfg, mihomo.Options{}); err != nil {
+			return client.RelayHealth{}, err
+		}
+		return client.RelayHealth{}, errors.New("当前选择的是机场节点 " + proxy.Name + "；请直接连接启动 Mihomo 内核")
 	}
 	cfg, err := effectiveClientConfig(cfg)
 	if err != nil {
@@ -332,6 +352,21 @@ func activeProxyProfile(cfg config.ClientConfig) (config.ProxyProfile, bool) {
 		return config.ProxyProfile{}, false
 	}
 	return cfg.ProxyProfile(name)
+}
+
+func kernelClientStatus(status mihomo.RuntimeStatus) client.RuntimeStatus {
+	relayAddr := ""
+	if status.BinaryPath != "" {
+		relayAddr = "mihomo: " + status.BinaryPath
+	}
+	return client.RuntimeStatus{
+		Running:   status.Running,
+		LocalAddr: status.LocalAddr,
+		HTTPAddr:  status.HTTPAddr,
+		RelayAddr: relayAddr,
+		StartedAt: status.StartedAt,
+		LastError: status.LastError,
+	}
 }
 
 func loadClientConfigOrDefault(path string) (config.ClientConfig, error) {

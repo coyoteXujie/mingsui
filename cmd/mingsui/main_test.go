@@ -145,8 +145,9 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	if code := run([]string{"status", "-config", cfgPath}); code != 0 {
 		t.Fatalf("run(status proxy) = %d, want 0", code)
 	}
+	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(dir, "missing-mihomo"))
 	if code := run([]string{"connect", "-config", cfgPath}); code != 1 {
-		t.Fatalf("run(connect proxy) = %d, want pending proxy engine error", code)
+		t.Fatalf("run(connect proxy) = %d, want missing mihomo error", code)
 	}
 }
 
