@@ -25,6 +25,8 @@ go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ./bin/mingsui-desktop -config ./client.json
 ```
 
+默认会自动打开浏览器。脚本或测试环境可以加 `-open=false`，然后手动打开命令行输出的本地地址，例如 `http://127.0.0.1:18200`。
+
 Linux 桌面发布包使用 Debian 包：
 
 ```bash
@@ -32,7 +34,7 @@ sh scripts/build-deb.sh
 sudo apt install ./dist/mingsui-desktop_0.0.0-dev_amd64.deb
 ```
 
-Windows 发布包会包含 `mingsui-desktop.exe`，双击或命令行运行都使用同一套客户端配置。
+Windows 发布包会包含 `mingsui-desktop.exe`，双击会自动打开本机控制台，命令行运行也使用同一套客户端配置。
 
 CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
 

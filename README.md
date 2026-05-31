@@ -97,7 +97,7 @@ mingsui system-proxy disable
 mingsui-desktop
 ```
 
-命令会打印一个只监听本机的控制台地址，例如 `http://127.0.0.1:18200`。
+命令会自动打开默认浏览器，并打印一个只监听本机的控制台地址，例如 `http://127.0.0.1:18200`。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务。
 
 ## 能力边界
 

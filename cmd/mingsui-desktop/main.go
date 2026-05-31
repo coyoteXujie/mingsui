@@ -27,7 +27,7 @@ func run(args []string) int {
 	fs := flag.NewFlagSet("mingsui-desktop", flag.ContinueOnError)
 	cfgPath := fs.String("config", defaultDesktopConfigPath(), "客户端配置文件路径")
 	listenAddr := fs.String("listen", "127.0.0.1:18200", "桌面控制台监听地址")
-	openBrowser := fs.Bool("open", false, "启动后打开默认浏览器")
+	openBrowser := fs.Bool("open", true, "启动后打开默认浏览器")
 	showVersion := fs.Bool("version", false, "输出版本信息")
 	if err := fs.Parse(args); err != nil {
 		return 2
