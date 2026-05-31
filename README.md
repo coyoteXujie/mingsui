@@ -157,6 +157,7 @@ mingsui config show -path ./client.json
 
 ```bash
 mingsui import -source <机场订阅地址>
+mingsui import -source <机场订阅地址> -subscription airport
 mingsui status
 mingsui config proxy list
 mingsui config proxy select <节点名称>

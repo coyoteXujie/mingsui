@@ -152,6 +152,19 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestSaveImportedSubscription(t *testing.T) {
+	cfg := config.DefaultClient()
+	if err := saveImportedSubscription(&cfg, "airport", "https://example.com/sub", true); err != nil {
+		t.Fatalf("saveImportedSubscription() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 1 || cfg.Subscriptions[0].Name != "airport" || cfg.Subscriptions[0].URL != "https://example.com/sub" {
+		t.Fatalf("Subscriptions = %+v, want saved airport subscription", cfg.Subscriptions)
+	}
+	if err := saveImportedSubscription(&cfg, "local", "/tmp/sub.txt", true); err == nil {
+		t.Fatal("saveImportedSubscription(local file) error = nil, want error")
+	}
+}
+
 func TestRunDoctorProxyUsesMihomo(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "client.json")

@@ -71,6 +71,7 @@ For a subscription import:
 
 ```bash
 mingsui import -source <file-or-url>
+mingsui import -source <subscription-url> -subscription airport
 mingsui status
 mingsui config proxy list
 mingsui config proxy select <node-name>

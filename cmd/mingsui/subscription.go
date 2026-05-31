@@ -30,6 +30,7 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	force := fs.Bool("force", forceDefault, "覆盖同名节点")
 	selectName := fs.String("select", "", "导入后选择指定节点")
 	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个节点")
+	subscriptionName := fs.String("subscription", "", "导入成功后把 HTTP(S) 来源保存为指定订阅名称")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -51,7 +52,7 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 
 	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil && allowProxy {
-		return importProxyProfiles(cfg, *cfgPath, data, *force, strings.TrimSpace(*selectName), *selectFirst, err)
+		return importProxyProfiles(cfg, *cfgPath, data, *source, strings.TrimSpace(*subscriptionName), *force, strings.TrimSpace(*selectName), *selectFirst, err)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
@@ -71,6 +72,10 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 			return 1
 		}
 	}
+	if err := saveImportedSubscription(&cfg, strings.TrimSpace(*subscriptionName), *source, *force); err != nil {
+		fmt.Fprintf(os.Stderr, "保存订阅失败: %v\n", err)
+		return 1
+	}
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
@@ -79,7 +84,7 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	return 0
 }
 
-func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, force bool, selectedName string, selectFirst bool, relayErr error) int {
+func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, source, subscriptionName string, force bool, selectedName string, selectFirst bool, relayErr error) int {
 	profiles, err := subscription.ParseProxyProfiles(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", relayErr)
@@ -102,12 +107,28 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, f
 			return 1
 		}
 	}
+	if err := saveImportedSubscription(&cfg, subscriptionName, source, force); err != nil {
+		fmt.Fprintf(os.Stderr, "保存订阅失败: %v\n", err)
+		return 1
+	}
 	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
 	return 0
+}
+
+func saveImportedSubscription(cfg *config.ClientConfig, name, source string, force bool) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	source = strings.TrimSpace(source)
+	if !strings.HasPrefix(source, "http://") && !strings.HasPrefix(source, "https://") {
+		return fmt.Errorf("只有 HTTP(S) 来源可以保存为订阅")
+	}
+	return cfg.UpsertRelaySubscription(config.RelaySubscription{Name: name, URL: source}, force)
 }
 
 func exportClientProfiles(args []string) int {
