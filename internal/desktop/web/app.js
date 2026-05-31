@@ -46,6 +46,7 @@ async function refresh() {
   state.config = data.config;
   state.status = data.status;
   state.systemProxy = data.system_proxy;
+  state.proxyCapabilities = data.proxy_capabilities || [];
   render();
 }
 
@@ -56,6 +57,7 @@ function render() {
   const metrics = status.metrics || {};
   const profiles = cfg.profiles || [];
   const proxyProfiles = cfg.proxy_profiles || [];
+  const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
   const selectedProfile = cfg.active_profile || "";
   const selectedProxy = cfg.active_proxy_profile || "";
   const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
@@ -89,7 +91,7 @@ function render() {
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
   renderProfiles(profiles, selectedProfile);
-  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "");
+  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "", capabilityMap);
   renderSubscriptions(cfg.subscriptions || []);
 }
 
@@ -147,7 +149,7 @@ function renderProfiles(profiles, active) {
   });
 }
 
-function renderProxyProfiles(profiles, active) {
+function renderProxyProfiles(profiles, active, capabilityMap) {
   const root = $("proxyProfiles");
   root.innerHTML = "";
   if (!profiles.length) {
@@ -155,13 +157,16 @@ function renderProxyProfiles(profiles, active) {
     return;
   }
   profiles.forEach((profile) => {
+    const capability = capabilityMap.get(profile.name) || {};
+    const exportable = capability.exportable !== false;
     const item = document.createElement("div");
     item.className = "item";
     const info = document.createElement("div");
     const title = document.createElement("strong");
     title.textContent = profile.name === active ? `${profile.name} · 当前` : profile.name;
     const addr = document.createElement("span");
-    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · Mihomo`;
+    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · ${exportable ? "可连接" : "暂不支持直接连接"}`;
+    addr.className = exportable ? "" : "warn-text";
     info.append(title, addr);
 
     const actions = document.createElement("div");

@@ -351,6 +351,10 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.item span.warn-text {
+  color: var(--warn);
+}
+
 .item-actions {
   display: flex;
   flex-wrap: wrap;

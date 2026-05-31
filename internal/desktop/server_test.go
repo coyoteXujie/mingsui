@@ -42,6 +42,42 @@ func TestHTTPHandlerState(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerStateProxyCapabilities(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var got stateResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(got.ProxyCapabilities) != 2 {
+		t.Fatalf("ProxyCapabilities = %+v, want 2 items", got.ProxyCapabilities)
+	}
+	if !got.ProxyCapabilities[0].Exportable || got.ProxyCapabilities[1].Exportable {
+		t.Fatalf("ProxyCapabilities = %+v, want ss exportable and tuic unsupported", got.ProxyCapabilities)
+	}
+}
+
 func TestHTTPHandlerImportProfiles(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

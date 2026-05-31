@@ -12,6 +12,7 @@ import (
 
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
@@ -45,10 +46,11 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 }
 
 type stateResponse struct {
-	ConfigPath string               `json:"config_path"`
-	Config     config.ClientConfig  `json:"config"`
-	Status     client.RuntimeStatus `json:"status"`
-	System     systemproxy.Status   `json:"system_proxy"`
+	ConfigPath        string               `json:"config_path"`
+	Config            config.ClientConfig  `json:"config"`
+	Status            client.RuntimeStatus `json:"status"`
+	System            systemproxy.Status   `json:"system_proxy"`
+	ProxyCapabilities []proxyCapability    `json:"proxy_capabilities,omitempty"`
 }
 
 type messageResponse struct {
@@ -57,6 +59,11 @@ type messageResponse struct {
 	Mode    string              `json:"mode,omitempty"`
 	Health  *client.RelayHealth `json:"health,omitempty"`
 	Count   int                 `json:"count,omitempty"`
+}
+
+type proxyCapability struct {
+	Name       string `json:"name"`
+	Exportable bool   `json:"exportable"`
 }
 
 type profileNameRequest struct {
@@ -86,11 +93,13 @@ type subscriptionRequest struct {
 
 func handleState(app *App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		cfg := app.Config()
 		writeJSON(w, http.StatusOK, stateResponse{
-			ConfigPath: app.ConfigPath(),
-			Config:     app.Config().Redacted(),
-			Status:     app.Status(),
-			System:     app.SystemProxyStatus(r.Context()),
+			ConfigPath:        app.ConfigPath(),
+			Config:            cfg.Redacted(),
+			Status:            app.Status(),
+			System:            app.SystemProxyStatus(r.Context()),
+			ProxyCapabilities: proxyCapabilities(cfg.ProxyProfiles),
 		})
 	}
 }
@@ -109,6 +118,20 @@ func handleSaveConfig(app *App) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "配置已保存"})
 	}
+}
+
+func proxyCapabilities(profiles []config.ProxyProfile) []proxyCapability {
+	if len(profiles) == 0 {
+		return nil
+	}
+	items := make([]proxyCapability, 0, len(profiles))
+	for _, profile := range profiles {
+		items = append(items, proxyCapability{
+			Name:       profile.Name,
+			Exportable: mihomo.CanExportProfile(profile),
+		})
+	}
+	return items
 }
 
 func handleStart(app *App) http.HandlerFunc {
