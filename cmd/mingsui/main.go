@@ -519,7 +519,7 @@ func runStatus(args []string) int {
 		ConfigPath: *cfgPath,
 		Mode:       "foreground",
 		Managed:    false,
-		Message:    "CLI 使用前台连接模式；运行 mingsui connect 后保持该进程即可联网",
+		Message:    "CLI 使用前台连接模式；可运行 mingsui connect 保持连接，或用 mingsui exec -connect 执行单个命令",
 	}
 	cfg, err := loadClientOrDefault(*cfgPath)
 	if err != nil {
@@ -536,7 +536,7 @@ func runStatus(args []string) int {
 		status.ProxyProtocol = proxy.Protocol
 		status.LocalAddr = cfg.LocalAddr
 		status.HTTPAddr = cfg.HTTPAddr
-		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo 内核"
+		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo，也可以用 mingsui exec -connect 执行单个命令"
 		return writeCLIStatus(status, *jsonOutput)
 	}
 	var selectedProfile string
@@ -712,6 +712,9 @@ func runExec(args []string) int {
 }
 
 func startProxyKernelForExec(ctx context.Context, cfg config.ClientConfig, waitTimeout time.Duration) (func(), error) {
+	if localProxyAddrsReachable(localProxyAddrs(cfg)) {
+		return func() {}, nil
+	}
 	controller := mihomo.NewController(cfg, mihomo.Options{Stdout: os.Stderr, Stderr: os.Stderr})
 	if err := controller.Start(ctx); err != nil {
 		return nil, err
@@ -735,10 +738,7 @@ func startProxyKernelForExec(ctx context.Context, cfg config.ClientConfig, waitT
 }
 
 func waitForLocalProxy(ctx context.Context, cfg config.ClientConfig) error {
-	addrs := []string{cfg.LocalAddr}
-	if strings.TrimSpace(cfg.HTTPAddr) != "" {
-		addrs = append(addrs, cfg.HTTPAddr)
-	}
+	addrs := localProxyAddrs(cfg)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -751,6 +751,14 @@ func waitForLocalProxy(ctx context.Context, cfg config.ClientConfig) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+func localProxyAddrs(cfg config.ClientConfig) []string {
+	addrs := []string{cfg.LocalAddr}
+	if strings.TrimSpace(cfg.HTTPAddr) != "" {
+		addrs = append(addrs, cfg.HTTPAddr)
+	}
+	return addrs
 }
 
 func localProxyAddrsReachable(addrs []string) bool {

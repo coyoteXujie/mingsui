@@ -304,6 +304,21 @@ func TestRunExecConnectRequiresProxyProfile(t *testing.T) {
 	}
 }
 
+func TestLocalProxyAddrs(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.LocalAddr = "127.0.0.1:18080"
+	cfg.HTTPAddr = "127.0.0.1:18081"
+	got := localProxyAddrs(cfg)
+	if len(got) != 2 || got[0] != cfg.LocalAddr || got[1] != cfg.HTTPAddr {
+		t.Fatalf("localProxyAddrs() = %+v, want socks and http addrs", got)
+	}
+	cfg.HTTPAddr = ""
+	got = localProxyAddrs(cfg)
+	if len(got) != 1 || got[0] != cfg.LocalAddr {
+		t.Fatalf("localProxyAddrs() = %+v, want only socks addr", got)
+	}
+}
+
 func TestMergeEnvOverridesExistingValues(t *testing.T) {
 	vars := []proxyEnvVar{
 		{Name: "HTTP_PROXY", Value: "http://127.0.0.1:18081"},
