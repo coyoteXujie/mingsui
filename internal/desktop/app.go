@@ -320,6 +320,26 @@ func (a *App) CheckRelayProfile(ctx context.Context, name string) error {
 	return err
 }
 
+func (a *App) CheckProxyKernel(ctx context.Context) (config.ProxyProfile, error) {
+	a.mu.Lock()
+	cfg := a.cfg
+	a.mu.Unlock()
+
+	proxy, ok := activeProxyProfile(cfg)
+	if !ok {
+		return config.ProxyProfile{}, errors.New("当前没有选择机场节点")
+	}
+	workDir, err := os.MkdirTemp("", "mingsui-desktop-check-*")
+	if err != nil {
+		return config.ProxyProfile{}, err
+	}
+	defer os.RemoveAll(workDir)
+	if _, err := mihomo.TestConfig(ctx, cfg, mihomo.Options{WorkDir: workDir}); err != nil {
+		return config.ProxyProfile{}, err
+	}
+	return proxy, nil
+}
+
 func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) {
 	a.mu.Lock()
 	cfg := a.cfg

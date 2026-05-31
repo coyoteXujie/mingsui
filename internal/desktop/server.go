@@ -54,6 +54,7 @@ type stateResponse struct {
 type messageResponse struct {
 	OK      bool                `json:"ok"`
 	Message string              `json:"message,omitempty"`
+	Mode    string              `json:"mode,omitempty"`
 	Health  *client.RelayHealth `json:"health,omitempty"`
 	Count   int                 `json:"count,omitempty"`
 }
@@ -136,12 +137,21 @@ func handleCheck(app *App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
+		if _, ok := activeProxyProfile(app.Config()); ok {
+			proxy, err := app.CheckProxyKernel(ctx)
+			if err != nil {
+				writeError(w, http.StatusBadGateway, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, messageResponse{OK: true, Mode: "proxy", Message: "Mihomo 内核可用，机场节点已就绪: " + proxy.Name})
+			return
+		}
 		health, err := app.CheckRelayStatus(ctx)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "relay 可连接", Health: &health})
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Mode: "relay", Message: "relay 可连接", Health: &health})
 	}
 }
 
