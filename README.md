@@ -57,7 +57,7 @@ mingsui exec -- curl https://example.com
 mingsui exec -connect -- curl https://example.com
 ```
 
-`mingsui exec -connect` 会在机场节点模式下临时启动 Mihomo，执行子命令后自动停止，适合 AI Agent 或一次性脚本。
+`mingsui exec -connect` 会按当前选择临时启动连接：机场节点会启动 Mihomo，自建 relay 会启动明隧客户端；子命令结束后自动停止，适合 AI Agent 或一次性脚本。
 
 或者把代理环境变量写入当前 shell：
 
@@ -120,6 +120,8 @@ cp -R skills/mingsui-cli ~/.codex/skills/
 新启动的 Codex 会在需要代理联网、检查明隧状态、给命令注入代理环境变量时触发 `mingsui-cli` Skill。
 
 ## 自建 relay
+
+海外 ECS 部署步骤见 [docs/ecs-relay.md](docs/ecs-relay.md)。
 
 如果不用机场订阅，也可以部署明隧 relay。先在同一个终端里生成 token，然后启动 relay：
 
@@ -268,6 +270,8 @@ sudo systemctl status mingsui-relay
 ```
 
 如果使用 TLS 证书文件，也要确保 `mingsui` 用户能读取证书和私钥。
+
+更完整的云服务器安全组、权限、TLS 和客户端接入流程见 [docs/ecs-relay.md](docs/ecs-relay.md)。
 
 ## 安全边界
 
