@@ -45,6 +45,10 @@ grep -q "HTTP_PROXY='http://127.0.0.1:18081'" "$WORKDIR/env.sh"
 grep -q "ALL_PROXY='socks5h://127.0.0.1:18080'" "$WORKDIR/env.sh"
 "$bin" exec -config "$cfg" -- sh -c 'test "$HTTP_PROXY" = "http://127.0.0.1:18081"'
 
+echo "==> 检查系统代理状态命令"
+"$bin" system-proxy status >"$WORKDIR/system-proxy.json"
+grep -q '"supported"' "$WORKDIR/system-proxy.json"
+
 echo "==> 导出 Mihomo 配置"
 "$bin" kernel export -config "$cfg" -output "$kernel_cfg" >/dev/null
 grep -q 'socks-port: 18080' "$kernel_cfg"
