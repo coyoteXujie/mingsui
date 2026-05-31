@@ -8,7 +8,10 @@
 npm install -g mingsui
 mingsui version
 mingsui status
+mingsui exec -connect -- curl https://example.com
 ```
+
+`mingsui exec -connect` 会临时启动当前选择的连接，只把代理环境注入这个子命令，适合 AI Agent 和自动化脚本。
 
 本地开发或发版前可以从仓库构建 npm tarball：
 

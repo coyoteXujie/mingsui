@@ -656,8 +656,15 @@ func runExec(args []string) int {
 	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
 	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
+	relayAddr := fs.String("relay", "", "relay 服务端地址")
+	token := fs.String("token", "", "客户端和 relay 共享的 token")
+	profileName := fs.String("profile", "", "使用指定 relay profile")
+	autoProfile := fs.Bool("auto-profile", true, "未选择 profile 时自动使用第一个 relay profile")
+	authEnabled := fs.Bool("auth", false, "启用本地代理认证")
+	authUser := fs.String("auth-user", "", "本地代理认证用户名")
+	authPass := fs.String("auth-pass", "", "本地代理认证密码")
 	noProxy := fs.String("no-proxy", "localhost,127.0.0.1,::1", "NO_PROXY/no_proxy 值")
-	connect := fs.Bool("connect", false, "执行命令前临时启动当前机场节点的 Mihomo 内核")
+	connect := fs.Bool("connect", false, "执行命令前临时启动当前连接")
 	connectTimeout := fs.Duration("connect-timeout", 5*time.Second, "等待本地代理监听就绪的时间，0 表示不等待")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -673,7 +680,7 @@ func runExec(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", false, "", "")
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", *authEnabled, *authUser, *authPass)
 	vars := proxyEnv(cfg, *noProxy)
 	if len(vars) == 0 {
 		fmt.Fprintln(os.Stderr, "配置中没有可用的本地代理监听地址")
@@ -681,13 +688,9 @@ func runExec(args []string) int {
 	}
 
 	if *connect {
-		if _, ok := resolveClientProxyProfile(cfg, true); !ok {
-			fmt.Fprintln(os.Stderr, "当前没有机场节点，mingsui exec -connect 暂只支持机场节点模式")
-			return 1
-		}
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
-		stop, err := startProxyKernelForExec(ctx, cfg, *connectTimeout)
+		stop, err := startConnectionForExec(ctx, cfg, *profileName, *relayAddr, *token, *autoProfile, *connectTimeout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "启动临时代理失败: %v\n", err)
 			return 1
@@ -711,11 +714,74 @@ func runExec(args []string) int {
 	return 0
 }
 
+func startConnectionForExec(ctx context.Context, cfg config.ClientConfig, profileName, relayAddr, token string, autoProfile bool, waitTimeout time.Duration) (func(), error) {
+	explicitRelay := strings.TrimSpace(profileName) != "" || strings.TrimSpace(relayAddr) != "" || strings.TrimSpace(token) != ""
+	if !explicitRelay {
+		if _, ok := resolveClientProxyProfile(cfg, true); ok {
+			return startProxyKernelForExec(ctx, cfg, waitTimeout)
+		}
+	}
+
+	resolveAutoProfile := autoProfile && strings.TrimSpace(relayAddr) == "" && strings.TrimSpace(token) == ""
+	relayCfg, selectedProfile, err := resolveClientProfile(cfg, profileName, resolveAutoProfile)
+	if err != nil {
+		return nil, err
+	}
+	applyClientOverrides(&relayCfg, "", "", relayAddr, token, false, "", "")
+	if !relayConfigUsableForExec(relayCfg, explicitRelay, selectedProfile) {
+		return nil, errors.New("当前没有可连接的机场节点或 relay 配置")
+	}
+	if err := relayCfg.Validate(); err != nil {
+		return nil, err
+	}
+	if selectedProfile != "" {
+		fmt.Fprintf(os.Stderr, "使用 profile: %s\n", selectedProfile)
+	}
+	return startRelayClientForExec(ctx, relayCfg, waitTimeout)
+}
+
+func relayConfigUsableForExec(cfg config.ClientConfig, explicitRelay bool, selectedProfile string) bool {
+	if explicitRelay || selectedProfile != "" {
+		return true
+	}
+	return strings.TrimSpace(cfg.RelayAddr) != "" && strings.TrimSpace(cfg.Token) != "" && cfg.Token != "change-me"
+}
+
 func startProxyKernelForExec(ctx context.Context, cfg config.ClientConfig, waitTimeout time.Duration) (func(), error) {
 	if localProxyAddrsReachable(localProxyAddrs(cfg)) {
 		return func() {}, nil
 	}
 	controller := mihomo.NewController(cfg, mihomo.Options{Stdout: os.Stderr, Stderr: os.Stderr})
+	if err := controller.Start(ctx); err != nil {
+		return nil, err
+	}
+	stop := func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := controller.Stop(stopCtx); err != nil {
+			fmt.Fprintf(os.Stderr, "停止临时代理失败: %v\n", err)
+		}
+	}
+	if waitTimeout > 0 {
+		waitCtx, cancel := context.WithTimeout(ctx, waitTimeout)
+		defer cancel()
+		if err := waitForLocalProxy(waitCtx, cfg); err != nil {
+			stop()
+			return nil, err
+		}
+	}
+	return stop, nil
+}
+
+func startRelayClientForExec(ctx context.Context, cfg config.ClientConfig, waitTimeout time.Duration) (func(), error) {
+	if localProxyAddrsReachable(localProxyAddrs(cfg)) {
+		return func() {}, nil
+	}
+	logger := log.New(os.Stderr, "mingsui client: ", log.LstdFlags)
+	controller, err := client.NewController(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 	if err := controller.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -1614,6 +1680,7 @@ func printUsage() {
   mingsui status
   eval "$(mingsui env)"
   mingsui exec -- curl https://example.com
+  mingsui exec -connect -- curl https://example.com
   mingsui system-proxy enable
   mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"

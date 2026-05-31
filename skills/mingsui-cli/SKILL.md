@@ -36,7 +36,7 @@ Use one of these patterns for AI commands:
 mingsui exec -- curl https://example.com
 ```
 
-If no separate `mingsui connect` process is running and the active profile is an airport node, prefer the self-contained form:
+If no separate `mingsui connect` process is running, prefer the self-contained form. It starts Mihomo for airport nodes and starts the MingSui client for relay profiles:
 
 ```bash
 mingsui exec -connect -- curl https://example.com
@@ -68,10 +68,10 @@ For a MingSui relay profile:
 ```bash
 mingsui config init -relay <host:port> -token <token>
 mingsui doctor
-mingsui connect
+mingsui exec -connect -- curl https://example.com
 ```
 
-Keep `mingsui connect` running while using the proxy. In another terminal or subprocess, run commands through `mingsui exec` or after `eval "$(mingsui env)"`.
+Use `mingsui connect` when a long-running local proxy is needed. Keep it running while using the proxy. In another terminal or subprocess, run commands through `mingsui exec` or after `eval "$(mingsui env)"`.
 
 For a subscription import:
 

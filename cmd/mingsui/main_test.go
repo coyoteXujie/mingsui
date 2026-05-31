@@ -304,6 +304,25 @@ func TestRunExecConnectRequiresProxyProfile(t *testing.T) {
 	}
 }
 
+func TestRunExecConnectStartsRelayClient(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.LocalAddr = "127.0.0.1:18180"
+	cfg.HTTPAddr = "127.0.0.1:18181"
+	cfg.RelayAddr = "127.0.0.1:1"
+	cfg.Token = "secret"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	command := `test "$MINGSUI_HTTP_PROXY" = "http://` + cfg.HTTPAddr + `"`
+	code := run([]string{"exec", "-config", cfgPath, "-connect", "-connect-timeout", "0", "--", "sh", "-c", command})
+	if code != 0 {
+		t.Fatalf("run(exec -connect relay) = %d, want 0", code)
+	}
+}
+
 func TestLocalProxyAddrs(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = "127.0.0.1:18080"

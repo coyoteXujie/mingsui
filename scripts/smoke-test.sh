@@ -17,6 +17,7 @@ trap 'rm -rf "$WORKDIR"' EXIT INT TERM
 
 bin="$WORKDIR/mingsui"
 cfg="$WORKDIR/client.json"
+relay_cfg="$WORKDIR/relay-client.json"
 sub="$WORKDIR/airport.txt"
 kernel_cfg="$WORKDIR/mihomo.yaml"
 fake_mihomo="$WORKDIR/mihomo"
@@ -61,6 +62,10 @@ echo "==> 检查代理环境变量"
 grep -q "HTTP_PROXY='http://127.0.0.1:18081'" "$WORKDIR/env.sh"
 grep -q "ALL_PROXY='socks5h://127.0.0.1:18080'" "$WORKDIR/env.sh"
 "$bin" exec -config "$cfg" -- sh -c 'test "$HTTP_PROXY" = "http://127.0.0.1:18081"'
+
+echo "==> 检查 exec 可临时启动 relay 客户端"
+"$bin" config init -path "$relay_cfg" -local 127.0.0.1:18180 -http 127.0.0.1:18181 -relay 127.0.0.1:1 -token secret >/dev/null
+"$bin" exec -config "$relay_cfg" -connect -connect-timeout 0 -- sh -c 'test "$MINGSUI_HTTP_PROXY" = "http://127.0.0.1:18181"'
 
 echo "==> 检查系统代理状态命令"
 "$bin" system-proxy status >"$WORKDIR/system-proxy.json"
