@@ -1069,6 +1069,7 @@ func runConfigProxy(args []string) int {
 func listProxyProfiles(args []string) int {
 	fs := flag.NewFlagSet("config proxy list", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出机场节点列表")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -1079,21 +1080,48 @@ func listProxyProfiles(args []string) int {
 		return 1
 	}
 	if len(cfg.ProxyProfiles) == 0 {
+		if *jsonOutput {
+			return writeJSONOrError([]proxyProfileItem{})
+		}
 		fmt.Fprintln(os.Stdout, "没有机场节点")
 		return 0
 	}
-	for i, profile := range cfg.ProxyProfiles {
+	items := proxyProfileItems(cfg)
+	if *jsonOutput {
+		return writeJSONOrError(items)
+	}
+	for _, item := range items {
 		marker := " "
-		if profile.Name == cfg.ActiveProxyProfile || (cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" && i == 0) {
+		if item.Selected {
 			marker = "*"
 		}
 		compatibility := "可连接"
-		if !mihomo.CanExportProfile(profile) {
+		if !item.Exportable {
 			compatibility = "暂不支持直接连接"
 		}
-		fmt.Fprintf(os.Stdout, "%s %s %s %s\n", marker, profile.Name, profile.Protocol, compatibility)
+		fmt.Fprintf(os.Stdout, "%s %s %s %s\n", marker, item.Name, item.Protocol, compatibility)
 	}
 	return 0
+}
+
+type proxyProfileItem struct {
+	Name       string `json:"name"`
+	Protocol   string `json:"protocol"`
+	Selected   bool   `json:"selected"`
+	Exportable bool   `json:"exportable"`
+}
+
+func proxyProfileItems(cfg config.ClientConfig) []proxyProfileItem {
+	items := make([]proxyProfileItem, 0, len(cfg.ProxyProfiles))
+	for i, profile := range cfg.ProxyProfiles {
+		items = append(items, proxyProfileItem{
+			Name:       profile.Name,
+			Protocol:   profile.Protocol,
+			Selected:   profile.Name == cfg.ActiveProxyProfile || (cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" && i == 0),
+			Exportable: mihomo.CanExportProfile(profile),
+		})
+	}
+	return items
 }
 
 func selectProxyProfile(args []string) int {
@@ -1105,6 +1133,7 @@ func selectProxyProfile(args []string) int {
 
 	fs := flag.NewFlagSet("config proxy select", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	force := fs.Bool("force", false, "允许选择当前暂不支持直接连接的节点")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1112,6 +1141,15 @@ func selectProxyProfile(args []string) int {
 	cfg, err := config.LoadClient(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "选择机场节点失败: proxy profile %q not found\n", name)
+		return 1
+	}
+	if !*force && !mihomo.CanExportProfile(profile) {
+		fmt.Fprintf(os.Stderr, "选择机场节点失败: %s 当前暂不支持直接连接；使用 mingsui config proxy list 查看可连接节点\n", name)
 		return 1
 	}
 	if err := cfg.SelectProxyProfile(name); err != nil {
@@ -1123,6 +1161,14 @@ func selectProxyProfile(args []string) int {
 		return 1
 	}
 	fmt.Printf("已选择机场节点 %s\n", name)
+	return 0
+}
+
+func writeJSONOrError(value any) int {
+	if err := writeJSON(os.Stdout, value); err != nil {
+		fmt.Fprintf(os.Stderr, "输出 JSON 失败: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
@@ -1544,7 +1590,7 @@ func printConfigProfileUsage() {
 func printConfigProxyUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config proxy list [flags]
-  mingsui config proxy select <name> [flags]
+  mingsui config proxy select <name> [-force] [flags]
   mingsui config proxy remove <name> [flags]`)
 }
 

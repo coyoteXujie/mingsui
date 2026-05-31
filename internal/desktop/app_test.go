@@ -191,6 +191,24 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestAppRejectsUnsupportedProxySelection(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	if err := app.SelectProxyProfile("future"); err == nil {
+		t.Fatal("SelectProxyProfile() error = nil, want unsupported proxy error")
+	}
+}
+
 func TestAppManageRelaySubscriptions(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

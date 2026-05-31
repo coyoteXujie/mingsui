@@ -171,11 +171,12 @@ function renderProxyProfiles(profiles, active, capabilityMap) {
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
-    const select = button("选择", "secondary", async () => {
+    const select = button(exportable ? "选择" : "不可连接", "secondary", async () => {
       await api("/api/proxy/select", { method: "POST", body: { name: profile.name } });
       setMessage(`已选择 ${profile.name}`, "ok");
       await refresh();
     });
+    select.disabled = !exportable;
     actions.append(select);
     item.append(info, actions);
     root.append(item);

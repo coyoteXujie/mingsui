@@ -112,6 +112,13 @@ func (a *App) SelectRelayProfile(name string) error {
 
 func (a *App) SelectProxyProfile(name string) error {
 	cfg := a.Config()
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		return errors.New("机场节点不存在")
+	}
+	if !mihomo.CanExportProfile(profile) {
+		return errors.New("该机场节点当前暂不支持直接连接")
+	}
 	if err := cfg.SelectProxyProfile(name); err != nil {
 		return err
 	}

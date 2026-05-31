@@ -47,6 +47,12 @@ grep -q 'Mihomo' "$WORKDIR/status.json"
 echo "==> 管理机场节点"
 "$bin" config proxy list -path "$cfg" >"$WORKDIR/proxy-list.txt"
 grep -q 'tokyo ss 可连接' "$WORKDIR/proxy-list.txt"
+"$bin" config proxy list -path "$cfg" -json >"$WORKDIR/proxy-list.json"
+grep -q '"exportable": false' "$WORKDIR/proxy-list.json"
+if "$bin" config proxy select future -path "$cfg" >/dev/null 2>&1; then
+	echo "unsupported proxy selection should fail" >&2
+	exit 1
+fi
 "$bin" config proxy select osaka -path "$cfg" >/dev/null
 "$bin" config proxy select tokyo -path "$cfg" >/dev/null
 

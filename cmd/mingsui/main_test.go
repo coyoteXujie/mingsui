@@ -195,6 +195,7 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	cfg.ProxyProfiles = []config.ProxyProfile{
 		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
 		{Name: "osaka", Protocol: "vmess", URL: "vmess://eyJwcyI6Im9zYWthIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ=="},
+		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
 	}
 	cfg.ActiveProxyProfile = "tokyo"
 	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
@@ -203,6 +204,15 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 
 	if code := run([]string{"config", "proxy", "list", "-path", cfgPath}); code != 0 {
 		t.Fatalf("run(config proxy list) = %d, want 0", code)
+	}
+	if code := run([]string{"config", "proxy", "list", "-path", cfgPath, "-json"}); code != 0 {
+		t.Fatalf("run(config proxy list -json) = %d, want 0", code)
+	}
+	if code := run([]string{"config", "proxy", "select", "future", "-path", cfgPath}); code != 1 {
+		t.Fatalf("run(config proxy select unsupported) = %d, want 1", code)
+	}
+	if code := run([]string{"config", "proxy", "select", "future", "-path", cfgPath, "-force"}); code != 0 {
+		t.Fatalf("run(config proxy select unsupported -force) = %d, want 0", code)
 	}
 	if code := run([]string{"config", "proxy", "select", "osaka", "-path", cfgPath}); code != 0 {
 		t.Fatalf("run(config proxy select) = %d, want 0", code)
@@ -221,7 +231,7 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadClient() error = %v", err)
 	}
-	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 1 {
+	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 2 {
 		t.Fatalf("Config() = %+v, want osaka removed and active proxy cleared", got)
 	}
 }

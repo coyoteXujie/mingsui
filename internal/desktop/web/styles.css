@@ -233,12 +233,24 @@ button:hover {
   background: var(--accent-dark);
 }
 
+button:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--soft);
+  cursor: not-allowed;
+}
+
 button.secondary {
   color: var(--accent);
   background: #fff;
 }
 
-button.secondary:hover {
+button.secondary:disabled {
+  color: var(--muted);
+  background: var(--soft);
+}
+
+button.secondary:hover:not(:disabled) {
   background: var(--soft);
 }
 
