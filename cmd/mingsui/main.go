@@ -1038,7 +1038,11 @@ func resolveClientProfile(cfg config.ClientConfig, profileName string, autoProfi
 func resolveClientProxyProfile(cfg config.ClientConfig, autoProfile bool) (config.ProxyProfile, bool) {
 	name := strings.TrimSpace(cfg.ActiveProxyProfile)
 	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && autoProfile && len(cfg.ProxyProfiles) > 0 {
-		name = cfg.ProxyProfiles[0].Name
+		var ok bool
+		name, ok = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+		if !ok {
+			return config.ProxyProfile{}, false
+		}
 	}
 	if name == "" {
 		return config.ProxyProfile{}, false
@@ -1273,11 +1277,15 @@ type proxyProfileItem struct {
 
 func proxyProfileItems(cfg config.ClientConfig) []proxyProfileItem {
 	items := make([]proxyProfileItem, 0, len(cfg.ProxyProfiles))
-	for i, profile := range cfg.ProxyProfiles {
+	autoSelected := ""
+	if cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" {
+		autoSelected, _ = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+	}
+	for _, profile := range cfg.ProxyProfiles {
 		items = append(items, proxyProfileItem{
 			Name:       profile.Name,
 			Protocol:   profile.Protocol,
-			Selected:   profile.Name == cfg.ActiveProxyProfile || (cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" && i == 0),
+			Selected:   profile.Name == cfg.ActiveProxyProfile || (profile.Name == autoSelected),
 			Exportable: mihomo.CanExportProfile(profile),
 		})
 	}

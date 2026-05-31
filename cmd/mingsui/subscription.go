@@ -97,12 +97,10 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, s
 	if selectedName == "" && selectFirst && len(profiles) > 0 {
 		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
 			selectedName = name
-		} else {
-			selectedName = profiles[0].Name
 		}
 	}
 	if selectedName != "" {
-		if err := cfg.SelectProxyProfile(selectedName); err != nil {
+		if err := selectExportableProxyProfile(&cfg, selectedName); err != nil {
 			fmt.Fprintf(os.Stderr, "选择机场节点失败: %v\n", err)
 			return 1
 		}
@@ -400,12 +398,10 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 	if selectedName == "" && selectFirst && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(profiles) > 0 {
 		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
 			selectedName = name
-		} else {
-			selectedName = profiles[0].Name
 		}
 	}
 	if selectedName != "" {
-		if err := cfg.SelectProxyProfile(selectedName); err != nil {
+		if err := selectExportableProxyProfile(&cfg, selectedName); err != nil {
 			fmt.Fprintf(os.Stderr, "选择机场节点失败: %v\n", err)
 			return 1
 		}
@@ -416,6 +412,17 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 	}
 	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
 	return 0
+}
+
+func selectExportableProxyProfile(cfg *config.ClientConfig, name string) error {
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		return fmt.Errorf("proxy profile %q not found", name)
+	}
+	if !mihomo.CanExportProfile(profile) {
+		return fmt.Errorf("%s 当前暂不支持直接连接；使用 mingsui config proxy list 查看可连接节点", name)
+	}
+	return cfg.SelectProxyProfile(name)
 }
 
 func loadProfilesFromSource(source string, stdin io.Reader) ([]config.RelayProfile, error) {

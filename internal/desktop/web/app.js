@@ -60,8 +60,12 @@ function render() {
   const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
   const selectedProfile = cfg.active_profile || "";
   const selectedProxy = cfg.active_proxy_profile || "";
+  const firstExportableProxy = proxyProfiles.find((profile) => {
+    const capability = capabilityMap.get(profile.name) || {};
+    return capability.exportable !== false;
+  });
   const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
-    || (!selectedProfile && proxyProfiles.length ? proxyProfiles[0] : null);
+    || (!selectedProfile ? firstExportableProxy || null : null);
   const nodeLabel = activeProxy ? activeProxy.name : selectedProfile || (profiles.length ? profiles[0].name : "");
   const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : status.relay_addr || cfg.relay_addr;
   const localAddr = status.local_addr || cfg.local_addr;

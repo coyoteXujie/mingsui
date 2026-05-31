@@ -112,14 +112,7 @@ func (a *App) SelectRelayProfile(name string) error {
 
 func (a *App) SelectProxyProfile(name string) error {
 	cfg := a.Config()
-	profile, ok := cfg.ProxyProfile(name)
-	if !ok {
-		return errors.New("机场节点不存在")
-	}
-	if !mihomo.CanExportProfile(profile) {
-		return errors.New("该机场节点当前暂不支持直接连接")
-	}
-	if err := cfg.SelectProxyProfile(name); err != nil {
+	if err := selectExportableProxyProfile(&cfg, name); err != nil {
 		return err
 	}
 	return a.SaveConfig(cfg)
@@ -190,12 +183,10 @@ func (a *App) importProxyProfiles(data []byte, replace bool, selectName, sourceU
 	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
 		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
 			selectName = name
-		} else {
-			selectName = profiles[0].Name
 		}
 	}
 	if selectName != "" {
-		if err := cfg.SelectProxyProfile(selectName); err != nil {
+		if err := selectExportableProxyProfile(&cfg, selectName); err != nil {
 			return 0, err
 		}
 	}
@@ -260,12 +251,10 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 	if strings.TrimSpace(selectName) == "" && len(proxyProfiles) > 0 {
 		if name, ok := mihomo.FirstExportableProfileName(proxyProfiles); ok {
 			selectName = name
-		} else {
-			selectName = proxyProfiles[0].Name
 		}
 	}
 	if selectName != "" {
-		if err := cfg.SelectProxyProfile(selectName); err != nil {
+		if err := selectExportableProxyProfile(&cfg, selectName); err != nil {
 			return 0, err
 		}
 	}
@@ -421,12 +410,27 @@ func effectiveClientConfig(cfg config.ClientConfig) (config.ClientConfig, error)
 func activeProxyProfile(cfg config.ClientConfig) (config.ProxyProfile, bool) {
 	name := strings.TrimSpace(cfg.ActiveProxyProfile)
 	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0 {
-		name = cfg.ProxyProfiles[0].Name
+		var ok bool
+		name, ok = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+		if !ok {
+			return config.ProxyProfile{}, false
+		}
 	}
 	if name == "" {
 		return config.ProxyProfile{}, false
 	}
 	return cfg.ProxyProfile(name)
+}
+
+func selectExportableProxyProfile(cfg *config.ClientConfig, name string) error {
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		return errors.New("机场节点不存在")
+	}
+	if !mihomo.CanExportProfile(profile) {
+		return errors.New("该机场节点当前暂不支持直接连接")
+	}
+	return cfg.SelectProxyProfile(name)
 }
 
 func kernelClientStatus(status mihomo.RuntimeStatus) client.RuntimeStatus {

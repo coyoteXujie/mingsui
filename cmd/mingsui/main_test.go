@@ -152,6 +152,29 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestTopLevelImportDoesNotSelectUnsupportedProxyProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath})
+	if code != 0 {
+		t.Fatalf("run(import unsupported airport) = %d, want 0", code)
+	}
+
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want imported unsupported proxy without active selection", cfg)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "airport", "https://example.com/sub", true); err != nil {
@@ -246,6 +269,38 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	}
 	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 2 {
 		t.Fatalf("Config() = %+v, want osaka removed and active proxy cleared", got)
+	}
+}
+
+func TestResolveClientProxyProfileUsesFirstExportable(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+
+	profile, ok := resolveClientProxyProfile(cfg, true)
+	if !ok || profile.Name != "tokyo" {
+		t.Fatalf("resolveClientProxyProfile() = %+v, %v, want tokyo true", profile, ok)
+	}
+	items := proxyProfileItems(cfg)
+	if len(items) != 2 || items[0].Selected || !items[1].Selected {
+		t.Fatalf("proxyProfileItems() = %+v, want only exportable tokyo selected", items)
+	}
+}
+
+func TestResolveClientProxyProfileSkipsAllUnsupported(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+	}
+
+	if profile, ok := resolveClientProxyProfile(cfg, true); ok {
+		t.Fatalf("resolveClientProxyProfile() = %+v, true, want false", profile)
+	}
+	items := proxyProfileItems(cfg)
+	if len(items) != 1 || items[0].Selected {
+		t.Fatalf("proxyProfileItems() = %+v, want unsupported node unselected", items)
 	}
 }
 

@@ -191,6 +191,29 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestAppImportProxyProfilesWithoutExportableDoesNotSelect(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n"
+
+	count, err := app.ImportRelayProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))), false, "")
+	if err != nil {
+		t.Fatalf("ImportRelayProfiles(proxy) error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	cfg := app.Config()
+	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want unsupported proxy imported without active selection", cfg)
+	}
+	if profile, ok := activeProxyProfile(cfg); ok {
+		t.Fatalf("activeProxyProfile() = %+v, true, want false", profile)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "https://example.com/sub"); err != nil {
