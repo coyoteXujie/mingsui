@@ -20,6 +20,27 @@ func TestResolveBinaryUsesExplicitPath(t *testing.T) {
 	}
 }
 
+func TestBundledBinaryPathsIncludesExecutableDir(t *testing.T) {
+	paths := bundledBinaryPaths()
+	if len(paths) == 0 {
+		t.Fatal("bundledBinaryPaths() returned no paths")
+	}
+	wantName := "mihomo"
+	if filepath.Ext(paths[0]) == ".exe" {
+		wantName = "mihomo.exe"
+	}
+	found := false
+	for _, path := range paths {
+		if filepath.Base(path) == wantName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("bundledBinaryPaths() = %+v, want basename %s", paths, wantName)
+	}
+}
+
 func TestResolveBinaryRejectsMissingEnvPath(t *testing.T) {
 	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(t.TempDir(), "missing"))
 	_, err := ResolveBinary("")

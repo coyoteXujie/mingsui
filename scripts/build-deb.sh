@@ -6,6 +6,8 @@ DEB_VERSION=${DEB_VERSION:-}
 GO=${GO:-go}
 DIST_DIR=${DIST_DIR:-dist}
 DEB_ARCHS=${DEB_ARCHS:-amd64 arm64}
+MIHOMO_ASSETS_DIR=${MIHOMO_ASSETS_DIR:-packaging/mihomo}
+REQUIRE_MIHOMO=${REQUIRE_MIHOMO:-0}
 COMMIT=${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}
 DATE=${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 LDFLAGS="-s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=${APP_VERSION} -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=${COMMIT} -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=${DATE}"
@@ -48,16 +50,26 @@ for deb_arch in $DEB_ARCHS; do
 	pkg=mingsui-desktop_${DEB_VERSION}_${deb_arch}
 	root=$DIST_DIR/deb/$pkg
 	rm -rf "$root"
-	mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/share/applications" "$root/usr/share/doc/mingsui-desktop/configs"
+	mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/lib/mingsui" "$root/usr/share/applications" "$root/usr/share/doc/mingsui-desktop/configs"
 
 	CGO_ENABLED=0 GOOS=linux GOARCH=$goarch "$GO" build -ldflags "$LDFLAGS" -o "$root/usr/bin/mingsui" ./cmd/mingsui
 	CGO_ENABLED=0 GOOS=linux GOARCH=$goarch "$GO" build -ldflags "$LDFLAGS" -o "$root/usr/bin/mingsui-desktop" ./cmd/mingsui-desktop
+	mihomo_source="$MIHOMO_ASSETS_DIR/mihomo-linux-$goarch"
+	if [ -f "$mihomo_source" ]; then
+		cp "$mihomo_source" "$root/usr/lib/mingsui/mihomo"
+	elif [ "$REQUIRE_MIHOMO" = "1" ]; then
+		echo "missing Mihomo asset: $mihomo_source" >&2
+		exit 1
+	fi
 	cp packaging/deb/mingsui-desktop.desktop "$root/usr/share/applications/mingsui-desktop.desktop"
 	cp README.md "$root/usr/share/doc/mingsui-desktop/README.md"
 	cp configs/client.example.json "$root/usr/share/doc/mingsui-desktop/configs/client.example.json"
 	find "$root" -type d -exec chmod 0755 {} +
 	find "$root" -type f -exec chmod 0644 {} +
 	chmod 0755 "$root/usr/bin/mingsui" "$root/usr/bin/mingsui-desktop"
+	if [ -f "$root/usr/lib/mingsui/mihomo" ]; then
+		chmod 0755 "$root/usr/lib/mingsui/mihomo"
+	fi
 
 	installed_size=$(du -ks "$root/usr" | awk '{print $1}')
 	cat >"$root/DEBIAN/control" <<EOF

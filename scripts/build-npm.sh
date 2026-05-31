@@ -7,6 +7,8 @@ GO=${GO:-go}
 DIST_DIR=${DIST_DIR:-dist}
 NPM_STAGE=${NPM_STAGE:-$DIST_DIR/npm/mingsui}
 NPM_CACHE=${NPM_CACHE:-${TMPDIR:-/tmp}/mingsui-npm-cache}
+MIHOMO_ASSETS_DIR=${MIHOMO_ASSETS_DIR:-packaging/mihomo}
+REQUIRE_MIHOMO=${REQUIRE_MIHOMO:-0}
 NPM_PLATFORMS=${NPM_PLATFORMS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64}
 COMMIT=${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}
 DATE=${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
@@ -77,6 +79,14 @@ for platform in $NPM_PLATFORMS; do
 	mkdir -p "$target_dir"
 	echo "building npm binary $os/$arch"
 	CGO_ENABLED=0 GOOS=$os GOARCH=$arch "$GO" build -ldflags "$LDFLAGS" -o "$target_dir/mingsui$ext" ./cmd/mingsui
+	mihomo_source="$MIHOMO_ASSETS_DIR/mihomo-$os-$arch$ext"
+	if [ -f "$mihomo_source" ]; then
+		cp "$mihomo_source" "$target_dir/mihomo$ext"
+		chmod 0755 "$target_dir/mihomo$ext"
+	elif [ "$REQUIRE_MIHOMO" = "1" ]; then
+		echo "missing Mihomo asset: $mihomo_source" >&2
+		exit 1
+	fi
 done
 
 mkdir -p "$NPM_CACHE"

@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
@@ -28,13 +28,18 @@ jobs:
         run: sh scripts/smoke-test.sh
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
       - name: Verify npm CLI package
         run: |
+          mkdir -p "$RUNNER_TEMP/mihomo-assets"
+          printf '%s\n' '#!/bin/sh' 'exit 0' >"$RUNNER_TEMP/mihomo-assets/mihomo-linux-amd64"
+          chmod +x "$RUNNER_TEMP/mihomo-assets/mihomo-linux-amd64"
           NPM_PLATFORMS=linux/amd64 \
           DIST_DIR="$RUNNER_TEMP/mingsui-dist" \
           NPM_CONFIG_PREFIX="$RUNNER_TEMP/npm-prefix" \
+          MIHOMO_ASSETS_DIR="$RUNNER_TEMP/mihomo-assets" \
+          REQUIRE_MIHOMO=1 \
           sh scripts/install-local-cli.sh

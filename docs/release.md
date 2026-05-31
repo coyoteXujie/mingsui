@@ -9,7 +9,8 @@ make test
 生成发布产物：
 
 ```bash
-make dist APP_VERSION=v0.1.0
+sh scripts/fetch-mihomo.sh
+make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
 ```
 
 Linux 桌面端也可以单独生成 `.deb`：
@@ -66,7 +67,9 @@ Linux `.deb` 安装：
 
 `.deb` 中的 CLI 和 GUI 默认使用同一个客户端配置路径，和 `mingsui config path` 一致。Windows zip 中的桌面端产物是 `mingsui-desktop.exe`。
 
-npm 包只包含 `mingsui` CLI，不包含 `mingsui-desktop` 和 `mingsui-relay`。默认会内置 `linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64` 和 `windows/arm64` 六个平台的 CLI 二进制；安装后会提供全局 `mingsui` 命令。
+npm 包只包含 `mingsui` CLI 和 Mihomo 内核，不包含 `mingsui-desktop` 和 `mingsui-relay`。默认会内置 `linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64` 和 `windows/arm64` 六个平台的 CLI 二进制；安装后会提供全局 `mingsui` 命令。
+
+正式发布包应内置 Mihomo 内核。`scripts/fetch-mihomo.sh` 默认会下载 `v1.19.25` 的 Linux、macOS 和 Windows `amd64/arm64` 内核到 `packaging/mihomo/`；`REQUIRE_MIHOMO=1` 会在缺少内核资产时让打包失败，避免产出不能一键连接的包。
 
 校验发布包：
 

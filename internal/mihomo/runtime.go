@@ -186,6 +186,11 @@ func ResolveBinary(explicit string) (string, error) {
 	if fromEnv := os.Getenv("MINGSUI_MIHOMO_PATH"); fromEnv != "" {
 		return requireExecutable(fromEnv)
 	}
+	for _, path := range bundledBinaryPaths() {
+		if isExecutable(path) {
+			return path, nil
+		}
+	}
 	for _, name := range []string{"mihomo", "clash-meta", "clash"} {
 		if path, err := exec.LookPath(name); err == nil {
 			return path, nil
@@ -197,6 +202,27 @@ func ResolveBinary(explicit string) (string, error) {
 		}
 	}
 	return "", errors.New("未找到 Mihomo 内核；请安装 mihomo，或设置 MINGSUI_MIHOMO_PATH 指向内核程序")
+}
+
+func bundledBinaryPaths() []string {
+	name := "mihomo"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+
+	paths := []string{
+		filepath.Join("/usr/lib/mingsui", name),
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return paths
+	}
+	exeDir := filepath.Dir(exe)
+	return append([]string{
+		filepath.Join(exeDir, name),
+		filepath.Join(exeDir, "kernel", name),
+		filepath.Join(filepath.Dir(exeDir), "kernel", name),
+	}, paths...)
 }
 
 func knownSidecarPaths() []string {

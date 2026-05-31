@@ -54,9 +54,17 @@ mingsui status
 
 ## 本地发布包
 
+下载发布包内置的 Mihomo 内核：
+
+```bash
+sh scripts/fetch-mihomo.sh
+```
+
+生成发布产物：
+
 ```bash
 APP_VERSION=v0.1.0 sh scripts/build-npm.sh
-make dist APP_VERSION=v0.1.0
+make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
 ```
 
 详细发布流程见 [release.md](release.md)。
