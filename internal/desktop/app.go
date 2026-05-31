@@ -143,8 +143,10 @@ func (a *App) RenameRelayProfile(oldName, newName string) error {
 
 func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) (int, error) {
 	content := strings.TrimSpace(string(data))
+	sourceURL := ""
 	if strings.HasPrefix(content, "http://") || strings.HasPrefix(content, "https://") {
 		var err error
+		sourceURL = content
 		data, err = subscription.LoadSource(context.Background(), content, nil)
 		if err != nil {
 			return 0, err
@@ -153,7 +155,7 @@ func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) 
 
 	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil {
-		return a.importProxyProfiles(data, replace, selectName, err)
+		return a.importProxyProfiles(data, replace, selectName, sourceURL, err)
 	}
 	cfg := a.Config()
 	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
@@ -167,13 +169,16 @@ func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) 
 			return 0, err
 		}
 	}
+	if err := saveImportedSubscription(&cfg, sourceURL); err != nil {
+		return 0, err
+	}
 	if err := a.SaveConfig(cfg); err != nil {
 		return 0, err
 	}
 	return len(profiles), nil
 }
 
-func (a *App) importProxyProfiles(data []byte, replace bool, selectName string, relayErr error) (int, error) {
+func (a *App) importProxyProfiles(data []byte, replace bool, selectName, sourceURL string, relayErr error) (int, error) {
 	profiles, err := subscription.ParseProxyProfiles(data)
 	if err != nil {
 		return 0, relayErr
@@ -193,6 +198,9 @@ func (a *App) importProxyProfiles(data []byte, replace bool, selectName string, 
 		if err := cfg.SelectProxyProfile(selectName); err != nil {
 			return 0, err
 		}
+	}
+	if err := saveImportedSubscription(&cfg, sourceURL); err != nil {
+		return 0, err
 	}
 	if err := a.SaveConfig(cfg); err != nil {
 		return 0, err
@@ -265,6 +273,21 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 		return 0, err
 	}
 	return len(proxyProfiles), nil
+}
+
+func saveImportedSubscription(cfg *config.ClientConfig, sourceURL string) error {
+	sourceURL = strings.TrimSpace(sourceURL)
+	if sourceURL == "" {
+		return nil
+	}
+	name := "airport"
+	for _, sub := range cfg.Subscriptions {
+		if strings.TrimSpace(sub.URL) == sourceURL {
+			name = sub.Name
+			break
+		}
+	}
+	return cfg.UpsertRelaySubscription(config.RelaySubscription{Name: name, URL: sourceURL}, true)
 }
 
 func (a *App) Start(ctx context.Context) error {

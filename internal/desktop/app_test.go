@@ -191,6 +191,24 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestSaveImportedSubscription(t *testing.T) {
+	cfg := config.DefaultClient()
+	if err := saveImportedSubscription(&cfg, "https://example.com/sub"); err != nil {
+		t.Fatalf("saveImportedSubscription() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 1 || cfg.Subscriptions[0].Name != "airport" || cfg.Subscriptions[0].URL != "https://example.com/sub" {
+		t.Fatalf("Subscriptions = %+v, want saved airport subscription", cfg.Subscriptions)
+	}
+
+	cfg.Subscriptions[0].Name = "team"
+	if err := saveImportedSubscription(&cfg, "https://example.com/sub"); err != nil {
+		t.Fatalf("saveImportedSubscription(existing) error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 1 || cfg.Subscriptions[0].Name != "team" {
+		t.Fatalf("Subscriptions = %+v, want existing name preserved", cfg.Subscriptions)
+	}
+}
+
 func TestAppRejectsUnsupportedProxySelection(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {
