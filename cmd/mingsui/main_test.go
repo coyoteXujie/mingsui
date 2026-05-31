@@ -263,6 +263,22 @@ func TestProxyEnvUsesHTTPAndSOCKS(t *testing.T) {
 	assertEnvValue(t, vars, "MINGSUI_SOCKS5_PROXY", "socks5h://127.0.0.1:18080")
 }
 
+func TestProxyEnvIncludesLocalAuth(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.LocalAddr = "127.0.0.1:18080"
+	cfg.HTTPAddr = "127.0.0.1:18081"
+	cfg.LocalAuth = config.ClientAuthConfig{
+		Enabled:  true,
+		Username: "ai",
+		Password: "p@ss word",
+	}
+
+	vars := proxyEnv(cfg, "")
+	assertEnvValue(t, vars, "HTTP_PROXY", "http://ai:p%40ss%20word@127.0.0.1:18081")
+	assertEnvValue(t, vars, "ALL_PROXY", "socks5h://ai:p%40ss%20word@127.0.0.1:18080")
+	assertEnvValue(t, vars, "MINGSUI_HTTP_PROXY", "http://ai:p%40ss%20word@127.0.0.1:18081")
+}
+
 func TestProxyEnvFallsBackToSOCKSForStandardProxyVars(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = "127.0.0.1:18080"

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -944,9 +945,9 @@ func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {
 	httpAddr := strings.TrimSpace(cfg.HTTPAddr)
 	standardProxy := ""
 	if httpAddr != "" {
-		standardProxy = "http://" + httpAddr
+		standardProxy = proxyURL("http", httpAddr, cfg.LocalAuth)
 	} else if localAddr != "" {
-		standardProxy = "socks5h://" + localAddr
+		standardProxy = proxyURL("socks5h", localAddr, cfg.LocalAuth)
 	}
 	if standardProxy != "" {
 		vars = append(vars,
@@ -957,7 +958,7 @@ func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {
 		)
 	}
 	if localAddr != "" {
-		socksProxy := "socks5h://" + localAddr
+		socksProxy := proxyURL("socks5h", localAddr, cfg.LocalAuth)
 		vars = append(vars,
 			proxyEnvVar{Name: "ALL_PROXY", Value: socksProxy},
 			proxyEnvVar{Name: "all_proxy", Value: socksProxy},
@@ -971,9 +972,17 @@ func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {
 		)
 	}
 	if httpAddr != "" {
-		vars = append(vars, proxyEnvVar{Name: "MINGSUI_HTTP_PROXY", Value: "http://" + httpAddr})
+		vars = append(vars, proxyEnvVar{Name: "MINGSUI_HTTP_PROXY", Value: proxyURL("http", httpAddr, cfg.LocalAuth)})
 	}
 	return vars
+}
+
+func proxyURL(scheme, addr string, auth config.ClientAuthConfig) string {
+	value := url.URL{Scheme: scheme, Host: addr}
+	if auth.Enabled {
+		value.User = url.UserPassword(auth.Username, auth.Password)
+	}
+	return value.String()
 }
 
 func mergeEnv(base []string, vars []proxyEnvVar) []string {
