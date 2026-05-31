@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -43,6 +44,10 @@ func run(args []string) int {
 		return runStatus(args[1:])
 	case "disconnect":
 		return runDisconnect(args[1:])
+	case "env":
+		return runEnv(args[1:])
+	case "exec":
+		return runExec(args[1:])
 	case "kernel":
 		return runKernel(args[1:])
 	case "run":
@@ -451,6 +456,170 @@ func writeCLIStatus(status cliStatus, jsonOutput bool) int {
 		return 0
 	}
 	return 1
+}
+
+type proxyEnvVar struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+func runEnv(args []string) int {
+	fs := flag.NewFlagSet("env", flag.ContinueOnError)
+	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
+	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
+	noProxy := fs.String("no-proxy", "localhost,127.0.0.1,::1", "NO_PROXY/no_proxy 值")
+	format := fs.String("format", "shell", "输出格式：shell 或 json")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := loadClientOrDefault(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", false, "", "")
+	vars := proxyEnv(cfg, *noProxy)
+	if len(vars) == 0 {
+		fmt.Fprintln(os.Stderr, "配置中没有可用的本地代理监听地址")
+		return 1
+	}
+
+	switch strings.ToLower(strings.TrimSpace(*format)) {
+	case "shell":
+		for _, item := range vars {
+			fmt.Fprintf(os.Stdout, "export %s=%s\n", item.Name, shellQuote(item.Value))
+		}
+	case "json":
+		if err := writeJSON(os.Stdout, vars); err != nil {
+			fmt.Fprintf(os.Stderr, "输出代理环境失败: %v\n", err)
+			return 1
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "不支持的 env 输出格式 %q\n", *format)
+		return 2
+	}
+	return 0
+}
+
+func runExec(args []string) int {
+	fs := flag.NewFlagSet("exec", flag.ContinueOnError)
+	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
+	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
+	noProxy := fs.String("no-proxy", "localhost,127.0.0.1,::1", "NO_PROXY/no_proxy 值")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	commandArgs := fs.Args()
+	if len(commandArgs) == 0 {
+		fmt.Fprintln(os.Stderr, "缺少要执行的命令，例如：mingsui exec -- curl https://example.com")
+		return 2
+	}
+
+	cfg, err := loadClientOrDefault(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", false, "", "")
+	vars := proxyEnv(cfg, *noProxy)
+	if len(vars) == 0 {
+		fmt.Fprintln(os.Stderr, "配置中没有可用的本地代理监听地址")
+		return 1
+	}
+
+	cmd := exec.Command(commandArgs[0], commandArgs[1:]...)
+	cmd.Env = mergeEnv(os.Environ(), vars)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return exitErr.ExitCode()
+		}
+		fmt.Fprintf(os.Stderr, "执行命令失败: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {
+	vars := make([]proxyEnvVar, 0, 10)
+	localAddr := strings.TrimSpace(cfg.LocalAddr)
+	httpAddr := strings.TrimSpace(cfg.HTTPAddr)
+	standardProxy := ""
+	if httpAddr != "" {
+		standardProxy = "http://" + httpAddr
+	} else if localAddr != "" {
+		standardProxy = "socks5h://" + localAddr
+	}
+	if standardProxy != "" {
+		vars = append(vars,
+			proxyEnvVar{Name: "HTTP_PROXY", Value: standardProxy},
+			proxyEnvVar{Name: "HTTPS_PROXY", Value: standardProxy},
+			proxyEnvVar{Name: "http_proxy", Value: standardProxy},
+			proxyEnvVar{Name: "https_proxy", Value: standardProxy},
+		)
+	}
+	if localAddr != "" {
+		socksProxy := "socks5h://" + localAddr
+		vars = append(vars,
+			proxyEnvVar{Name: "ALL_PROXY", Value: socksProxy},
+			proxyEnvVar{Name: "all_proxy", Value: socksProxy},
+			proxyEnvVar{Name: "MINGSUI_SOCKS5_PROXY", Value: socksProxy},
+		)
+	}
+	if value := strings.TrimSpace(noProxy); value != "" {
+		vars = append(vars,
+			proxyEnvVar{Name: "NO_PROXY", Value: value},
+			proxyEnvVar{Name: "no_proxy", Value: value},
+		)
+	}
+	if httpAddr != "" {
+		vars = append(vars, proxyEnvVar{Name: "MINGSUI_HTTP_PROXY", Value: "http://" + httpAddr})
+	}
+	return vars
+}
+
+func mergeEnv(base []string, vars []proxyEnvVar) []string {
+	replacements := make(map[string]string, len(vars))
+	for _, item := range vars {
+		replacements[item.Name] = item.Value
+	}
+
+	merged := make([]string, 0, len(base)+len(vars))
+	for _, item := range base {
+		name, _, ok := strings.Cut(item, "=")
+		if !ok {
+			merged = append(merged, item)
+			continue
+		}
+		value, exists := replacements[name]
+		if !exists {
+			merged = append(merged, item)
+			continue
+		}
+		merged = append(merged, name+"="+value)
+		delete(replacements, name)
+	}
+	for _, item := range vars {
+		if _, exists := replacements[item.Name]; !exists {
+			continue
+		}
+		merged = append(merged, item.Name+"="+item.Value)
+		delete(replacements, item.Name)
+	}
+	return merged
+}
+
+func shellQuote(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func resolveClientProfile(cfg config.ClientConfig, profileName string, autoProfile bool) (config.ClientConfig, string, error) {
@@ -939,6 +1108,8 @@ func printUsage() {
   mingsui connect [flags]
   mingsui status [flags]
   mingsui disconnect [flags]
+  mingsui env [flags]
+  mingsui exec [flags] -- <command> [args...]
   mingsui kernel export [flags]
   mingsui run [flags]
   mingsui doctor [flags]
@@ -955,6 +1126,8 @@ func printUsage() {
   mingsui import -source ./nodes.json
   mingsui connect
   mingsui status
+  eval "$(mingsui env)"
+  mingsui exec -- curl https://example.com
   mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"

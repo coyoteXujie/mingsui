@@ -150,6 +150,66 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestProxyEnvUsesHTTPAndSOCKS(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.LocalAddr = "127.0.0.1:18080"
+	cfg.HTTPAddr = "127.0.0.1:18081"
+
+	vars := proxyEnv(cfg, "localhost,127.0.0.1")
+	assertEnvValue(t, vars, "HTTP_PROXY", "http://127.0.0.1:18081")
+	assertEnvValue(t, vars, "HTTPS_PROXY", "http://127.0.0.1:18081")
+	assertEnvValue(t, vars, "ALL_PROXY", "socks5h://127.0.0.1:18080")
+	assertEnvValue(t, vars, "NO_PROXY", "localhost,127.0.0.1")
+	assertEnvValue(t, vars, "MINGSUI_HTTP_PROXY", "http://127.0.0.1:18081")
+	assertEnvValue(t, vars, "MINGSUI_SOCKS5_PROXY", "socks5h://127.0.0.1:18080")
+}
+
+func TestProxyEnvFallsBackToSOCKSForStandardProxyVars(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.LocalAddr = "127.0.0.1:18080"
+	cfg.HTTPAddr = ""
+
+	vars := proxyEnv(cfg, "")
+	assertEnvValue(t, vars, "HTTP_PROXY", "socks5h://127.0.0.1:18080")
+	assertEnvValue(t, vars, "HTTPS_PROXY", "socks5h://127.0.0.1:18080")
+	assertEnvValue(t, vars, "ALL_PROXY", "socks5h://127.0.0.1:18080")
+}
+
+func TestMergeEnvOverridesExistingValues(t *testing.T) {
+	vars := []proxyEnvVar{
+		{Name: "HTTP_PROXY", Value: "http://127.0.0.1:18081"},
+		{Name: "ALL_PROXY", Value: "socks5h://127.0.0.1:18080"},
+	}
+	merged := mergeEnv([]string{"PATH=/bin", "HTTP_PROXY=http://old.example"}, vars)
+
+	assertEnvString(t, merged, "PATH=/bin")
+	assertEnvString(t, merged, "HTTP_PROXY=http://127.0.0.1:18081")
+	assertEnvString(t, merged, "ALL_PROXY=socks5h://127.0.0.1:18080")
+}
+
+func assertEnvValue(t *testing.T, vars []proxyEnvVar, name, want string) {
+	t.Helper()
+	for _, item := range vars {
+		if item.Name == name {
+			if item.Value != want {
+				t.Fatalf("%s = %q, want %q", name, item.Value, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing env var %s in %+v", name, vars)
+}
+
+func assertEnvString(t *testing.T, env []string, want string) {
+	t.Helper()
+	for _, item := range env {
+		if item == want {
+			return
+		}
+	}
+	t.Fatalf("missing env item %q in %+v", want, env)
+}
+
 func TestKernelExportMihomo(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "client.json")

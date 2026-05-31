@@ -1,0 +1,4 @@
+interface:
+  display_name: "MingSui CLI"
+  short_description: "Use MingSui CLI for proxy setup and automation."
+  default_prompt: "Use MingSui CLI to inspect status, configure proxy environment variables, and run commands through the local proxy."

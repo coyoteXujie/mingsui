@@ -1,0 +1,94 @@
+---
+name: mingsui-cli
+description: Use MingSui CLI when an AI agent needs to inspect or configure local proxy access, import MingSui or airport subscriptions, run commands through the local HTTP/SOCKS proxy, export Mihomo configs, or diagnose why command-line network access is not working. Trigger for tasks mentioning mingsui, 明隧, proxy env vars, npm-installed mingsui CLI, AI tools needing external network access, or running curl/npm/git/Claude/Codex through MingSui.
+---
+
+# MingSui CLI
+
+Use `mingsui` as the command-line control surface for MingSui. Prefer command-scoped proxy setup for AI agents so the task does not depend on global desktop proxy state.
+
+## First Checks
+
+Run these before changing configuration:
+
+```bash
+mingsui version
+mingsui status
+mingsui config path
+```
+
+Use JSON when another tool or script will parse the result:
+
+```bash
+mingsui status -json
+mingsui doctor -json
+```
+
+Do not print full subscription URLs, tokens, proxy URLs, or exported configs containing secrets in final answers. Summarize counts, selected node names, and error messages instead.
+
+## Proxy Scope
+
+Assume `mingsui connect` starts local proxy listeners only. It does not modify the parent shell, system proxy, browser settings, or TUN/virtual network adapter by itself.
+
+Use one of these patterns for AI commands:
+
+```bash
+mingsui exec -- curl https://example.com
+```
+
+or:
+
+```bash
+eval "$(mingsui env)"
+curl https://example.com
+```
+
+`mingsui exec` affects only the child command. `eval "$(mingsui env)"` affects only the current shell and processes started from it. Already-running AI agents, browsers, and desktop apps will not inherit these variables retroactively.
+
+## Connection Workflow
+
+For a MingSui relay profile:
+
+```bash
+mingsui config init -relay <host:port> -token <token>
+mingsui doctor
+mingsui connect
+```
+
+Keep `mingsui connect` running while using the proxy. In another terminal or subprocess, run commands through `mingsui exec` or after `eval "$(mingsui env)"`.
+
+For a subscription import:
+
+```bash
+mingsui import -source <file-or-url>
+mingsui status
+```
+
+If the active profile is an airport node and direct connect reports that the general proxy kernel is not connected yet, export a Mihomo config for manual kernel testing:
+
+```bash
+mingsui kernel export -output /tmp/mingsui-mihomo.yaml
+```
+
+Treat `/tmp/mingsui-mihomo.yaml` as sensitive because it can contain node passwords or tokens.
+
+## Browser And System Proxy
+
+Do not claim that the CLI automatically makes the browser use MingSui. For browser traffic, the user must currently configure the browser or system proxy to the local listeners while `mingsui connect` or a compatible kernel is running:
+
+```text
+HTTP proxy:   127.0.0.1:18081
+SOCKS5 proxy: 127.0.0.1:18080
+```
+
+Use desktop GUI or a future system-proxy/TUN command for whole-machine behavior. TUN generally requires elevated permissions or a kernel backend such as Mihomo configured with TUN support.
+
+## Troubleshooting
+
+If a command cannot access the network:
+
+1. Check `mingsui status -json`.
+2. Check whether the connection process is actually running.
+3. Confirm the command is launched with `mingsui exec -- ...` or from a shell where `eval "$(mingsui env)"` was run.
+4. Use `mingsui doctor` for relay profiles.
+5. Avoid exposing private tokens or full subscription URLs while reporting the issue.
