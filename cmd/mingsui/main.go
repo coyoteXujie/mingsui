@@ -19,6 +19,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/diagnostic"
+	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/protocol"
 	"github.com/coyoteXujie/mingsui/internal/security"
 )
@@ -42,6 +43,8 @@ func run(args []string) int {
 		return runStatus(args[1:])
 	case "disconnect":
 		return runDisconnect(args[1:])
+	case "kernel":
+		return runKernel(args[1:])
 	case "run":
 		return runClient(args[1:])
 	case "doctor":
@@ -76,6 +79,62 @@ func runToken(args []string) int {
 		return 1
 	}
 	fmt.Println(token)
+	return 0
+}
+
+func runKernel(args []string) int {
+	if len(args) == 0 {
+		printKernelUsage()
+		return 2
+	}
+
+	switch args[0] {
+	case "export":
+		return exportKernelConfig(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "未知内核命令 %q\n\n", args[0])
+		printKernelUsage()
+		return 2
+	}
+}
+
+func exportKernelConfig(args []string) int {
+	fs := flag.NewFlagSet("kernel export", flag.ContinueOnError)
+	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	outputPath := fs.String("output", "", "输出文件路径，留空则打印到 stdout")
+	format := fs.String("format", "mihomo", "导出格式，目前支持 mihomo")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	var data []byte
+	switch strings.ToLower(strings.TrimSpace(*format)) {
+	case "mihomo":
+		data, err = mihomo.Generate(cfg, mihomo.Options{})
+	default:
+		err = fmt.Errorf("不支持的内核格式 %q", *format)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "导出内核配置失败: %v\n", err)
+		return 1
+	}
+	if *outputPath == "" {
+		if _, err := os.Stdout.Write(data); err != nil {
+			fmt.Fprintf(os.Stderr, "输出内核配置失败: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	if err := os.WriteFile(*outputPath, data, 0o600); err != nil {
+		fmt.Fprintf(os.Stderr, "写入内核配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "已导出 %s 配置到 %s\n", *format, *outputPath)
 	return 0
 }
 
@@ -880,6 +939,7 @@ func printUsage() {
   mingsui connect [flags]
   mingsui status [flags]
   mingsui disconnect [flags]
+  mingsui kernel export [flags]
   mingsui run [flags]
   mingsui doctor [flags]
   mingsui config init [flags]
@@ -895,6 +955,7 @@ func printUsage() {
   mingsui import -source ./nodes.json
   mingsui connect
   mingsui status
+  mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
   mingsui config profile check tokyo
@@ -912,7 +973,12 @@ func printUsage() {
   curl --socks5-hostname 127.0.0.1:18080 https://example.com
   curl -x http://127.0.0.1:18081 https://example.com
 
-`, config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath())
+`, config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath(), config.DefaultClientPath())
+}
+
+func printKernelUsage() {
+	fmt.Fprintln(os.Stderr, `用法:
+  mingsui kernel export [flags]`)
 }
 
 func printConfigUsage() {

@@ -150,6 +150,33 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestKernelExportMihomo(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	outputPath := filepath.Join(dir, "mihomo.yaml")
+	cfg := config.DefaultClient()
+	cfg.HTTPAddr = "127.0.0.1:18081"
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code := run([]string{"kernel", "export", "-config", cfgPath, "-output", outputPath})
+	if code != 0 {
+		t.Fatalf("run(kernel export) = %d, want 0", code)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(data), `type: "ss"`) || !strings.Contains(string(data), `server: "example.com"`) {
+		t.Fatalf("mihomo config = %s, want ss example.com", data)
+	}
+}
+
 func TestResolveClientProfileAutoSelectsFirst(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.Profiles = []config.RelayProfile{
