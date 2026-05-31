@@ -1,6 +1,6 @@
 # 发布流程
 
-明隧当前使用 Makefile 生成跨平台命令行发布包。发布前先确认工作区干净，并跑完整测试：
+明隧可以用 shell 脚本或 Makefile 生成发布包。发布前先确认工作区干净，并跑完整测试：
 
 ```bash
 make test
@@ -10,6 +10,12 @@ make test
 
 ```bash
 sh scripts/fetch-mihomo.sh
+APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1 sh scripts/build-dist.sh
+```
+
+如果本机安装了 `make`，也可以使用等价命令：
+
+```bash
 make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
 ```
 
@@ -81,6 +87,7 @@ sha256sum -c SHA256SUMS
 如果本机 `go` 不在 `PATH` 中，可以显式指定：
 
 ```bash
+GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1 sh scripts/build-dist.sh
 make dist GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 make desktop-deb GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 make npm-package GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0

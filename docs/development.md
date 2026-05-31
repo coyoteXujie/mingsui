@@ -29,7 +29,7 @@ go test ./...
 sh scripts/smoke-test.sh
 ```
 
-这组测试会构建 CLI、导入一份本地测试订阅、检查共享配置、代理环境变量、Mihomo 配置导出，以及 `mingsui connect` 是否会调用 Mihomo 内核。
+这组测试会构建 CLI、导入一份本地测试订阅、检查共享配置、代理环境变量、relay/机场节点的 `mingsui exec -connect`、Mihomo 配置导出，以及 `mingsui connect` 是否会调用 Mihomo 内核。
 
 ## 本地安装 CLI
 
@@ -43,6 +43,14 @@ sh scripts/install-local-cli.sh
 
 ```bash
 GO=/home/jie/env/go/bin/go sh scripts/install-local-cli.sh
+```
+
+只想生成 npm tarball 时，先构建再安装：
+
+```bash
+APP_VERSION=v0.1.0 GO=/home/jie/env/go/bin/go sh scripts/build-npm.sh
+ls dist/mingsui-0.1.0.tgz
+npm install -g ./dist/mingsui-0.1.0.tgz
 ```
 
 安装后验证：
@@ -64,8 +72,11 @@ sh scripts/fetch-mihomo.sh
 
 ```bash
 APP_VERSION=v0.1.0 sh scripts/build-npm.sh
+APP_VERSION=v0.1.0 sh scripts/build-dist.sh
 make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
 ```
+
+`scripts/build-dist.sh` 和 `make dist` 等价；没有 `make` 时直接用脚本。
 
 详细发布流程见 [release.md](release.md)。
 

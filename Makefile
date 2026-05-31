@@ -26,36 +26,7 @@ smoke:
 	GO=$(GO) sh scripts/smoke-test.sh
 
 dist:
-	rm -rf $(DIST_DIR)
-	mkdir -p $(DIST_DIR)
-	@set -e; \
-	for platform in $(DIST_PLATFORMS); do \
-		os=$${platform%/*}; \
-		arch=$${platform#*/}; \
-		name=mingsui-$(APP_VERSION)-$${os}-$${arch}; \
-		work=$(DIST_DIR)/$${name}; \
-		ext=""; \
-		if [ "$$os" = "windows" ]; then ext=".exe"; fi; \
-		echo "building $$name"; \
-		mkdir -p "$$work/configs"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui$$ext" ./cmd/mingsui; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui-relay$$ext" ./cmd/mingsui-relay; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch $(GO) build -ldflags "$(LDFLAGS)" -o "$$work/mingsui-desktop$$ext" ./cmd/mingsui-desktop; \
-		mihomo_asset="$(MIHOMO_ASSETS_DIR)/mihomo-$$os-$$arch$$ext"; \
-		if [ -f "$$mihomo_asset" ]; then cp "$$mihomo_asset" "$$work/mihomo$$ext"; chmod 0755 "$$work/mihomo$$ext"; \
-		elif [ "$(REQUIRE_MIHOMO)" = "1" ]; then echo "missing Mihomo asset: $$mihomo_asset" >&2; exit 1; fi; \
-		cp README.md "$$work/README.md"; \
-		cp configs/*.json "$$work/configs/"; \
-		if [ "$$os" = "windows" ]; then \
-			(cd $(DIST_DIR) && zip -qr "$$name.zip" "$$name"); \
-		else \
-			(cd $(DIST_DIR) && tar -czf "$$name.tar.gz" "$$name"); \
-		fi; \
-		rm -rf "$$work"; \
-	done
-	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-deb.sh
-	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-npm.sh
-	$(MAKE) checksums
+	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DIST_PLATFORMS="$(DIST_PLATFORMS)" DEB_ARCHS="$(DEB_ARCHS)" NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-dist.sh
 
 desktop-deb:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-deb.sh
