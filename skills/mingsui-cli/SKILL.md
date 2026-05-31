@@ -45,6 +45,16 @@ curl https://example.com
 
 `mingsui exec` affects only the child command. `eval "$(mingsui env)"` affects only the current shell and processes started from it. Already-running AI agents, browsers, and desktop apps will not inherit these variables retroactively.
 
+For browser or desktop app traffic on supported Linux/GNOME environments, use:
+
+```bash
+mingsui system-proxy enable
+mingsui system-proxy status
+mingsui system-proxy disable
+```
+
+Do not assume system proxy support exists on every OS or desktop environment; report unsupported status clearly.
+
 ## Connection Workflow
 
 For a MingSui relay profile:
@@ -74,14 +84,14 @@ Treat `/tmp/mingsui-mihomo.yaml` as sensitive because it can contain node passwo
 
 ## Browser And System Proxy
 
-Do not claim that the CLI automatically makes the browser use MingSui. For browser traffic, the user must currently configure the browser or system proxy to the local listeners while `mingsui connect` or a compatible kernel is running:
+Do not claim that the CLI automatically makes the browser use MingSui unless `mingsui system-proxy enable` has succeeded. For browser traffic, the user must configure the browser or system proxy to the local listeners while `mingsui connect` or a compatible kernel is running:
 
 ```text
 HTTP proxy:   127.0.0.1:18081
 SOCKS5 proxy: 127.0.0.1:18080
 ```
 
-Use desktop GUI or a future system-proxy/TUN command for whole-machine behavior. TUN generally requires elevated permissions or a kernel backend such as Mihomo configured with TUN support.
+TUN generally requires elevated permissions or a kernel backend such as Mihomo configured with TUN support.
 
 ## Troubleshooting
 
@@ -90,5 +100,6 @@ If a command cannot access the network:
 1. Check `mingsui status -json`.
 2. Check whether the connection process is actually running.
 3. Confirm the command is launched with `mingsui exec -- ...` or from a shell where `eval "$(mingsui env)"` was run.
-4. Use `mingsui doctor` for relay profiles.
-5. Avoid exposing private tokens or full subscription URLs while reporting the issue.
+4. For browser traffic, check `mingsui system-proxy status`.
+5. Use `mingsui doctor` for relay profiles.
+6. Avoid exposing private tokens or full subscription URLs while reporting the issue.

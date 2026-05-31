@@ -45,12 +45,14 @@ async function refresh() {
   state.configPath = data.config_path;
   state.config = data.config;
   state.status = data.status;
+  state.systemProxy = data.system_proxy;
   render();
 }
 
 function render() {
   const cfg = state.config || {};
   const status = state.status || {};
+  const systemProxy = state.systemProxy || {};
   const metrics = status.metrics || {};
   const profiles = cfg.profiles || [];
   const proxyProfiles = cfg.proxy_profiles || [];
@@ -68,6 +70,9 @@ function render() {
   $("relayAddr").textContent = text(relayAddr);
   $("localAddr").textContent = text(localAddr);
   $("httpAddr").textContent = text(httpAddr);
+  $("systemProxy").textContent = systemProxy.supported
+    ? (systemProxy.enabled ? "已开启" : "未开启")
+    : text(systemProxy.message, "不支持");
   $("activeProfile").textContent = text(nodeLabel, "未选择");
   $("authState").textContent = cfg.local_auth && cfg.local_auth.enabled ? "已启用" : "未启用";
   $("tlsState").textContent = cfg.tls && cfg.tls.enabled ? "已启用" : "未启用";
@@ -305,6 +310,16 @@ function bind() {
   $("checkBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/check", { method: "POST", body: {} });
     setMessage(result.message, "ok");
+  }));
+  $("systemProxyOnBtn").addEventListener("click", () => runAction(async () => {
+    const result = await api("/api/system-proxy/enable", { method: "POST", body: {} });
+    setMessage(result.message, "ok");
+    await refresh();
+  }));
+  $("systemProxyOffBtn").addEventListener("click", () => runAction(async () => {
+    const result = await api("/api/system-proxy/disable", { method: "POST", body: {} });
+    setMessage(result.message, "ok");
+    await refresh();
   }));
   $("importBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/profiles/import", {

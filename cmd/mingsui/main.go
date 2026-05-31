@@ -23,6 +23,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/protocol"
 	"github.com/coyoteXujie/mingsui/internal/security"
+	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
 func main() {
@@ -48,6 +49,8 @@ func run(args []string) int {
 		return runEnv(args[1:])
 	case "exec":
 		return runExec(args[1:])
+	case "system-proxy":
+		return runSystemProxy(args[1:])
 	case "kernel":
 		return runKernel(args[1:])
 	case "run":
@@ -560,6 +563,99 @@ func runExec(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func runSystemProxy(args []string) int {
+	if len(args) == 0 {
+		printSystemProxyUsage()
+		return 2
+	}
+	switch args[0] {
+	case "enable", "on":
+		return enableSystemProxy(args[1:])
+	case "disable", "off":
+		return disableSystemProxy(args[1:])
+	case "status":
+		return statusSystemProxy(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "未知系统代理命令 %q\n\n", args[0])
+		printSystemProxyUsage()
+		return 2
+	}
+}
+
+func enableSystemProxy(args []string) int {
+	fs := flag.NewFlagSet("system-proxy enable", flag.ContinueOnError)
+	cfgPath := fs.String("config", config.DefaultClientPath(), "客户端配置文件路径")
+	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
+	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	cfg, err := loadClientOrDefault(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", false, "", "")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := systemproxy.Enable(ctx, systemProxyConfig(cfg)); err != nil {
+		fmt.Fprintf(os.Stderr, "开启系统代理失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(os.Stdout, "系统代理已开启")
+	return 0
+}
+
+func disableSystemProxy(args []string) int {
+	fs := flag.NewFlagSet("system-proxy disable", flag.ContinueOnError)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := systemproxy.Disable(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "关闭系统代理失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintln(os.Stdout, "系统代理已关闭")
+	return 0
+}
+
+func statusSystemProxy(args []string) int {
+	fs := flag.NewFlagSet("system-proxy status", flag.ContinueOnError)
+	jsonOutput := fs.Bool("json", true, "以 JSON 格式输出状态，传 -json=false 可输出文本")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	status := systemproxy.CurrentStatus(ctx)
+	if *jsonOutput {
+		if err := writeJSON(os.Stdout, status); err != nil {
+			fmt.Fprintf(os.Stderr, "输出系统代理状态失败: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	if !status.Supported {
+		fmt.Fprintf(os.Stdout, "不支持: %s\n", status.Message)
+		return 0
+	}
+	if status.Enabled {
+		fmt.Fprintln(os.Stdout, "系统代理已开启")
+	} else {
+		fmt.Fprintln(os.Stdout, "系统代理未开启")
+	}
+	return 0
+}
+
+func systemProxyConfig(cfg config.ClientConfig) systemproxy.Config {
+	return systemproxy.Config{
+		HTTPAddr:  cfg.HTTPAddr,
+		SOCKSAddr: cfg.LocalAddr,
+	}
 }
 
 func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {
@@ -1126,6 +1222,7 @@ func printUsage() {
   mingsui disconnect [flags]
   mingsui env [flags]
   mingsui exec [flags] -- <command> [args...]
+  mingsui system-proxy enable|disable|status [flags]
   mingsui kernel export [flags]
   mingsui run [flags]
   mingsui doctor [flags]
@@ -1144,6 +1241,7 @@ func printUsage() {
   mingsui status
   eval "$(mingsui env)"
   mingsui exec -- curl https://example.com
+  mingsui system-proxy enable
   mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
@@ -1168,6 +1266,13 @@ func printUsage() {
 func printKernelUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui kernel export [flags]`)
+}
+
+func printSystemProxyUsage() {
+	fmt.Fprintln(os.Stderr, `用法:
+  mingsui system-proxy enable [flags]
+  mingsui system-proxy disable
+  mingsui system-proxy status [flags]`)
 }
 
 func printConfigUsage() {

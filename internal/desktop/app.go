@@ -12,6 +12,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/subscription"
+	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
 type App struct {
@@ -288,6 +289,19 @@ func (a *App) Status() client.RuntimeStatus {
 func (a *App) CheckRelay(ctx context.Context) error {
 	_, err := a.CheckRelayStatus(ctx)
 	return err
+}
+
+func (a *App) EnableSystemProxy(ctx context.Context) error {
+	cfg := a.Config()
+	return systemproxy.Enable(ctx, systemproxy.Config{HTTPAddr: cfg.HTTPAddr, SOCKSAddr: cfg.LocalAddr})
+}
+
+func (a *App) DisableSystemProxy(ctx context.Context) error {
+	return systemproxy.Disable(ctx)
+}
+
+func (a *App) SystemProxyStatus(ctx context.Context) systemproxy.Status {
+	return systemproxy.CurrentStatus(ctx)
 }
 
 func (a *App) CheckRelayProfile(ctx context.Context, name string) error {

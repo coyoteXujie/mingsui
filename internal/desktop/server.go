@@ -12,6 +12,7 @@ import (
 
 	"github.com/coyoteXujie/mingsui/internal/client"
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
 //go:embed web/*
@@ -29,6 +30,8 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 	mux.HandleFunc("/api/start", method(http.MethodPost, handleStart(app)))
 	mux.HandleFunc("/api/stop", method(http.MethodPost, handleStop(app)))
 	mux.HandleFunc("/api/check", method(http.MethodPost, handleCheck(app)))
+	mux.HandleFunc("/api/system-proxy/enable", method(http.MethodPost, handleEnableSystemProxy(app)))
+	mux.HandleFunc("/api/system-proxy/disable", method(http.MethodPost, handleDisableSystemProxy(app)))
 	mux.HandleFunc("/api/profile", method(http.MethodPost, handleSaveProfile(app)))
 	mux.HandleFunc("/api/profile/delete", method(http.MethodPost, handleDeleteProfile(app)))
 	mux.HandleFunc("/api/profile/select", method(http.MethodPost, handleSelectProfile(app)))
@@ -45,6 +48,7 @@ type stateResponse struct {
 	ConfigPath string               `json:"config_path"`
 	Config     config.ClientConfig  `json:"config"`
 	Status     client.RuntimeStatus `json:"status"`
+	System     systemproxy.Status   `json:"system_proxy"`
 }
 
 type messageResponse struct {
@@ -85,6 +89,7 @@ func handleState(app *App) http.HandlerFunc {
 			ConfigPath: app.ConfigPath(),
 			Config:     app.Config().Redacted(),
 			Status:     app.Status(),
+			System:     app.SystemProxyStatus(r.Context()),
 		})
 	}
 }
@@ -137,6 +142,30 @@ func handleCheck(app *App) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "relay 可连接", Health: &health})
+	}
+}
+
+func handleEnableSystemProxy(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if err := app.EnableSystemProxy(ctx); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "系统代理已开启"})
+	}
+}
+
+func handleDisableSystemProxy(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		if err := app.DisableSystemProxy(ctx); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "系统代理已关闭"})
 	}
 }
 

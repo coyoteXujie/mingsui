@@ -63,6 +63,20 @@ curl https://example.com
 
 `mingsui env` 只影响当前 shell 以及后续子进程，不会反向修改已经运行的 Codex、Claude、浏览器或系统代理。
 
+让浏览器等普通应用走明隧代理：
+
+```bash
+mingsui system-proxy enable
+```
+
+关闭系统代理：
+
+```bash
+mingsui system-proxy disable
+```
+
+当前系统代理开关优先支持 Linux/GNOME 桌面环境。
+
 ## 桌面端
 
 桌面端和 CLI 使用同一份配置。普通用户的目标流程是：
@@ -82,10 +96,10 @@ mingsui-desktop
 
 ## 能力边界
 
-明隧 CLI 默认不修改系统代理，也不开启 TUN/虚拟网卡。
+明隧 CLI 默认不修改系统代理，也不开启 TUN/虚拟网卡。需要影响浏览器时，显式执行 `mingsui system-proxy enable`。
 
 - 给 AI CLI、脚本、`curl`、`npm`、`git` 用：推荐 `mingsui exec` 或 `mingsui env`。
-- 给浏览器用：当前需要浏览器或系统代理指向本机代理端口；后续桌面端会提供系统代理/TUN 开关。
+- 给浏览器用：当前 Linux/GNOME 可用 `mingsui system-proxy enable`；其他桌面环境先手动设置系统代理，后续补齐。
 - 本机默认 SOCKS5 端口：`127.0.0.1:18080`。
 - 本机默认 HTTP 代理端口：`127.0.0.1:18081`。
 
