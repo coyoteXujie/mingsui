@@ -163,6 +163,17 @@ func Run(ctx context.Context, cfg config.ClientConfig, opts Options) error {
 	return runtime.Run(ctx, opts)
 }
 
+func TestConfig(ctx context.Context, cfg config.ClientConfig, opts Options) (Runtime, error) {
+	runtime, err := Prepare(cfg, opts)
+	if err != nil {
+		return Runtime{}, err
+	}
+	if err := runtime.Test(ctx, opts); err != nil {
+		return runtime, err
+	}
+	return runtime, nil
+}
+
 func (r Runtime) Run(ctx context.Context, opts Options) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -175,6 +186,22 @@ func (r Runtime) Run(ctx context.Context, opts Options) error {
 			return nil
 		}
 		return fmt.Errorf("Mihomo 内核运行失败: %w", err)
+	}
+	return nil
+}
+
+func (r Runtime) Test(ctx context.Context, opts Options) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd := exec.CommandContext(ctx, r.BinaryPath, "-t", "-d", r.WorkDir, "-f", r.ConfigPath)
+	cmd.Stdout = writerOrDiscard(opts.Stdout)
+	cmd.Stderr = writerOrDiscard(opts.Stderr)
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("Mihomo 配置自检失败: %w", err)
 	}
 	return nil
 }

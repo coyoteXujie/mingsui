@@ -151,6 +151,42 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestRunDoctorProxyUsesMihomo(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+	t.Setenv("MINGSUI_MIHOMO_PATH", fakeMihomoCommand(t, "exit 0"))
+
+	if code := run([]string{"doctor", "-config", cfgPath, "-skip-local", "-json"}); code != 0 {
+		t.Fatalf("run(doctor proxy) = %d, want 0", code)
+	}
+}
+
+func TestRunDoctorProxyFailsWhenMihomoMissing(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(dir, "missing-mihomo"))
+
+	if code := run([]string{"doctor", "-config", cfgPath, "-skip-local", "-json"}); code != 1 {
+		t.Fatalf("run(doctor proxy missing mihomo) = %d, want 1", code)
+	}
+}
+
 func TestProxyEnvUsesHTTPAndSOCKS(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = "127.0.0.1:18080"
@@ -209,6 +245,16 @@ func assertEnvString(t *testing.T, env []string, want string) {
 		}
 	}
 	t.Fatalf("missing env item %q in %+v", want, env)
+}
+
+func fakeMihomoCommand(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mihomo")
+	data := "#!/bin/sh\n" + body + "\n"
+	if err := os.WriteFile(path, []byte(data), 0o755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }
 
 func TestKernelExportMihomo(t *testing.T) {

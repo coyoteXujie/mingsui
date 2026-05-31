@@ -101,5 +101,5 @@ If a command cannot access the network:
 2. Check whether the connection process is actually running.
 3. Confirm the command is launched with `mingsui exec -- ...` or from a shell where `eval "$(mingsui env)"` was run.
 4. For browser traffic, check `mingsui system-proxy status`.
-5. Use `mingsui doctor` for relay profiles.
+5. Use `mingsui doctor` to diagnose the active mode. It checks Mihomo for airport nodes and relay health for relay profiles.
 6. Avoid exposing private tokens or full subscription URLs while reporting the issue.

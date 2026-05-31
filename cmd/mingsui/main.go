@@ -166,74 +166,138 @@ func runDoctor(args []string) int {
 	report := diagnostic.NewReport(*cfgPath)
 	cfg, err := loadClientOrDefault(*cfgPath)
 	if err != nil {
-		report.Fail(fmt.Sprintf("加载配置失败: %v", err))
-		if *jsonOutput {
-			return writeDiagnosticReport(report)
-		}
-		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
-		return 1
+		return failDiagnostic(report, *jsonOutput, "加载配置失败: %v", err)
 	}
-	cfg, err = cfg.ResolveProfile(*profileName)
-	if err != nil {
-		report.Fail(fmt.Sprintf("选择 profile 失败: %v", err))
-		if *jsonOutput {
-			return writeDiagnosticReport(report)
+
+	forceRelay := strings.TrimSpace(*profileName) != "" || strings.TrimSpace(*relayAddr) != "" || strings.TrimSpace(*token) != ""
+	if !forceRelay {
+		if proxy, ok := resolveClientProxyProfile(cfg, true); ok {
+			applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", *authEnabled, *authUser, *authPass)
+			if err := cfg.Validate(); err != nil {
+				return failDiagnostic(report, *jsonOutput, "配置不正确: %v", err)
+			}
+			report.Mode = "proxy"
+			return runProxyDoctor(report, *cfgPath, cfg, proxy, *skipLocal, *jsonOutput)
 		}
-		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
-		return 1
+	}
+
+	var selectedProfile string
+	cfg, selectedProfile, err = resolveClientProfile(cfg, *profileName, true)
+	if err != nil {
+		return failDiagnostic(report, *jsonOutput, "选择 profile 失败: %v", err)
 	}
 	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
 	if err := cfg.Validate(); err != nil {
-		report.Fail(fmt.Sprintf("配置不正确: %v", err))
-		if *jsonOutput {
-			return writeDiagnosticReport(report)
-		}
-		fmt.Fprintf(os.Stderr, "配置不正确: %v\n", err)
-		return 1
+		return failDiagnostic(report, *jsonOutput, "配置不正确: %v", err)
+	}
+	report.Mode = "relay"
+	return runRelayDoctor(report, *cfgPath, cfg, selectedProfile, *skipLocal, *jsonOutput)
+}
+
+func failDiagnostic(report diagnostic.Report, jsonOutput bool, format string, args ...any) int {
+	message := fmt.Sprintf(format, args...)
+	report.Fail(message)
+	if jsonOutput {
+		return writeDiagnosticReport(report)
+	}
+	fmt.Fprintln(os.Stderr, message)
+	return 1
+}
+
+func runProxyDoctor(report diagnostic.Report, cfgPath string, cfg config.ClientConfig, proxy config.ProxyProfile, skipLocal, jsonOutput bool) int {
+	if !jsonOutput {
+		fmt.Fprintf(os.Stdout, "配置文件: %s\n", cfgPath)
+		fmt.Fprintln(os.Stdout, "模式: 机场节点 / Mihomo")
+	}
+	addLocalProxyExposureWarning(&report, cfg, jsonOutput)
+
+	addDiagnosticCheck(&report, diagnostic.Check{
+		Name:   "proxy_profile",
+		Label:  "机场节点",
+		Target: fmt.Sprintf("%s (%s)", proxy.Name, proxy.Protocol),
+		OK:     true,
+	}, jsonOutput)
+	if !skipLocal {
+		addLocalListenChecks(&report, cfg, jsonOutput)
 	}
 
-	if !*jsonOutput {
-		fmt.Fprintf(os.Stdout, "配置文件: %s\n", *cfgPath)
+	binary, err := mihomo.ResolveBinary("")
+	binaryCheck := diagnostic.Check{
+		Name:   "mihomo_binary",
+		Label:  "Mihomo 内核",
+		Target: binary,
+		OK:     err == nil,
 	}
-	if cfg.Token == "change-me" {
-		warning := "当前使用默认 token，生产环境必须修改"
-		report.AddWarning(warning)
-		if !*jsonOutput {
-			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
-		}
+	if err != nil {
+		binaryCheck.Error = err.Error()
 	}
-	if localProxyMayBeExposed(cfg) {
-		warning := "本地代理监听在非 loopback 地址且未启用本地认证"
-		report.AddWarning(warning)
-		if !*jsonOutput {
-			fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
-		}
+	addDiagnosticCheck(&report, binaryCheck, jsonOutput)
+	if err != nil {
+		return finishDiagnostic(report, jsonOutput)
 	}
 
-	if !*skipLocal {
-		check := checkListen("socks5_listen", "SOCKS5 监听地址", cfg.LocalAddr)
-		report.AddCheck(check)
-		if !*jsonOutput {
-			printListenResult(check)
+	workDir, err := os.MkdirTemp("", "mingsui-doctor-*")
+	if err != nil {
+		addDiagnosticCheck(&report, diagnostic.Check{
+			Name:  "mihomo_workdir",
+			Label: "Mihomo 工作目录",
+			OK:    false,
+			Error: err.Error(),
+		}, jsonOutput)
+		return finishDiagnostic(report, jsonOutput)
+	}
+	defer os.RemoveAll(workDir)
+
+	opts := mihomo.Options{BinaryPath: binary, WorkDir: workDir}
+	runtime, err := mihomo.Prepare(cfg, opts)
+	configCheck := diagnostic.Check{
+		Name:   "mihomo_config",
+		Label:  "Mihomo 配置生成",
+		Target: runtime.ConfigPath,
+		OK:     err == nil,
+	}
+	if err != nil {
+		configCheck.Error = err.Error()
+	}
+	addDiagnosticCheck(&report, configCheck, jsonOutput)
+	if err != nil {
+		return finishDiagnostic(report, jsonOutput)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.DialTimeout()+2*time.Second)
+	defer cancel()
+	err = runtime.Test(ctx, opts)
+	testCheck := diagnostic.Check{
+		Name:   "mihomo_config_test",
+		Label:  "Mihomo 配置自检",
+		Target: runtime.ConfigPath,
+		OK:     err == nil,
+	}
+	if err != nil {
+		testCheck.Error = err.Error()
+	}
+	addDiagnosticCheck(&report, testCheck, jsonOutput)
+	return finishDiagnostic(report, jsonOutput)
+}
+
+func runRelayDoctor(report diagnostic.Report, cfgPath string, cfg config.ClientConfig, selectedProfile string, skipLocal, jsonOutput bool) int {
+	if !jsonOutput {
+		fmt.Fprintf(os.Stdout, "配置文件: %s\n", cfgPath)
+		fmt.Fprintln(os.Stdout, "模式: 自建 relay")
+		if selectedProfile != "" {
+			fmt.Fprintf(os.Stdout, "使用 profile: %s\n", selectedProfile)
 		}
-		if strings.TrimSpace(cfg.HTTPAddr) != "" {
-			check := checkListen("http_listen", "HTTP 代理监听地址", cfg.HTTPAddr)
-			report.AddCheck(check)
-			if !*jsonOutput {
-				printListenResult(check)
-			}
-		}
+	}
+	addDefaultTokenWarning(&report, cfg, jsonOutput)
+	addLocalProxyExposureWarning(&report, cfg, jsonOutput)
+	if !skipLocal {
+		addLocalListenChecks(&report, cfg, jsonOutput)
 	}
 
 	logger := log.New(io.Discard, "", 0)
 	service, err := client.NewService(cfg, logger)
 	if err != nil {
-		report.Fail(fmt.Sprintf("创建客户端失败: %v", err))
-		if *jsonOutput {
-			return writeDiagnosticReport(report)
-		}
-		fmt.Fprintf(os.Stderr, "创建客户端失败: %v\n", err)
-		return 1
+		return failDiagnostic(report, jsonOutput, "创建客户端失败: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.DialTimeout()+2*time.Second)
 	defer cancel()
@@ -250,14 +314,79 @@ func runDoctor(args []string) int {
 		relayCheck.Metrics = health.Metrics
 	}
 	report.AddCheck(relayCheck)
-	if !*jsonOutput {
+	if !jsonOutput {
 		printRelayHealthResult(relayCheck)
 	}
 
-	if *jsonOutput {
+	return finishDiagnostic(report, jsonOutput)
+}
+
+func finishDiagnostic(report diagnostic.Report, jsonOutput bool) int {
+	if jsonOutput {
 		return writeDiagnosticReport(report)
 	}
 	return report.ExitCode()
+}
+
+func addDefaultTokenWarning(report *diagnostic.Report, cfg config.ClientConfig, jsonOutput bool) {
+	if cfg.Token != "change-me" {
+		return
+	}
+	warning := "当前使用默认 token，生产环境必须修改"
+	report.AddWarning(warning)
+	if !jsonOutput {
+		fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
+	}
+}
+
+func addLocalProxyExposureWarning(report *diagnostic.Report, cfg config.ClientConfig, jsonOutput bool) {
+	if !localProxyMayBeExposed(cfg) {
+		return
+	}
+	warning := "本地代理监听在非 loopback 地址且未启用本地认证"
+	report.AddWarning(warning)
+	if !jsonOutput {
+		fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
+	}
+}
+
+func addLocalListenChecks(report *diagnostic.Report, cfg config.ClientConfig, jsonOutput bool) {
+	check := checkListen("socks5_listen", "SOCKS5 监听地址", cfg.LocalAddr)
+	report.AddCheck(check)
+	if !jsonOutput {
+		printListenResult(check)
+	}
+	if strings.TrimSpace(cfg.HTTPAddr) == "" {
+		return
+	}
+	check = checkListen("http_listen", "HTTP 代理监听地址", cfg.HTTPAddr)
+	report.AddCheck(check)
+	if !jsonOutput {
+		printListenResult(check)
+	}
+}
+
+func addDiagnosticCheck(report *diagnostic.Report, check diagnostic.Check, jsonOutput bool) {
+	report.AddCheck(check)
+	if !jsonOutput {
+		printDiagnosticCheckResult(check)
+	}
+}
+
+func printDiagnosticCheckResult(check diagnostic.Check) {
+	target := ""
+	if check.Target != "" {
+		target = ": " + check.Target
+	}
+	if check.OK {
+		fmt.Fprintf(os.Stdout, "[正常] %s%s\n", check.Label, target)
+		return
+	}
+	if check.Error != "" {
+		fmt.Fprintf(os.Stdout, "[失败] %s%s (%s)\n", check.Label, target, check.Error)
+		return
+	}
+	fmt.Fprintf(os.Stdout, "[失败] %s%s\n", check.Label, target)
 }
 
 func runClient(args []string) int {

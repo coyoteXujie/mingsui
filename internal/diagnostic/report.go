@@ -10,6 +10,7 @@ import (
 type Report struct {
 	OK         bool     `json:"ok"`
 	ConfigPath string   `json:"config_path,omitempty"`
+	Mode       string   `json:"mode,omitempty"`
 	Error      string   `json:"error,omitempty"`
 	Warnings   []string `json:"warnings,omitempty"`
 	Checks     []Check  `json:"checks,omitempty"`

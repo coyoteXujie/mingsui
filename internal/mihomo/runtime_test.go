@@ -74,6 +74,20 @@ func TestPrepareWritesConfig(t *testing.T) {
 	}
 }
 
+func TestTestConfigRunsMihomoTest(t *testing.T) {
+	binary := fakeShell(t, `case " $* " in *" -t "*) exit 0 ;; *) exit 3 ;; esac`)
+	cfg := config.DefaultClient()
+	cfg.HTTPAddr = "127.0.0.1:18081"
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+
+	if _, err := TestConfig(context.Background(), cfg, Options{BinaryPath: binary, WorkDir: t.TempDir()}); err != nil {
+		t.Fatalf("TestConfig() error = %v", err)
+	}
+}
+
 func TestRuntimeRunHonorsContextCancel(t *testing.T) {
 	binary := fakeShell(t, "sleep 10")
 	runtime := Runtime{BinaryPath: binary, WorkDir: t.TempDir(), ConfigPath: filepath.Join(t.TempDir(), "config.yaml")}

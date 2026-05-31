@@ -49,13 +49,7 @@ echo "==> 检查系统代理状态命令"
 "$bin" system-proxy status >"$WORKDIR/system-proxy.json"
 grep -q '"supported"' "$WORKDIR/system-proxy.json"
 
-echo "==> 导出 Mihomo 配置"
-"$bin" kernel export -config "$cfg" -output "$kernel_cfg" >/dev/null
-grep -q 'socks-port: 18080' "$kernel_cfg"
-grep -q 'port: 18081' "$kernel_cfg"
-grep -q 'MATCH,明隧' "$kernel_cfg"
-
-echo "==> 检查 connect 会调用 Mihomo"
+echo "==> 准备测试 Mihomo 内核"
 cat >"$fake_mihomo" <<'EOF'
 #!/bin/sh
 set -eu
@@ -75,6 +69,19 @@ grep -q 'MATCH,明隧' "$config"
 exit 0
 EOF
 chmod +x "$fake_mihomo"
+
+echo "==> 诊断机场节点"
+MINGSUI_MIHOMO_PATH="$fake_mihomo" "$bin" doctor -config "$cfg" -skip-local -json >"$WORKDIR/doctor.json"
+grep -q '"mode": "proxy"' "$WORKDIR/doctor.json"
+grep -q '"name": "mihomo_config_test"' "$WORKDIR/doctor.json"
+
+echo "==> 导出 Mihomo 配置"
+"$bin" kernel export -config "$cfg" -output "$kernel_cfg" >/dev/null
+grep -q 'socks-port: 18080' "$kernel_cfg"
+grep -q 'port: 18081' "$kernel_cfg"
+grep -q 'MATCH,明隧' "$kernel_cfg"
+
+echo "==> 检查 connect 会调用 Mihomo"
 MINGSUI_MIHOMO_PATH="$fake_mihomo" "$bin" connect -config "$cfg" >"$WORKDIR/connect.out" 2>&1
 grep -q '正在启动 Mihomo 内核' "$WORKDIR/connect.out"
 
