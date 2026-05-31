@@ -28,6 +28,7 @@ echo "==> 构建 CLI"
 echo "==> 准备测试订阅"
 {
 	printf '%s\r\n' 'tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future'
+	printf '%s\r\n' 'ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#中国大陆'
 	printf '%s\r\n' 'vless://00000000-0000-0000-0000-000000000000@example.com:443?security=tls&sni=www.example.com#vless'
 	printf '%s\r\n' 'trojan://secret@example.com:443?sni=www.example.com#trojan'
 	printf '%s\r\n' 'hysteria2://pass@example.com:8443?sni=www.example.com#hy2'
@@ -42,14 +43,16 @@ echo "==> 检查状态"
 "$bin" status -config "$cfg" -json >"$WORKDIR/status.json"
 grep -q '"selected_type": "proxy"' "$WORKDIR/status.json"
 grep -q '"selected_proxy": "vless"' "$WORKDIR/status.json"
-grep -q '"proxy_profiles": 6' "$WORKDIR/status.json"
+grep -q '"proxy_profiles": 7' "$WORKDIR/status.json"
 grep -q 'Mihomo' "$WORKDIR/status.json"
 
 echo "==> 管理机场节点"
 "$bin" config proxy list -path "$cfg" >"$WORKDIR/proxy-list.txt"
 grep -q 'tokyo ss 可连接' "$WORKDIR/proxy-list.txt"
+grep -q '中国大陆 ss 可连接，国内节点不自动选择' "$WORKDIR/proxy-list.txt"
 "$bin" config proxy list -path "$cfg" -json >"$WORKDIR/proxy-list.json"
 grep -q '"exportable": false' "$WORKDIR/proxy-list.json"
+grep -q '"auto_selectable": false' "$WORKDIR/proxy-list.json"
 if "$bin" config proxy select future -path "$cfg" >/dev/null 2>&1; then
 	echo "unsupported proxy selection should fail" >&2
 	exit 1

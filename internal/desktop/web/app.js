@@ -60,14 +60,14 @@ function render() {
   const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
   const selectedProfile = cfg.active_profile || "";
   const selectedProxy = cfg.active_proxy_profile || "";
-  const firstExportableProxy = proxyProfiles.find((profile) => {
+  const firstAutoSelectableProxy = proxyProfiles.find((profile) => {
     const capability = capabilityMap.get(profile.name) || {};
-    return capability.exportable !== false;
+    return capability.exportable !== false && capability.auto_selectable !== false;
   });
   const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
-    || (!selectedProfile ? firstExportableProxy || null : null);
+    || (!selectedProfile ? firstAutoSelectableProxy || null : null);
   const proxyModeWithoutExportable = !activeProxy && !selectedProfile && proxyProfiles.length > 0;
-  const nodeLabel = activeProxy ? activeProxy.name : (proxyModeWithoutExportable ? "没有可连接节点" : selectedProfile || (profiles.length ? profiles[0].name : ""));
+  const nodeLabel = activeProxy ? activeProxy.name : (proxyModeWithoutExportable ? "没有可自动选择的国外节点" : selectedProfile || (profiles.length ? profiles[0].name : ""));
   const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : (proxyModeWithoutExportable ? "" : status.relay_addr || cfg.relay_addr);
   const localAddr = status.local_addr || cfg.local_addr;
   const httpAddr = status.http_addr || cfg.http_addr;
@@ -91,7 +91,7 @@ function render() {
   badge.textContent = status.running ? "已连接" : "未连接";
   badge.className = status.running ? "badge running" : "badge";
   $("connectionTitle").textContent = status.running ? "已连接" : "未连接";
-  $("connectionSummary").textContent = proxyModeWithoutExportable ? "当前订阅里的节点暂不支持直接连接" : (nodeLabel ? `${nodeLabel} · ${text(relayAddr)}` : "未选择节点");
+  $("connectionSummary").textContent = proxyModeWithoutExportable ? "当前订阅里没有可自动选择的国外节点" : (nodeLabel ? `${nodeLabel} · ${text(relayAddr)}` : "未选择节点");
   $("connectBtn").textContent = status.running ? "断开" : "连接";
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
@@ -164,14 +164,21 @@ function renderProxyProfiles(profiles, active, capabilityMap) {
   profiles.forEach((profile) => {
     const capability = capabilityMap.get(profile.name) || {};
     const exportable = capability.exportable !== false;
+    const autoSelectable = capability.auto_selectable !== false;
     const item = document.createElement("div");
     item.className = "item";
     const info = document.createElement("div");
     const title = document.createElement("strong");
     title.textContent = profile.name === active ? `${profile.name} · 当前` : profile.name;
     const addr = document.createElement("span");
-    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · ${exportable ? "可连接" : "暂不支持直接连接"}`;
-    addr.className = exportable ? "" : "warn-text";
+    let compatibility = "可连接";
+    if (!exportable) {
+      compatibility = "暂不支持直接连接";
+    } else if (!autoSelectable) {
+      compatibility = "可连接，国内节点不自动选择";
+    }
+    addr.textContent = `${(profile.protocol || "-").toUpperCase()} · ${compatibility}`;
+    addr.className = exportable && autoSelectable ? "" : "warn-text";
     info.append(title, addr);
 
     const actions = document.createElement("div");

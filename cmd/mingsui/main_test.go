@@ -187,6 +187,28 @@ func TestTopLevelImportDoesNotSelectUnsupportedProxyProfile(t *testing.T) {
 	}
 }
 
+func TestTopLevelImportDoesNotAutoSelectMainlandProxyProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#中国大陆\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath})
+	if code != 0 {
+		t.Fatalf("run(import mainland airport) = %d, want 0", code)
+	}
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want mainland proxy imported without active selection", cfg)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "airport", "https://example.com/sub", true); err != nil {
@@ -288,6 +310,7 @@ func TestResolveClientProxyProfileUsesFirstExportable(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.ProxyProfiles = []config.ProxyProfile{
 		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+		{Name: "中国大陆", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn"},
 		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
 	}
 
@@ -296,8 +319,11 @@ func TestResolveClientProxyProfileUsesFirstExportable(t *testing.T) {
 		t.Fatalf("resolveClientProxyProfile() = %+v, %v, want tokyo true", profile, ok)
 	}
 	items := proxyProfileItems(cfg)
-	if len(items) != 2 || items[0].Selected || !items[1].Selected {
+	if len(items) != 3 || items[0].Selected || items[1].Selected || !items[2].Selected {
 		t.Fatalf("proxyProfileItems() = %+v, want only exportable tokyo selected", items)
+	}
+	if items[1].AutoSelectable {
+		t.Fatalf("proxyProfileItems() = %+v, want mainland node not auto selectable", items)
 	}
 }
 

@@ -241,6 +241,100 @@ func TestFirstExportableProfileName(t *testing.T) {
 	}
 }
 
+func TestFirstAutoSelectableProfileNameSkipsMainlandChina(t *testing.T) {
+	profiles := []config.ProxyProfile{
+		{
+			Name:     "中国大陆 01",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn",
+		},
+		{
+			Name:     "日本 CN2",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#jp",
+		},
+	}
+	got, ok := FirstAutoSelectableProfileName(profiles)
+	if !ok || got != "日本 CN2" {
+		t.Fatalf("FirstAutoSelectableProfileName() = %q, %v, want 日本 CN2 true", got, ok)
+	}
+}
+
+func TestFirstAutoSelectableProfileNameRejectsAllMainlandChina(t *testing.T) {
+	profiles := []config.ProxyProfile{
+		{
+			Name:     "上海",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#shanghai",
+		},
+	}
+	if got, ok := FirstAutoSelectableProfileName(profiles); ok {
+		t.Fatalf("FirstAutoSelectableProfileName() = %q, true, want false", got)
+	}
+}
+
+func TestGenerateAutoSelectsForeignProxy(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "中国大陆",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn",
+		},
+		{
+			Name:     "日本",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#jp",
+		},
+	}
+
+	data, err := Generate(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "      - \"日本\"\n      - \"中国大陆\"") {
+		t.Fatalf("config =\n%s\nwant 日本 before 中国大陆 in proxy group", got)
+	}
+}
+
+func TestGenerateRejectsOnlyMainlandChinaWithoutSelection(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "中国大陆",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn",
+		},
+	}
+
+	if _, err := Generate(cfg, Options{}); err == nil {
+		t.Fatal("Generate() error = nil, want no auto-selectable foreign node error")
+	}
+}
+
+func TestLikelyMainlandChinaProfileAllowsHongKong(t *testing.T) {
+	profile := config.ProxyProfile{
+		Name:     "中国香港",
+		Protocol: "ss",
+		URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#hk",
+	}
+	if LikelyMainlandChinaProfile(profile) {
+		t.Fatal("LikelyMainlandChinaProfile(中国香港) = true, want false")
+	}
+}
+
+func TestLikelyMainlandChinaProfileRejectsReturnToChina(t *testing.T) {
+	profile := config.ProxyProfile{
+		Name:     "香港回国",
+		Protocol: "ss",
+		URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#hk-cn",
+	}
+	if !LikelyMainlandChinaProfile(profile) {
+		t.Fatal("LikelyMainlandChinaProfile(香港回国) = false, want true")
+	}
+}
+
 func TestGenerateRejectsMissingProxyProfiles(t *testing.T) {
 	if _, err := Generate(config.DefaultClient(), Options{}); err == nil {
 		t.Fatal("Generate() error = nil, want missing proxy profiles error")

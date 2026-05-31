@@ -10,6 +10,8 @@ MingSui 是一个面向人和 AI Agent 的代理连接产品。
 
 机场节点当前可直接导出并连接 `ss`、`vmess`、`trojan`、`vless`、`hysteria2`。订阅里其他协议会保存在配置中，但不会被写进 Mihomo 运行配置；可以通过 `mingsui config proxy list` 查看哪些节点当前可连接。
 
+CLI 和桌面端自动选择机场节点时会避开看起来是中国大陆/国内/回国线路的节点；这些节点可以保留在列表中，但不会作为默认连接目标。
+
 ## 主要组件
 
 - `mingsui`: CLI 客户端，给 AI Agent、脚本和开发者使用。

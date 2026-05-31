@@ -87,6 +87,8 @@ mingsui config subscription add airport -url <subscription-url>
 mingsui config subscription sync airport
 ```
 
+Automatic airport-node selection skips nodes that look like Mainland China, domestic, or return-to-China lines. Use `mingsui config proxy list` to inspect which node is selected and which nodes are not auto-selectable.
+
 If the active profile is an airport node and direct connect reports that the general proxy kernel is not connected yet, export a Mihomo config for manual kernel testing:
 
 ```bash

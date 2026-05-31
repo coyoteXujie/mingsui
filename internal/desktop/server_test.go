@@ -51,6 +51,7 @@ func TestHTTPHandlerStateProxyCapabilities(t *testing.T) {
 	cfg.ProxyProfiles = []config.ProxyProfile{
 		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
 		{Name: "future", Protocol: "tuic", URL: "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future"},
+		{Name: "中国大陆", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn"},
 	}
 	if err := app.SaveConfig(cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
@@ -70,11 +71,14 @@ func TestHTTPHandlerStateProxyCapabilities(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
-	if len(got.ProxyCapabilities) != 2 {
-		t.Fatalf("ProxyCapabilities = %+v, want 2 items", got.ProxyCapabilities)
+	if len(got.ProxyCapabilities) != 3 {
+		t.Fatalf("ProxyCapabilities = %+v, want 3 items", got.ProxyCapabilities)
 	}
 	if !got.ProxyCapabilities[0].Exportable || got.ProxyCapabilities[1].Exportable {
 		t.Fatalf("ProxyCapabilities = %+v, want ss exportable and tuic unsupported", got.ProxyCapabilities)
+	}
+	if got.ProxyCapabilities[2].AutoSelectable {
+		t.Fatalf("ProxyCapabilities = %+v, want mainland node not auto selectable", got.ProxyCapabilities)
 	}
 }
 

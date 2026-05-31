@@ -58,7 +58,11 @@ func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {
 		return nil, fmt.Errorf("没有可导出到 Mihomo 的机场节点，当前支持 ss、vmess、trojan、vless 和 hysteria2")
 	}
 	if selected == "" {
-		selected = names[0]
+		name, ok := FirstAutoSelectableProfileName(cfg.ProxyProfiles)
+		if !ok {
+			return nil, fmt.Errorf("没有可自动选择的国外节点；请手动选择非国内节点")
+		}
+		selected = name
 	}
 
 	out.WriteString("proxies:\n")
@@ -88,6 +92,10 @@ func CanExportProfile(profile config.ProxyProfile) bool {
 	return err == nil
 }
 
+func CanAutoSelectProfile(profile config.ProxyProfile) bool {
+	return CanExportProfile(profile) && !LikelyMainlandChinaProfile(profile)
+}
+
 func FirstExportableProfileName(profiles []config.ProxyProfile) (string, bool) {
 	for _, profile := range profiles {
 		if CanExportProfile(profile) {
@@ -95,6 +103,138 @@ func FirstExportableProfileName(profiles []config.ProxyProfile) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func FirstAutoSelectableProfileName(profiles []config.ProxyProfile) (string, bool) {
+	for _, profile := range profiles {
+		if CanAutoSelectProfile(profile) {
+			return profile.Name, true
+		}
+	}
+	return "", false
+}
+
+func LikelyMainlandChinaProfile(profile config.ProxyProfile) bool {
+	label := normalizeProxyLocationText(profile.Name)
+	if label == "" {
+		return false
+	}
+	if containsAny(label, mainlandChinaStrongLocationMarkers) {
+		return true
+	}
+	if containsAny(label, overseasLocationMarkers) {
+		return false
+	}
+	if containsAny(label, mainlandChinaLocationMarkers) {
+		return true
+	}
+	for _, token := range strings.Fields(label) {
+		switch token {
+		case "cn", "china", "mainland":
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeProxyLocationText(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer(
+		"|", " ",
+		"/", " ",
+		"\\", " ",
+		"-", " ",
+		"_", " ",
+		".", " ",
+		",", " ",
+		"(", " ",
+		")", " ",
+		"[", " ",
+		"]", " ",
+		"{", " ",
+		"}", " ",
+		"【", " ",
+		"】", " ",
+		"「", " ",
+		"」", " ",
+		"·", " ",
+		"•", " ",
+		"+", " ",
+		"#", " ",
+		":", " ",
+		"：", " ",
+	)
+	return strings.Join(strings.Fields(replacer.Replace(value)), " ")
+}
+
+func containsAny(value string, markers []string) bool {
+	for _, marker := range markers {
+		if shortASCIIMarker(marker) {
+			for _, token := range strings.Fields(value) {
+				if token == marker {
+					return true
+				}
+			}
+			continue
+		}
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func shortASCIIMarker(value string) bool {
+	if len(value) == 0 || len(value) > 3 {
+		return false
+	}
+	for _, r := range value {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+var overseasLocationMarkers = []string{
+	"香港", "港", "hong kong", "hk", "hkg",
+	"台湾", "台灣", "taiwan", "tw", "tpe",
+	"日本", "东京", "東京", "大阪", "japan", "tokyo", "osaka", "jp", "jpn",
+	"新加坡", "狮城", "singapore", "sg", "sgp",
+	"美国", "美國", "洛杉矶", "洛杉磯", "纽约", "紐約", "西雅图", "西雅圖", "america", "united states", "usa", "us", "la", "lax", "nyc", "sfo", "sjc", "sea",
+	"英国", "英國", "伦敦", "倫敦", "united kingdom", "britain", "uk", "gb", "london",
+	"德国", "德國", "法兰克福", "法蘭克福", "germany", "de", "fra", "frankfurt",
+	"法国", "法國", "巴黎", "france", "fr", "paris",
+	"荷兰", "荷蘭", "阿姆斯特丹", "netherlands", "nl", "ams", "amsterdam",
+	"韩国", "韓國", "首尔", "首爾", "korea", "kr", "kor", "seoul",
+	"加拿大", "多伦多", "多倫多", "温哥华", "溫哥華", "canada", "ca", "toronto", "vancouver",
+	"澳大利亚", "澳大利亞", "澳洲", "悉尼", "墨尔本", "墨爾本", "australia", "au", "sydney", "melbourne",
+	"俄罗斯", "俄羅斯", "莫斯科", "russia", "ru", "moscow",
+	"印度", "孟买", "孟買", "india", "in", "mumbai",
+	"泰国", "泰國", "曼谷", "thailand", "th", "bangkok",
+	"越南", "河内", "胡志明", "vietnam", "vn",
+	"马来西亚", "馬來西亞", "吉隆坡", "malaysia", "my",
+	"菲律宾", "菲律賓", "philippines", "ph",
+	"印尼", "印度尼西亚", "印度尼西亞", "indonesia", "id",
+	"土耳其", "turkey", "tr",
+	"迪拜", "阿联酋", "阿聯酋", "dubai", "uae", "ae",
+	"巴西", "brazil", "br",
+	"阿根廷", "argentina", "ar",
+}
+
+var mainlandChinaLocationMarkers = []string{
+	"中国大陆", "中國大陸", "大陆", "大陸", "内地", "內地", "国内", "國內", "回国", "回國", "中国", "中國",
+	"北京", "上海", "广州", "廣州", "深圳", "杭州", "南京", "苏州", "蘇州", "成都", "重庆", "重慶", "天津",
+	"武汉", "武漢", "西安", "郑州", "鄭州", "长沙", "長沙", "青岛", "青島", "厦门", "廈門", "福州", "济南", "濟南",
+	"沈阳", "瀋陽", "大连", "大連", "哈尔滨", "哈爾濱", "合肥", "昆明", "南宁", "南寧", "贵阳", "貴陽", "海口",
+	"乌鲁木齐", "烏魯木齊", "拉萨", "拉薩", "石家庄", "石家莊", "太原", "兰州", "蘭州", "银川", "銀川", "呼和浩特",
+}
+
+var mainlandChinaStrongLocationMarkers = []string{
+	"中国大陆", "中國大陸", "大陆", "大陸", "内地", "內地", "国内", "國內", "回国", "回國", "mainland",
 }
 
 func selectedProxyName(cfg config.ClientConfig) string {

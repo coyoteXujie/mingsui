@@ -181,7 +181,7 @@ func (a *App) importProxyProfiles(data []byte, replace bool, selectName, sourceU
 		return 0, err
 	}
 	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
-		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+		if name, ok := mihomo.FirstAutoSelectableProfileName(profiles); ok {
 			selectName = name
 		}
 	}
@@ -252,7 +252,7 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 		return 0, err
 	}
 	if strings.TrimSpace(selectName) == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(proxyProfiles) > 0 {
-		if name, ok := mihomo.FirstExportableProfileName(proxyProfiles); ok {
+		if name, ok := mihomo.FirstAutoSelectableProfileName(proxyProfiles); ok {
 			selectName = name
 		}
 	}
@@ -290,8 +290,8 @@ func (a *App) Start(ctx context.Context) error {
 		a.mu.Unlock()
 		return kernel.Start(ctx)
 	}
-	if hasProxyModeWithoutExportableSelection(a.Config()) {
-		return errors.New("当前机场订阅中没有可连接节点")
+	if hasProxyModeWithoutAutoSelectableSelection(a.Config()) {
+		return errors.New("当前机场订阅中没有可自动选择的国外节点")
 	}
 	a.mu.Lock()
 	controller := a.controller
@@ -380,8 +380,8 @@ func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) 
 		}
 		return client.RelayHealth{}, errors.New("当前选择的是机场节点 " + proxy.Name + "；请直接连接启动 Mihomo 内核")
 	}
-	if hasProxyModeWithoutExportableSelection(cfg) {
-		return client.RelayHealth{}, errors.New("当前机场订阅中没有可连接节点")
+	if hasProxyModeWithoutAutoSelectableSelection(cfg) {
+		return client.RelayHealth{}, errors.New("当前机场订阅中没有可自动选择的国外节点")
 	}
 	cfg, err := effectiveClientConfig(cfg)
 	if err != nil {
@@ -423,7 +423,7 @@ func activeProxyProfile(cfg config.ClientConfig) (config.ProxyProfile, bool) {
 	name := strings.TrimSpace(cfg.ActiveProxyProfile)
 	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0 {
 		var ok bool
-		name, ok = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+		name, ok = mihomo.FirstAutoSelectableProfileName(cfg.ProxyProfiles)
 		if !ok {
 			return config.ProxyProfile{}, false
 		}
@@ -434,7 +434,7 @@ func activeProxyProfile(cfg config.ClientConfig) (config.ProxyProfile, bool) {
 	return cfg.ProxyProfile(name)
 }
 
-func hasProxyModeWithoutExportableSelection(cfg config.ClientConfig) bool {
+func hasProxyModeWithoutAutoSelectableSelection(cfg config.ClientConfig) bool {
 	return strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0
 }
 

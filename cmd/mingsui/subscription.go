@@ -95,7 +95,7 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, s
 		return 1
 	}
 	if selectedName == "" && selectFirst && len(profiles) > 0 {
-		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+		if name, ok := mihomo.FirstAutoSelectableProfileName(profiles); ok {
 			selectedName = name
 		}
 	}
@@ -396,7 +396,7 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 		return 1
 	}
 	if selectedName == "" && selectFirst && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(profiles) > 0 {
-		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+		if name, ok := mihomo.FirstAutoSelectableProfileName(profiles); ok {
 			selectedName = name
 		}
 	}

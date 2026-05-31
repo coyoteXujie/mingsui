@@ -220,6 +220,26 @@ func TestAppImportProxyProfilesWithoutExportableDoesNotSelect(t *testing.T) {
 	}
 }
 
+func TestAppImportMainlandProxyProfilesDoesNotSelect(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#中国大陆\r\n"
+
+	count, err := app.ImportRelayProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))), false, "")
+	if err != nil {
+		t.Fatalf("ImportRelayProfiles(proxy) error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+	cfg := app.Config()
+	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want mainland proxy imported without active selection", cfg)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "https://example.com/sub"); err != nil {

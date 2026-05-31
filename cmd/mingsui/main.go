@@ -180,9 +180,9 @@ func runDoctor(args []string) int {
 			report.Mode = "proxy"
 			return runProxyDoctor(report, *cfgPath, cfg, proxy, *skipLocal, *jsonOutput)
 		}
-		if hasProxyModeWithoutExportableSelection(cfg) {
+		if hasProxyModeWithoutAutoSelectableSelection(cfg) {
 			report.Mode = "proxy"
-			return failDiagnostic(report, *jsonOutput, "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
+			return failDiagnostic(report, *jsonOutput, "当前机场订阅中没有可自动选择的国外节点；使用 mingsui config proxy list 查看支持情况")
 		}
 	}
 
@@ -428,8 +428,8 @@ func runClientCommand(name string, args []string, autoProfileDefault bool) int {
 			applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", *authEnabled, *authUser, *authPass)
 			return runProxyKernel(cfg, proxy)
 		}
-		if hasProxyModeWithoutExportableSelection(cfg) {
-			fmt.Fprintln(os.Stderr, "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
+		if hasProxyModeWithoutAutoSelectableSelection(cfg) {
+			fmt.Fprintln(os.Stderr, "当前机场订阅中没有可自动选择的国外节点；使用 mingsui config proxy list 查看支持情况")
 			return 1
 		}
 	}
@@ -548,12 +548,12 @@ func runStatus(args []string) int {
 		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo，也可以用 mingsui exec -connect 执行单个命令"
 		return writeCLIStatus(status, *jsonOutput)
 	}
-	if *profileName == "" && *relayAddr == "" && *token == "" && hasProxyModeWithoutExportableSelection(cfg) {
+	if *profileName == "" && *relayAddr == "" && *token == "" && hasProxyModeWithoutAutoSelectableSelection(cfg) {
 		status.Mode = "proxy"
 		status.SelectedType = "proxy"
 		status.LocalAddr = cfg.LocalAddr
 		status.HTTPAddr = cfg.HTTPAddr
-		status.Message = "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况"
+		status.Message = "当前机场订阅中没有可自动选择的国外节点；使用 mingsui config proxy list 查看支持情况"
 		return writeCLIStatus(status, *jsonOutput)
 	}
 	var selectedProfile string
@@ -737,8 +737,8 @@ func startConnectionForExec(ctx context.Context, cfg config.ClientConfig, profil
 		if _, ok := resolveClientProxyProfile(cfg, true); ok {
 			return startProxyKernelForExec(ctx, cfg, waitTimeout)
 		}
-		if hasProxyModeWithoutExportableSelection(cfg) {
-			return nil, errors.New("当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
+		if hasProxyModeWithoutAutoSelectableSelection(cfg) {
+			return nil, errors.New("当前机场订阅中没有可自动选择的国外节点；使用 mingsui config proxy list 查看支持情况")
 		}
 	}
 
@@ -1069,7 +1069,7 @@ func resolveClientProxyProfile(cfg config.ClientConfig, autoProfile bool) (confi
 	name := strings.TrimSpace(cfg.ActiveProxyProfile)
 	if name == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && autoProfile && len(cfg.ProxyProfiles) > 0 {
 		var ok bool
-		name, ok = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+		name, ok = mihomo.FirstAutoSelectableProfileName(cfg.ProxyProfiles)
 		if !ok {
 			return config.ProxyProfile{}, false
 		}
@@ -1080,7 +1080,7 @@ func resolveClientProxyProfile(cfg config.ClientConfig, autoProfile bool) (confi
 	return cfg.ProxyProfile(name)
 }
 
-func hasProxyModeWithoutExportableSelection(cfg config.ClientConfig) bool {
+func hasProxyModeWithoutAutoSelectableSelection(cfg config.ClientConfig) bool {
 	return strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0
 }
 
@@ -1296,6 +1296,8 @@ func listProxyProfiles(args []string) int {
 		compatibility := "可连接"
 		if !item.Exportable {
 			compatibility = "暂不支持直接连接"
+		} else if !item.AutoSelectable {
+			compatibility = "可连接，国内节点不自动选择"
 		}
 		fmt.Fprintf(os.Stdout, "%s %s %s %s\n", marker, item.Name, item.Protocol, compatibility)
 	}
@@ -1303,24 +1305,26 @@ func listProxyProfiles(args []string) int {
 }
 
 type proxyProfileItem struct {
-	Name       string `json:"name"`
-	Protocol   string `json:"protocol"`
-	Selected   bool   `json:"selected"`
-	Exportable bool   `json:"exportable"`
+	Name           string `json:"name"`
+	Protocol       string `json:"protocol"`
+	Selected       bool   `json:"selected"`
+	Exportable     bool   `json:"exportable"`
+	AutoSelectable bool   `json:"auto_selectable"`
 }
 
 func proxyProfileItems(cfg config.ClientConfig) []proxyProfileItem {
 	items := make([]proxyProfileItem, 0, len(cfg.ProxyProfiles))
 	autoSelected := ""
 	if cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" {
-		autoSelected, _ = mihomo.FirstExportableProfileName(cfg.ProxyProfiles)
+		autoSelected, _ = mihomo.FirstAutoSelectableProfileName(cfg.ProxyProfiles)
 	}
 	for _, profile := range cfg.ProxyProfiles {
 		items = append(items, proxyProfileItem{
-			Name:       profile.Name,
-			Protocol:   profile.Protocol,
-			Selected:   profile.Name == cfg.ActiveProxyProfile || (profile.Name == autoSelected),
-			Exportable: mihomo.CanExportProfile(profile),
+			Name:           profile.Name,
+			Protocol:       profile.Protocol,
+			Selected:       profile.Name == cfg.ActiveProxyProfile || (profile.Name == autoSelected),
+			Exportable:     mihomo.CanExportProfile(profile),
+			AutoSelectable: mihomo.CanAutoSelectProfile(profile),
 		})
 	}
 	return items

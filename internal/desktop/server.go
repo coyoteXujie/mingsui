@@ -62,8 +62,9 @@ type messageResponse struct {
 }
 
 type proxyCapability struct {
-	Name       string `json:"name"`
-	Exportable bool   `json:"exportable"`
+	Name           string `json:"name"`
+	Exportable     bool   `json:"exportable"`
+	AutoSelectable bool   `json:"auto_selectable"`
 }
 
 type profileNameRequest struct {
@@ -127,8 +128,9 @@ func proxyCapabilities(profiles []config.ProxyProfile) []proxyCapability {
 	items := make([]proxyCapability, 0, len(profiles))
 	for _, profile := range profiles {
 		items = append(items, proxyCapability{
-			Name:       profile.Name,
-			Exportable: mihomo.CanExportProfile(profile),
+			Name:           profile.Name,
+			Exportable:     mihomo.CanExportProfile(profile),
+			AutoSelectable: mihomo.CanAutoSelectProfile(profile),
 		})
 	}
 	return items
