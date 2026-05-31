@@ -18,6 +18,20 @@ Linux 桌面端也可以单独生成 `.deb`：
 make desktop-deb APP_VERSION=v0.1.0
 ```
 
+CLI 也可以单独生成 npm 安装包，方便 AI Agent 或自动化环境用 npm 安装：
+
+```bash
+make npm-package APP_VERSION=v0.1.0
+npm install -g ./dist/mingsui-0.1.0.tgz
+mingsui version
+```
+
+如果 npm 上的 `mingsui` 名称不可用，发布时可以指定 scoped 包名：
+
+```bash
+make npm-package APP_VERSION=v0.1.0 NPM_PACKAGE_NAME=@coyote-xujie/mingsui
+```
+
 默认会构建这些平台：
 
 - `linux/amd64`
@@ -32,6 +46,7 @@ make desktop-deb APP_VERSION=v0.1.0
 - `mingsui-版本-windows-amd64.zip`
 - `mingsui-desktop_版本_amd64.deb`
 - `mingsui-desktop_版本_arm64.deb`
+- `mingsui-版本.tgz`
 - `SHA256SUMS`
 
 每个压缩包包含：
@@ -51,6 +66,8 @@ Linux `.deb` 安装：
 
 `.deb` 中的 CLI 和 GUI 默认使用同一个客户端配置路径，和 `mingsui config path` 一致。Windows zip 中的桌面端产物是 `mingsui-desktop.exe`。
 
+npm 包只包含 `mingsui` CLI，不包含 `mingsui-desktop` 和 `mingsui-relay`。默认会内置 `linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64` 和 `windows/arm64` 六个平台的 CLI 二进制；安装后会提供全局 `mingsui` 命令。
+
 校验发布包：
 
 ```bash
@@ -63,4 +80,5 @@ sha256sum -c SHA256SUMS
 ```bash
 make dist GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 make desktop-deb GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
+make npm-package GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 ```

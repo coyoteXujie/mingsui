@@ -84,9 +84,18 @@ make build
 make test
 make dist APP_VERSION=v0.1.0
 make desktop-deb APP_VERSION=v0.1.0
+make npm-package APP_VERSION=v0.1.0
 ```
 
-跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。Linux 桌面端会生成 `.deb`，Windows 包内包含 `mingsui-desktop.exe`。详细流程见 [docs/release.md](docs/release.md)。
+跨平台发布包会生成到 `dist/`，并附带 `SHA256SUMS`。Linux 桌面端会生成 `.deb`，Windows 包内包含 `mingsui-desktop.exe`，CLI 也可以生成 npm 安装包给 AI Agent 或自动化脚本使用。详细流程见 [docs/release.md](docs/release.md)。
+
+CLI 的 npm 包安装示例：
+
+```bash
+npm install -g ./dist/mingsui-0.1.0.tgz
+mingsui version
+mingsui status
+```
 
 开发时可以直接跑完整测试：
 
