@@ -41,6 +41,12 @@ grep -q '"selected_proxy": "tokyo"' "$WORKDIR/status.json"
 grep -q '"proxy_profiles": 3' "$WORKDIR/status.json"
 grep -q 'Mihomo' "$WORKDIR/status.json"
 
+echo "==> 管理机场节点"
+"$bin" config proxy list -path "$cfg" >"$WORKDIR/proxy-list.txt"
+grep -q 'tokyo ss 可连接' "$WORKDIR/proxy-list.txt"
+"$bin" config proxy select osaka -path "$cfg" >/dev/null
+"$bin" config proxy select tokyo -path "$cfg" >/dev/null
+
 echo "==> 检查代理环境变量"
 "$bin" env -config "$cfg" >"$WORKDIR/env.sh"
 grep -q "HTTP_PROXY='http://127.0.0.1:18081'" "$WORKDIR/env.sh"

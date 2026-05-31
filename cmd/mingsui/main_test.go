@@ -188,6 +188,44 @@ func TestRunDoctorProxyFailsWhenMihomoMissing(t *testing.T) {
 	}
 }
 
+func TestConfigProxyListSelectAndRemove(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "osaka", Protocol: "vmess", URL: "vmess://eyJwcyI6Im9zYWthIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ=="},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	if code := run([]string{"config", "proxy", "list", "-path", cfgPath}); code != 0 {
+		t.Fatalf("run(config proxy list) = %d, want 0", code)
+	}
+	if code := run([]string{"config", "proxy", "select", "osaka", "-path", cfgPath}); code != 0 {
+		t.Fatalf("run(config proxy select) = %d, want 0", code)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProxyProfile != "osaka" || got.ActiveProfile != "" {
+		t.Fatalf("Config() = %+v, want active proxy osaka", got)
+	}
+	if code := run([]string{"config", "proxy", "remove", "osaka", "-path", cfgPath}); code != 0 {
+		t.Fatalf("run(config proxy remove) = %d, want 0", code)
+	}
+	got, err = config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 1 {
+		t.Fatalf("Config() = %+v, want osaka removed and active proxy cleared", got)
+	}
+}
+
 func TestProxyEnvUsesHTTPAndSOCKS(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = "127.0.0.1:18080"

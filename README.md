@@ -156,6 +156,8 @@ mingsui config show -path ./client.json
 ```bash
 mingsui import -source <机场订阅地址>
 mingsui status
+mingsui config proxy list
+mingsui config proxy select <节点名称>
 mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 

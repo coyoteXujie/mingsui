@@ -1005,6 +1005,8 @@ func runConfig(args []string) int {
 		return showClientConfig(args[1:])
 	case "profile":
 		return runConfigProfile(args[1:])
+	case "proxy":
+		return runConfigProxy(args[1:])
 	case "subscription":
 		return runConfigSubscription(args[1:])
 	default:
@@ -1042,6 +1044,116 @@ func runConfigProfile(args []string) int {
 		printConfigProfileUsage()
 		return 2
 	}
+}
+
+func runConfigProxy(args []string) int {
+	if len(args) == 0 {
+		printConfigProxyUsage()
+		return 2
+	}
+
+	switch args[0] {
+	case "list":
+		return listProxyProfiles(args[1:])
+	case "select":
+		return selectProxyProfile(args[1:])
+	case "remove":
+		return removeProxyProfile(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "未知 proxy 命令 %q\n\n", args[0])
+		printConfigProxyUsage()
+		return 2
+	}
+}
+
+func listProxyProfiles(args []string) int {
+	fs := flag.NewFlagSet("config proxy list", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if len(cfg.ProxyProfiles) == 0 {
+		fmt.Fprintln(os.Stdout, "没有机场节点")
+		return 0
+	}
+	for i, profile := range cfg.ProxyProfiles {
+		marker := " "
+		if profile.Name == cfg.ActiveProxyProfile || (cfg.ActiveProxyProfile == "" && cfg.ActiveProfile == "" && i == 0) {
+			marker = "*"
+		}
+		compatibility := "可连接"
+		if !mihomo.CanExportProfile(profile) {
+			compatibility = "暂不支持直接连接"
+		}
+		fmt.Fprintf(os.Stdout, "%s %s %s %s\n", marker, profile.Name, profile.Protocol, compatibility)
+	}
+	return 0
+}
+
+func selectProxyProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "机场节点名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config proxy select", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := cfg.SelectProxyProfile(name); err != nil {
+		fmt.Fprintf(os.Stderr, "选择机场节点失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已选择机场节点 %s\n", name)
+	return 0
+}
+
+func removeProxyProfile(args []string) int {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		fmt.Fprintln(os.Stderr, "机场节点名称不能为空")
+		return 2
+	}
+	name := strings.TrimSpace(args[0])
+
+	fs := flag.NewFlagSet("config proxy remove", flag.ContinueOnError)
+	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+
+	cfg, err := config.LoadClient(*cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		return 1
+	}
+	if err := cfg.RemoveProxyProfile(name); err != nil {
+		fmt.Fprintf(os.Stderr, "删除机场节点失败: %v\n", err)
+		return 1
+	}
+	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Printf("已删除机场节点 %s\n", name)
+	return 0
 }
 
 func listClientProfiles(args []string) int {
@@ -1358,6 +1470,7 @@ func printUsage() {
   mingsui config init [flags]
   mingsui config path
   mingsui config profile add|list|select|remove|rename|check|import|export [flags]
+  mingsui config proxy list|select|remove [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]
   mingsui token [flags]
@@ -1374,6 +1487,8 @@ func printUsage() {
   mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+  mingsui config proxy list
+  mingsui config proxy select tokyo
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
   mingsui config profile export -output ./nodes.json -secrets
@@ -1409,6 +1524,7 @@ func printConfigUsage() {
   mingsui config init [flags]
   mingsui config path
   mingsui config profile add|list|select|remove|rename|check|import|export [flags]
+  mingsui config proxy list|select|remove [flags]
   mingsui config subscription add|list|remove|sync [flags]
   mingsui config show [flags]`)
 }
@@ -1423,6 +1539,13 @@ func printConfigProfileUsage() {
   mingsui config profile check <name> [flags]
   mingsui config profile import -source <file|url|-> [flags]
   mingsui config profile export [flags] [name...]`)
+}
+
+func printConfigProxyUsage() {
+	fmt.Fprintln(os.Stderr, `用法:
+  mingsui config proxy list [flags]
+  mingsui config proxy select <name> [flags]
+  mingsui config proxy remove <name> [flags]`)
 }
 
 func writeJSON(w io.Writer, value any) error {
