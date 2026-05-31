@@ -346,6 +346,18 @@ func TestProxyEnvIncludesLocalAuth(t *testing.T) {
 	assertEnvValue(t, vars, "MINGSUI_HTTP_PROXY", "http://ai:p%40ss%20word@127.0.0.1:18081")
 }
 
+func TestSystemProxyRejectsLocalAuth(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.LocalAuth = config.ClientAuthConfig{
+		Enabled:  true,
+		Username: "ai",
+		Password: "secret",
+	}
+	if err := validateSystemProxyConfig(cfg); err == nil {
+		t.Fatal("validateSystemProxyConfig() error = nil, want local auth rejection")
+	}
+}
+
 func TestProxyEnvFallsBackToSOCKSForStandardProxyVars(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.LocalAddr = "127.0.0.1:18080"

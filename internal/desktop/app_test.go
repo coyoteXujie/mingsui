@@ -256,6 +256,26 @@ func TestAppRejectsUnsupportedProxySelection(t *testing.T) {
 	}
 }
 
+func TestAppEnableSystemProxyRejectsLocalAuth(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.LocalAuth = config.ClientAuthConfig{
+		Enabled:  true,
+		Username: "ai",
+		Password: "secret",
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	if err := app.EnableSystemProxy(context.Background()); err == nil {
+		t.Fatal("EnableSystemProxy() error = nil, want local auth rejection")
+	}
+}
+
 func TestAppManageRelaySubscriptions(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

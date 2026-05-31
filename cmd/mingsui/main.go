@@ -898,6 +898,10 @@ func enableSystemProxy(args []string) int {
 		return 1
 	}
 	applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", false, "", "")
+	if err := validateSystemProxyConfig(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "开启系统代理失败: %v\n", err)
+		return 1
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := systemproxy.Enable(ctx, systemProxyConfig(cfg)); err != nil {
@@ -956,6 +960,13 @@ func systemProxyConfig(cfg config.ClientConfig) systemproxy.Config {
 		HTTPAddr:  cfg.HTTPAddr,
 		SOCKSAddr: cfg.LocalAddr,
 	}
+}
+
+func validateSystemProxyConfig(cfg config.ClientConfig) error {
+	if cfg.LocalAuth.Enabled {
+		return errors.New("系统代理暂不支持本地代理认证；请先关闭本地代理认证，或手动为浏览器配置代理认证")
+	}
+	return nil
 }
 
 func proxyEnv(cfg config.ClientConfig, noProxy string) []proxyEnvVar {

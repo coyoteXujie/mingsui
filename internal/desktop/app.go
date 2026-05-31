@@ -329,6 +329,9 @@ func (a *App) CheckRelay(ctx context.Context) error {
 
 func (a *App) EnableSystemProxy(ctx context.Context) error {
 	cfg := a.Config()
+	if cfg.LocalAuth.Enabled {
+		return errors.New("系统代理暂不支持本地代理认证；请先关闭本地代理认证，或手动为浏览器配置代理认证")
+	}
 	return systemproxy.Enable(ctx, systemproxy.Config{HTTPAddr: cfg.HTTPAddr, SOCKSAddr: cfg.LocalAddr})
 }
 

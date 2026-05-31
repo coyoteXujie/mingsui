@@ -61,6 +61,8 @@ mingsui system-proxy disable
 
 Do not assume system proxy support exists on every OS or desktop environment; report unsupported status clearly.
 
+If local proxy authentication is enabled, do not use `mingsui system-proxy enable`; use `mingsui exec` or configure browser proxy authentication manually.
+
 ## Connection Workflow
 
 For a MingSui relay profile:

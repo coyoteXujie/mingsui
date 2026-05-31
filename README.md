@@ -105,6 +105,7 @@ mingsui-desktop
 
 - 给 AI CLI、脚本、`curl`、`npm`、`git` 用：推荐 `mingsui exec` 或 `mingsui env`。
 - 给浏览器用：当前 Linux/GNOME 可用 `mingsui system-proxy enable`；其他桌面环境先手动设置系统代理，后续补齐。
+- `mingsui system-proxy enable` 暂不支持本地代理认证；开启 `local_auth` 后请使用 `mingsui exec`，或手动为浏览器配置代理认证。
 - 本机默认 SOCKS5 端口：`127.0.0.1:18080`。
 - 本机默认 HTTP 代理端口：`127.0.0.1:18081`。
 
