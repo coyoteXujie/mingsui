@@ -180,6 +180,10 @@ func runDoctor(args []string) int {
 			report.Mode = "proxy"
 			return runProxyDoctor(report, *cfgPath, cfg, proxy, *skipLocal, *jsonOutput)
 		}
+		if hasProxyModeWithoutExportableSelection(cfg) {
+			report.Mode = "proxy"
+			return failDiagnostic(report, *jsonOutput, "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
+		}
 	}
 
 	var selectedProfile string

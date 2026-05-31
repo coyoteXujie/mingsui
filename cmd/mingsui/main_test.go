@@ -179,6 +179,9 @@ func TestTopLevelImportDoesNotSelectUnsupportedProxyProfile(t *testing.T) {
 	if code := run([]string{"connect", "-config", cfgPath}); code != 1 {
 		t.Fatalf("run(connect unsupported proxy) = %d, want 1", code)
 	}
+	if code := run([]string{"doctor", "-config", cfgPath, "-json"}); code != 1 {
+		t.Fatalf("run(doctor unsupported proxy) = %d, want 1", code)
+	}
 	if code := run([]string{"exec", "-config", cfgPath, "-connect", "--", "sh", "-c", "true"}); code != 1 {
 		t.Fatalf("run(exec -connect unsupported proxy) = %d, want 1", code)
 	}
