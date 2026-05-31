@@ -66,8 +66,9 @@ function render() {
   });
   const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
     || (!selectedProfile ? firstExportableProxy || null : null);
-  const nodeLabel = activeProxy ? activeProxy.name : selectedProfile || (profiles.length ? profiles[0].name : "");
-  const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : status.relay_addr || cfg.relay_addr;
+  const proxyModeWithoutExportable = !activeProxy && !selectedProfile && proxyProfiles.length > 0;
+  const nodeLabel = activeProxy ? activeProxy.name : (proxyModeWithoutExportable ? "没有可连接节点" : selectedProfile || (profiles.length ? profiles[0].name : ""));
+  const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : (proxyModeWithoutExportable ? "" : status.relay_addr || cfg.relay_addr);
   const localAddr = status.local_addr || cfg.local_addr;
   const httpAddr = status.http_addr || cfg.http_addr;
 
@@ -90,7 +91,7 @@ function render() {
   badge.textContent = status.running ? "已连接" : "未连接";
   badge.className = status.running ? "badge running" : "badge";
   $("connectionTitle").textContent = status.running ? "已连接" : "未连接";
-  $("connectionSummary").textContent = nodeLabel ? `${nodeLabel} · ${text(relayAddr)}` : "未选择节点";
+  $("connectionSummary").textContent = proxyModeWithoutExportable ? "当前订阅里的节点暂不支持直接连接" : (nodeLabel ? `${nodeLabel} · ${text(relayAddr)}` : "未选择节点");
   $("connectBtn").textContent = status.running ? "断开" : "连接";
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 

@@ -424,6 +424,10 @@ func runClientCommand(name string, args []string, autoProfileDefault bool) int {
 			applyClientOverrides(&cfg, *localAddr, *httpAddr, "", "", *authEnabled, *authUser, *authPass)
 			return runProxyKernel(cfg, proxy)
 		}
+		if hasProxyModeWithoutExportableSelection(cfg) {
+			fmt.Fprintln(os.Stderr, "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
+			return 1
+		}
 	}
 	var selectedProfile string
 	cfg, selectedProfile, err = resolveClientProfile(cfg, *profileName, *autoProfile)
@@ -538,6 +542,14 @@ func runStatus(args []string) int {
 		status.LocalAddr = cfg.LocalAddr
 		status.HTTPAddr = cfg.HTTPAddr
 		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo，也可以用 mingsui exec -connect 执行单个命令"
+		return writeCLIStatus(status, *jsonOutput)
+	}
+	if *profileName == "" && *relayAddr == "" && *token == "" && hasProxyModeWithoutExportableSelection(cfg) {
+		status.Mode = "proxy"
+		status.SelectedType = "proxy"
+		status.LocalAddr = cfg.LocalAddr
+		status.HTTPAddr = cfg.HTTPAddr
+		status.Message = "当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况"
 		return writeCLIStatus(status, *jsonOutput)
 	}
 	var selectedProfile string
@@ -720,6 +732,9 @@ func startConnectionForExec(ctx context.Context, cfg config.ClientConfig, profil
 	if !explicitRelay {
 		if _, ok := resolveClientProxyProfile(cfg, true); ok {
 			return startProxyKernelForExec(ctx, cfg, waitTimeout)
+		}
+		if hasProxyModeWithoutExportableSelection(cfg) {
+			return nil, errors.New("当前机场订阅中没有可连接节点；使用 mingsui config proxy list 查看支持情况")
 		}
 	}
 
@@ -1048,6 +1063,10 @@ func resolveClientProxyProfile(cfg config.ClientConfig, autoProfile bool) (confi
 		return config.ProxyProfile{}, false
 	}
 	return cfg.ProxyProfile(name)
+}
+
+func hasProxyModeWithoutExportableSelection(cfg config.ClientConfig) bool {
+	return strings.TrimSpace(cfg.ActiveProfile) == "" && len(cfg.ProxyProfiles) > 0
 }
 
 func applyClientOverrides(cfg *config.ClientConfig, localAddr, httpAddr, relayAddr, token string, authEnabled bool, authUser, authPass string) {

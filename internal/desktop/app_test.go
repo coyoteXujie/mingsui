@@ -212,6 +212,12 @@ func TestAppImportProxyProfilesWithoutExportableDoesNotSelect(t *testing.T) {
 	if profile, ok := activeProxyProfile(cfg); ok {
 		t.Fatalf("activeProxyProfile() = %+v, true, want false", profile)
 	}
+	if err := app.Start(context.Background()); err == nil {
+		t.Fatal("Start() error = nil, want unsupported proxy error")
+	}
+	if _, err := app.CheckRelayStatus(context.Background()); err == nil {
+		t.Fatal("CheckRelayStatus() error = nil, want unsupported proxy error")
+	}
 }
 
 func TestSaveImportedSubscription(t *testing.T) {

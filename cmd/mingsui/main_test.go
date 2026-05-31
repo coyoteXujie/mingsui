@@ -173,6 +173,15 @@ func TestTopLevelImportDoesNotSelectUnsupportedProxyProfile(t *testing.T) {
 	if cfg.ActiveProxyProfile != "" || len(cfg.ProxyProfiles) != 1 {
 		t.Fatalf("Config() = %+v, want imported unsupported proxy without active selection", cfg)
 	}
+	if code := run([]string{"status", "-config", cfgPath}); code != 1 {
+		t.Fatalf("run(status unsupported proxy) = %d, want 1", code)
+	}
+	if code := run([]string{"connect", "-config", cfgPath}); code != 1 {
+		t.Fatalf("run(connect unsupported proxy) = %d, want 1", code)
+	}
+	if code := run([]string{"exec", "-config", cfgPath, "-connect", "--", "sh", "-c", "true"}); code != 1 {
+		t.Fatalf("run(exec -connect unsupported proxy) = %d, want 1", code)
+	}
 }
 
 func TestSaveImportedSubscription(t *testing.T) {
