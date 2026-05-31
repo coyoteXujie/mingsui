@@ -74,6 +74,8 @@ mingsui import -source <file-or-url>
 mingsui status
 mingsui config proxy list
 mingsui config proxy select <node-name>
+mingsui config subscription add airport -url <subscription-url>
+mingsui config subscription sync airport
 ```
 
 If the active profile is an airport node and direct connect reports that the general proxy kernel is not connected yet, export a Mihomo config for manual kernel testing:

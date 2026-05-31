@@ -316,6 +316,7 @@ func syncClientSubscription(args []string) int {
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	force := fs.Bool("force", true, "覆盖同名 profile")
 	selectName := fs.String("select", "", "同步后选择指定 profile")
+	selectFirst := fs.Bool("select-first", true, "未指定 -select 且当前未选择节点时选择同步到的第一个节点")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -330,26 +331,69 @@ func syncClientSubscription(args []string) int {
 		fmt.Fprintf(os.Stderr, "订阅 %q 不存在\n", name)
 		return 1
 	}
-	profiles, err := loadProfilesFromSource(sub.URL, nil)
+
+	data, err := loadSourceData(sub.URL, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "同步订阅失败: %v\n", err)
+		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
 		return 1
 	}
-	if err := cfg.ImportRelayProfiles(profiles, *force); err != nil {
+	return syncSubscriptionData(cfg, *cfgPath, name, data, *force, strings.TrimSpace(*selectName), *selectFirst)
+}
+
+func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool) int {
+	profiles, relayErr := subscription.ParseRelayProfiles(data)
+	if relayErr != nil {
+		return syncProxySubscription(cfg, cfgPath, subscriptionName, data, force, selectedName, selectFirst, relayErr)
+	}
+	if err := cfg.ImportRelayProfiles(profiles, force); err != nil {
 		fmt.Fprintf(os.Stderr, "导入 profile 失败: %v\n", err)
 		return 1
 	}
-	if strings.TrimSpace(*selectName) != "" {
-		if err := cfg.SelectRelayProfile(*selectName); err != nil {
+	if selectedName == "" && selectFirst && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(profiles) > 0 {
+		selectedName = profiles[0].Name
+	}
+	if selectedName != "" {
+		if err := cfg.SelectRelayProfile(selectedName); err != nil {
 			fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 			return 1
 		}
 	}
-	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个 profile\n", name, len(profiles))
+	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个 profile\n", subscriptionName, len(profiles))
+	return 0
+}
+
+func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, relayErr error) int {
+	profiles, err := subscription.ParseProxyProfiles(data)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "同步订阅失败: %v\n", relayErr)
+		return 1
+	}
+	if err := cfg.ImportProxyProfiles(profiles, force); err != nil {
+		fmt.Fprintf(os.Stderr, "导入机场节点失败: %v\n", err)
+		return 1
+	}
+	if selectedName == "" && selectFirst && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(profiles) > 0 {
+		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+			selectedName = name
+		} else {
+			selectedName = profiles[0].Name
+		}
+	}
+	if selectedName != "" {
+		if err := cfg.SelectProxyProfile(selectedName); err != nil {
+			fmt.Fprintf(os.Stderr, "选择机场节点失败: %v\n", err)
+			return 1
+		}
+	}
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
 	return 0
 }
 
@@ -370,5 +414,5 @@ func printConfigSubscriptionUsage() {
   mingsui config subscription list [flags]
   mingsui config subscription add <name> -url <url> [flags]
   mingsui config subscription remove <name> [flags]
-  mingsui config subscription sync <name> [flags]`)
+  mingsui config subscription sync <name> [-select <node>] [flags]`)
 }

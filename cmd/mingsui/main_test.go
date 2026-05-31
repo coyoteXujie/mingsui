@@ -393,6 +393,44 @@ func TestConfigSubscriptionAddAndRemove(t *testing.T) {
 	}
 }
 
+func TestSyncSubscriptionDataRelayProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+
+	code := syncSubscriptionData(cfg, cfgPath, "team", []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), true, "", true)
+	if code != 0 {
+		t.Fatalf("syncSubscriptionData(relay) = %d, want 0", code)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProfile != "tokyo" || len(got.Profiles) != 1 {
+		t.Fatalf("Config() = %+v, want synced active relay profile", got)
+	}
+}
+
+func TestSyncSubscriptionDataProxyProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+
+	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true)
+	if code != 0 {
+		t.Fatalf("syncSubscriptionData(proxy) = %d, want 0", code)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProxyProfile != "tokyo" || len(got.ProxyProfiles) != 2 {
+		t.Fatalf("Config() = %+v, want synced active exportable proxy profile", got)
+	}
+}
+
 func TestExportClientProfiles(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "client.json")

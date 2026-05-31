@@ -160,6 +160,8 @@ mingsui import -source <机场订阅地址>
 mingsui status
 mingsui config proxy list
 mingsui config proxy select <节点名称>
+mingsui config subscription add airport -url <机场订阅地址>
+mingsui config subscription sync airport
 mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 
