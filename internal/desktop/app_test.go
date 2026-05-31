@@ -171,7 +171,7 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp() error = %v", err)
 	}
-	raw := "vless://00000000-0000-0000-0000-000000000000@example.com:443#future\r\n" +
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
 		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
 
 	count, err := app.ImportRelayProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))), false, "")

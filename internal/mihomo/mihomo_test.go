@@ -74,13 +74,111 @@ func TestGenerateVMessConfig(t *testing.T) {
 	}
 }
 
+func TestGenerateTrojanConfig(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "trojan-hk",
+			Protocol: "trojan",
+			URL:      "trojan://secret@example.com:443?security=tls&sni=sni.example.com&type=ws&host=edge.example.com&path=%2Fws&allowInsecure=1#trojan-hk",
+		},
+	}
+
+	data, err := Generate(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		`type: "trojan"`,
+		`server: "example.com"`,
+		`port: 443`,
+		`password: "secret"`,
+		`udp: true`,
+		`tls: true`,
+		`servername: "sni.example.com"`,
+		`skip-cert-verify: true`,
+		`network: "ws"`,
+		`path: "/ws"`,
+		`Host: "edge.example.com"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("config =\n%s\nwant contains %q", got, want)
+		}
+	}
+}
+
+func TestGenerateVLESSRealityConfig(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "vless-reality",
+			Protocol: "vless",
+			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443?security=reality&sni=www.example.com&fp=chrome&flow=xtls-rprx-vision&pbk=public-key&sid=short&type=grpc&serviceName=mingsui#vless-reality",
+		},
+	}
+
+	data, err := Generate(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		`type: "vless"`,
+		`uuid: "00000000-0000-0000-0000-000000000000"`,
+		`flow: "xtls-rprx-vision"`,
+		`tls: true`,
+		`servername: "www.example.com"`,
+		`client-fingerprint: "chrome"`,
+		`public-key: "public-key"`,
+		`short-id: "short"`,
+		`network: "grpc"`,
+		`grpc-service-name: "mingsui"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("config =\n%s\nwant contains %q", got, want)
+		}
+	}
+}
+
+func TestGenerateHysteria2Config(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "hy2-sg",
+			Protocol: "hysteria2",
+			URL:      "hysteria2://pass@example.com:8443?sni=sni.example.com&insecure=1&obfs=salamander&obfs-password=obfs-pass#hy2-sg",
+		},
+	}
+
+	data, err := Generate(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{
+		`type: "hysteria2"`,
+		`server: "example.com"`,
+		`port: 8443`,
+		`password: "pass"`,
+		`sni: "sni.example.com"`,
+		`skip-cert-verify: true`,
+		`obfs: "salamander"`,
+		`obfs-password: "obfs-pass"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("config =\n%s\nwant contains %q", got, want)
+		}
+	}
+}
+
 func TestGenerateSkipsUnsupportedUnselectedProxy(t *testing.T) {
 	cfg := config.DefaultClient()
 	cfg.ProxyProfiles = []config.ProxyProfile{
 		{
 			Name:     "future",
-			Protocol: "vless",
-			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+			Protocol: "tuic",
+			URL:      "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future",
 		},
 		{
 			Name:     "tokyo",
@@ -108,8 +206,8 @@ func TestGenerateRejectsUnsupportedSelectedProxy(t *testing.T) {
 	cfg.ProxyProfiles = []config.ProxyProfile{
 		{
 			Name:     "future",
-			Protocol: "vless",
-			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+			Protocol: "tuic",
+			URL:      "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future",
 		},
 		{
 			Name:     "tokyo",
@@ -128,18 +226,18 @@ func TestFirstExportableProfileName(t *testing.T) {
 	profiles := []config.ProxyProfile{
 		{
 			Name:     "future",
-			Protocol: "vless",
-			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+			Protocol: "tuic",
+			URL:      "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future",
 		},
 		{
-			Name:     "tokyo",
-			Protocol: "ss",
-			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo",
+			Name:     "vless-reality",
+			Protocol: "vless",
+			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443?security=reality&pbk=public-key&sid=short#vless-reality",
 		},
 	}
 	got, ok := FirstExportableProfileName(profiles)
-	if !ok || got != "tokyo" {
-		t.Fatalf("FirstExportableProfileName() = %q, %v, want tokyo true", got, ok)
+	if !ok || got != "vless-reality" {
+		t.Fatalf("FirstExportableProfileName() = %q, %v, want vless-reality true", got, ok)
 	}
 }
 

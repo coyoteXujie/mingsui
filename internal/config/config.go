@@ -608,7 +608,7 @@ func validateProxyProfile(profile ProxyProfile) error {
 
 func isSupportedProxyProtocol(protocol string) bool {
 	switch protocol {
-	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic":
+	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "hy2", "tuic":
 		return true
 	default:
 		return false

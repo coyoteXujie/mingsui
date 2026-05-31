@@ -309,7 +309,7 @@ func countProxySchemes(data []byte) map[string]int {
 
 func isStandardProxyScheme(scheme string) bool {
 	switch scheme {
-	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "tuic":
+	case "ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2", "hy2", "tuic":
 		return true
 	default:
 		return false

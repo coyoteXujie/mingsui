@@ -35,9 +35,6 @@ func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {
 	}
 
 	selected := selectedProxyName(cfg)
-	if selected == "" {
-		selected = cfg.ProxyProfiles[0].Name
-	}
 
 	var out bytes.Buffer
 	writeScalar(&out, "mode", opts.Mode)
@@ -58,7 +55,7 @@ func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {
 		proxies = append(proxies, proxyYAML)
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("没有可导出到 Mihomo 的机场节点，当前支持 ss 和 vmess")
+		return nil, fmt.Errorf("没有可导出到 Mihomo 的机场节点，当前支持 ss、vmess、trojan、vless 和 hysteria2")
 	}
 	if selected == "" {
 		selected = names[0]
@@ -151,6 +148,12 @@ func proxyToYAML(profile config.ProxyProfile) ([]byte, error) {
 		return ssToYAML(profile)
 	case "vmess":
 		return vmessToYAML(profile)
+	case "trojan":
+		return trojanToYAML(profile)
+	case "vless":
+		return vlessToYAML(profile)
+	case "hysteria2", "hy2":
+		return hysteria2ToYAML(profile)
 	default:
 		return nil, fmt.Errorf("暂不支持 %s 导出到 Mihomo", profile.Protocol)
 	}
@@ -262,19 +265,7 @@ func vmessToYAML(profile config.ProxyProfile) ([]byte, error) {
 	if node.ServerName != "" {
 		writeIndentedScalar(&out, "servername", node.ServerName)
 	}
-	if node.Network == "ws" && (node.Path != "" || node.Host != "") {
-		out.WriteString("    ws-opts:\n")
-		if node.Path != "" {
-			out.WriteString("      path: ")
-			writeInlineString(&out, node.Path)
-			out.WriteByte('\n')
-		}
-		if node.Host != "" {
-			out.WriteString("      headers:\n        Host: ")
-			writeInlineString(&out, node.Host)
-			out.WriteByte('\n')
-		}
-	}
+	writeTransportOptions(&out, transportOptions{Network: node.Network, Host: node.Host, Path: node.Path})
 	return out.Bytes(), nil
 }
 
@@ -356,6 +347,354 @@ func parseAlterID(value any) int {
 		}
 	}
 	return 0
+}
+
+func trojanToYAML(profile config.ProxyProfile) ([]byte, error) {
+	node, err := parseTrojan(profile.URL)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	writeProxyHeader(&out, profile.Name, "trojan")
+	writeIndentedScalar(&out, "server", node.Server)
+	writeIndentedInt(&out, "port", node.Port)
+	writeIndentedScalar(&out, "password", node.Password)
+	writeIndentedBool(&out, "udp", true)
+	writeOptionalTLSFields(&out, node.TLS)
+	writeTransportOptions(&out, node.Transport)
+	return out.Bytes(), nil
+}
+
+type trojanNode struct {
+	Server    string
+	Port      int
+	Password  string
+	TLS       tlsOptions
+	Transport transportOptions
+}
+
+func parseTrojan(raw string) (trojanNode, error) {
+	parsed, err := parseURL(raw, "trojan")
+	if err != nil {
+		return trojanNode{}, err
+	}
+	server, port, err := serverPortFromURL(parsed)
+	if err != nil {
+		return trojanNode{}, err
+	}
+	password := ""
+	if parsed.User != nil {
+		password = parsed.User.Username()
+	}
+	if password == "" {
+		return trojanNode{}, fmt.Errorf("trojan 链接缺少 password")
+	}
+	query := parsed.Query()
+	return trojanNode{
+		Server:    server,
+		Port:      port,
+		Password:  password,
+		TLS:       tlsOptionsFromQuery(query, true),
+		Transport: transportOptionsFromQuery(query),
+	}, nil
+}
+
+func vlessToYAML(profile config.ProxyProfile) ([]byte, error) {
+	node, err := parseVLESS(profile.URL)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	writeProxyHeader(&out, profile.Name, "vless")
+	writeIndentedScalar(&out, "server", node.Server)
+	writeIndentedInt(&out, "port", node.Port)
+	writeIndentedScalar(&out, "uuid", node.UUID)
+	writeIndentedBool(&out, "udp", true)
+	if node.Flow != "" {
+		writeIndentedScalar(&out, "flow", node.Flow)
+	}
+	writeOptionalTLSFields(&out, node.TLS)
+	if node.ClientFingerprint != "" {
+		writeIndentedScalar(&out, "client-fingerprint", node.ClientFingerprint)
+	}
+	if node.Reality.PublicKey != "" || node.Reality.ShortID != "" {
+		out.WriteString("    reality-opts:\n")
+		if node.Reality.PublicKey != "" {
+			out.WriteString("      public-key: ")
+			writeInlineString(&out, node.Reality.PublicKey)
+			out.WriteByte('\n')
+		}
+		if node.Reality.ShortID != "" {
+			out.WriteString("      short-id: ")
+			writeInlineString(&out, node.Reality.ShortID)
+			out.WriteByte('\n')
+		}
+	}
+	writeTransportOptions(&out, node.Transport)
+	return out.Bytes(), nil
+}
+
+type vlessNode struct {
+	Server            string
+	Port              int
+	UUID              string
+	Flow              string
+	ClientFingerprint string
+	TLS               tlsOptions
+	Reality           realityOptions
+	Transport         transportOptions
+}
+
+type realityOptions struct {
+	PublicKey string
+	ShortID   string
+}
+
+func parseVLESS(raw string) (vlessNode, error) {
+	parsed, err := parseURL(raw, "vless")
+	if err != nil {
+		return vlessNode{}, err
+	}
+	server, port, err := serverPortFromURL(parsed)
+	if err != nil {
+		return vlessNode{}, err
+	}
+	uuid := ""
+	if parsed.User != nil {
+		uuid = parsed.User.Username()
+	}
+	if uuid == "" {
+		return vlessNode{}, fmt.Errorf("vless 链接缺少 uuid")
+	}
+	query := parsed.Query()
+	security := strings.ToLower(strings.TrimSpace(query.Get("security")))
+	tls := tlsOptionsFromQuery(query, security == "tls" || security == "reality")
+	return vlessNode{
+		Server:            server,
+		Port:              port,
+		UUID:              uuid,
+		Flow:              firstQueryValue(query, "flow"),
+		ClientFingerprint: firstQueryValue(query, "fp", "client-fingerprint", "client_fingerprint"),
+		TLS:               tls,
+		Reality: realityOptions{
+			PublicKey: firstQueryValue(query, "pbk", "public-key", "public_key"),
+			ShortID:   firstQueryValue(query, "sid", "short-id", "short_id"),
+		},
+		Transport: transportOptionsFromQuery(query),
+	}, nil
+}
+
+func hysteria2ToYAML(profile config.ProxyProfile) ([]byte, error) {
+	node, err := parseHysteria2(profile.URL)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	writeProxyHeader(&out, profile.Name, "hysteria2")
+	writeIndentedScalar(&out, "server", node.Server)
+	writeIndentedInt(&out, "port", node.Port)
+	writeIndentedScalar(&out, "password", node.Password)
+	if node.SNI != "" {
+		writeIndentedScalar(&out, "sni", node.SNI)
+	}
+	if node.SkipCertVerify {
+		writeIndentedBool(&out, "skip-cert-verify", true)
+	}
+	if node.Obfs != "" {
+		writeIndentedScalar(&out, "obfs", node.Obfs)
+	}
+	if node.ObfsPassword != "" {
+		writeIndentedScalar(&out, "obfs-password", node.ObfsPassword)
+	}
+	return out.Bytes(), nil
+}
+
+type hysteria2Node struct {
+	Server         string
+	Port           int
+	Password       string
+	SNI            string
+	SkipCertVerify bool
+	Obfs           string
+	ObfsPassword   string
+}
+
+func parseHysteria2(raw string) (hysteria2Node, error) {
+	parsed, err := parseURL(raw, "hysteria2", "hy2")
+	if err != nil {
+		return hysteria2Node{}, err
+	}
+	server, port, err := serverPortFromURL(parsed)
+	if err != nil {
+		return hysteria2Node{}, err
+	}
+	password := ""
+	if parsed.User != nil {
+		password = parsed.User.Username()
+	}
+	if password == "" {
+		return hysteria2Node{}, fmt.Errorf("hysteria2 链接缺少 password")
+	}
+	query := parsed.Query()
+	return hysteria2Node{
+		Server:         server,
+		Port:           port,
+		Password:       password,
+		SNI:            firstQueryValue(query, "sni", "peer"),
+		SkipCertVerify: queryBool(query, "insecure", "allowInsecure", "skip-cert-verify", "skip_cert_verify"),
+		Obfs:           firstQueryValue(query, "obfs"),
+		ObfsPassword:   firstQueryValue(query, "obfs-password", "obfs_password", "obfsPassword"),
+	}, nil
+}
+
+type tlsOptions struct {
+	Enabled        bool
+	ServerName     string
+	SkipCertVerify bool
+	ALPN           []string
+}
+
+type transportOptions struct {
+	Network     string
+	Host        string
+	Path        string
+	ServiceName string
+}
+
+func parseURL(raw string, schemes ...string) (*url.URL, error) {
+	value := strings.TrimSpace(raw)
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return nil, err
+	}
+	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	for _, want := range schemes {
+		if scheme == strings.ToLower(want) {
+			return parsed, nil
+		}
+	}
+	return nil, fmt.Errorf("不是 %s 链接", strings.Join(schemes, "/"))
+}
+
+func serverPortFromURL(parsed *url.URL) (string, int, error) {
+	server := strings.Trim(parsed.Hostname(), "[]")
+	if server == "" {
+		return "", 0, fmt.Errorf("节点地址缺少 server")
+	}
+	portText := parsed.Port()
+	if portText == "" {
+		return "", 0, fmt.Errorf("节点地址缺少 port")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 || port > 65535 {
+		return "", 0, fmt.Errorf("端口不正确: %s", portText)
+	}
+	return server, port, nil
+}
+
+func tlsOptionsFromQuery(query url.Values, enabled bool) tlsOptions {
+	return tlsOptions{
+		Enabled:        enabled,
+		ServerName:     firstQueryValue(query, "sni", "peer", "servername", "serverName"),
+		SkipCertVerify: queryBool(query, "allowInsecure", "insecure", "skip-cert-verify", "skip_cert_verify"),
+		ALPN:           queryList(query, "alpn"),
+	}
+}
+
+func transportOptionsFromQuery(query url.Values) transportOptions {
+	return transportOptions{
+		Network:     strings.ToLower(firstQueryValue(query, "type", "network")),
+		Host:        firstQueryValue(query, "host"),
+		Path:        firstQueryValue(query, "path"),
+		ServiceName: firstQueryValue(query, "serviceName", "service_name", "service-name"),
+	}
+}
+
+func writeOptionalTLSFields(out *bytes.Buffer, opts tlsOptions) {
+	if opts.Enabled {
+		writeIndentedBool(out, "tls", true)
+	}
+	if opts.ServerName != "" {
+		writeIndentedScalar(out, "servername", opts.ServerName)
+	}
+	if opts.SkipCertVerify {
+		writeIndentedBool(out, "skip-cert-verify", true)
+	}
+	if len(opts.ALPN) > 0 {
+		out.WriteString("    alpn:\n")
+		for _, item := range opts.ALPN {
+			out.WriteString("      - ")
+			writeInlineString(out, item)
+			out.WriteByte('\n')
+		}
+	}
+}
+
+func writeTransportOptions(out *bytes.Buffer, opts transportOptions) {
+	if opts.Network == "" || opts.Network == "tcp" {
+		return
+	}
+	writeIndentedScalar(out, "network", opts.Network)
+	switch opts.Network {
+	case "ws":
+		if opts.Path == "" && opts.Host == "" {
+			return
+		}
+		out.WriteString("    ws-opts:\n")
+		if opts.Path != "" {
+			out.WriteString("      path: ")
+			writeInlineString(out, opts.Path)
+			out.WriteByte('\n')
+		}
+		if opts.Host != "" {
+			out.WriteString("      headers:\n        Host: ")
+			writeInlineString(out, opts.Host)
+			out.WriteByte('\n')
+		}
+	case "grpc":
+		if opts.ServiceName == "" {
+			return
+		}
+		out.WriteString("    grpc-opts:\n      grpc-service-name: ")
+		writeInlineString(out, opts.ServiceName)
+		out.WriteByte('\n')
+	}
+}
+
+func firstQueryValue(query url.Values, names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(query.Get(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func queryBool(query url.Values, names ...string) bool {
+	for _, name := range names {
+		value := strings.ToLower(strings.TrimSpace(query.Get(name)))
+		switch value {
+		case "1", "true", "yes", "y":
+			return true
+		}
+	}
+	return false
+}
+
+func queryList(query url.Values, name string) []string {
+	value := strings.TrimSpace(query.Get(name))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			items = append(items, part)
+		}
+	}
+	return items
 }
 
 func decodeMaybeBase64(value string) string {

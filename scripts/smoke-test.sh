@@ -26,7 +26,10 @@ echo "==> 构建 CLI"
 
 echo "==> 准备测试订阅"
 {
-	printf '%s\r\n' 'vless://00000000-0000-0000-0000-000000000000@example.com:443#future'
+	printf '%s\r\n' 'tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future'
+	printf '%s\r\n' 'vless://00000000-0000-0000-0000-000000000000@example.com:443?security=tls&sni=www.example.com#vless'
+	printf '%s\r\n' 'trojan://secret@example.com:443?sni=www.example.com#trojan'
+	printf '%s\r\n' 'hysteria2://pass@example.com:8443?sni=www.example.com#hy2'
 	printf '%s\r\n' 'ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo'
 	printf '%s\r\n' 'vmess://eyJwcyI6Im9zYWthIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ=='
 } | base64 >"$sub"
@@ -37,8 +40,8 @@ echo "==> 导入机场订阅"
 echo "==> 检查状态"
 "$bin" status -config "$cfg" -json >"$WORKDIR/status.json"
 grep -q '"selected_type": "proxy"' "$WORKDIR/status.json"
-grep -q '"selected_proxy": "tokyo"' "$WORKDIR/status.json"
-grep -q '"proxy_profiles": 3' "$WORKDIR/status.json"
+grep -q '"selected_proxy": "vless"' "$WORKDIR/status.json"
+grep -q '"proxy_profiles": 6' "$WORKDIR/status.json"
 grep -q 'Mihomo' "$WORKDIR/status.json"
 
 echo "==> 管理机场节点"
@@ -87,6 +90,9 @@ echo "==> 导出 Mihomo 配置"
 "$bin" kernel export -config "$cfg" -output "$kernel_cfg" >/dev/null
 grep -q 'socks-port: 18080' "$kernel_cfg"
 grep -q 'port: 18081' "$kernel_cfg"
+grep -q 'type: "vless"' "$kernel_cfg"
+grep -q 'type: "trojan"' "$kernel_cfg"
+grep -q 'type: "hysteria2"' "$kernel_cfg"
 grep -q 'MATCH,明隧' "$kernel_cfg"
 
 echo "==> 检查 connect 会调用 Mihomo"
