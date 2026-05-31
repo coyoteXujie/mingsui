@@ -23,6 +23,14 @@ make test
 go test ./...
 ```
 
+产品级冒烟测试：
+
+```bash
+sh scripts/smoke-test.sh
+```
+
+这组测试会构建 CLI、导入一份本地测试订阅、检查共享配置、代理环境变量、Mihomo 配置导出，以及 `mingsui connect` 是否会调用 Mihomo 内核。
+
 ## 本地安装 CLI
 
 源码仓库里的 `dist/*.tgz` 是构建产物，不会随 git 保存。要在本机模拟 npm 全局安装，直接运行：
@@ -52,3 +60,11 @@ make dist APP_VERSION=v0.1.0
 ```
 
 详细发布流程见 [release.md](release.md)。
+
+## 持续集成
+
+GitHub Actions 会在 push 和 pull request 时自动执行：
+
+- `go test ./...`
+- `sh scripts/smoke-test.sh`
+- npm CLI 本地打包和安装验证

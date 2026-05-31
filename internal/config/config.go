@@ -78,6 +78,7 @@ type RelayConfig struct {
 func DefaultClient() ClientConfig {
 	return ClientConfig{
 		LocalAddr:          "127.0.0.1:18080",
+		HTTPAddr:           "127.0.0.1:18081",
 		RelayAddr:          "127.0.0.1:9443",
 		Token:              "change-me",
 		DialTimeoutSeconds: 10,

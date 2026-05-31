@@ -9,7 +9,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=$(APP_VERSION) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=$(COMMIT) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=$(DATE)
 
-.PHONY: build test dist desktop-deb npm-package checksums clean
+.PHONY: build test smoke dist desktop-deb npm-package checksums clean
 
 build:
 	mkdir -p bin
@@ -19,6 +19,9 @@ build:
 
 test:
 	$(GO) test ./...
+
+smoke:
+	GO=$(GO) sh scripts/smoke-test.sh
 
 dist:
 	rm -rf $(DIST_DIR)

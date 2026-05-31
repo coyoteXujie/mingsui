@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Run product smoke test
+        run: sh scripts/smoke-test.sh
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Verify npm CLI package
+        run: |
+          NPM_PLATFORMS=linux/amd64 \
+          DIST_DIR="$RUNNER_TEMP/mingsui-dist" \
+          NPM_CONFIG_PREFIX="$RUNNER_TEMP/npm-prefix" \
+          sh scripts/install-local-cli.sh
