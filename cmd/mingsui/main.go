@@ -657,6 +657,8 @@ func runExec(args []string) int {
 	localAddr := fs.String("local", "", "本地 SOCKS5 监听地址")
 	httpAddr := fs.String("http", "", "本地 HTTP 代理监听地址")
 	noProxy := fs.String("no-proxy", "localhost,127.0.0.1,::1", "NO_PROXY/no_proxy 值")
+	connect := fs.Bool("connect", false, "执行命令前临时启动当前机场节点的 Mihomo 内核")
+	connectTimeout := fs.Duration("connect-timeout", 5*time.Second, "等待本地代理监听就绪的时间，0 表示不等待")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -678,6 +680,21 @@ func runExec(args []string) int {
 		return 1
 	}
 
+	if *connect {
+		if _, ok := resolveClientProxyProfile(cfg, true); !ok {
+			fmt.Fprintln(os.Stderr, "当前没有机场节点，mingsui exec -connect 暂只支持机场节点模式")
+			return 1
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		stop, err := startProxyKernelForExec(ctx, cfg, *connectTimeout)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "启动临时代理失败: %v\n", err)
+			return 1
+		}
+		defer stop()
+	}
+
 	cmd := exec.Command(commandArgs[0], commandArgs[1:]...)
 	cmd.Env = mergeEnv(os.Environ(), vars)
 	cmd.Stdin = os.Stdin
@@ -692,6 +709,66 @@ func runExec(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func startProxyKernelForExec(ctx context.Context, cfg config.ClientConfig, waitTimeout time.Duration) (func(), error) {
+	controller := mihomo.NewController(cfg, mihomo.Options{Stdout: os.Stderr, Stderr: os.Stderr})
+	if err := controller.Start(ctx); err != nil {
+		return nil, err
+	}
+	stop := func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := controller.Stop(stopCtx); err != nil {
+			fmt.Fprintf(os.Stderr, "停止临时代理失败: %v\n", err)
+		}
+	}
+	if waitTimeout > 0 {
+		waitCtx, cancel := context.WithTimeout(ctx, waitTimeout)
+		defer cancel()
+		if err := waitForLocalProxy(waitCtx, cfg); err != nil {
+			stop()
+			return nil, err
+		}
+	}
+	return stop, nil
+}
+
+func waitForLocalProxy(ctx context.Context, cfg config.ClientConfig) error {
+	addrs := []string{cfg.LocalAddr}
+	if strings.TrimSpace(cfg.HTTPAddr) != "" {
+		addrs = append(addrs, cfg.HTTPAddr)
+	}
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if localProxyAddrsReachable(addrs) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("等待本地代理监听超时: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func localProxyAddrsReachable(addrs []string) bool {
+	if len(addrs) == 0 {
+		return false
+	}
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err != nil {
+			return false
+		}
+		_ = conn.Close()
+	}
+	return true
 }
 
 func runSystemProxy(args []string) int {

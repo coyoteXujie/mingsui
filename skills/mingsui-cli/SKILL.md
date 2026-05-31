@@ -36,6 +36,12 @@ Use one of these patterns for AI commands:
 mingsui exec -- curl https://example.com
 ```
 
+If no separate `mingsui connect` process is running and the active profile is an airport node, prefer the self-contained form:
+
+```bash
+mingsui exec -connect -- curl https://example.com
+```
+
 or:
 
 ```bash

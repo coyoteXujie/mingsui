@@ -54,7 +54,10 @@ mingsui connect
 
 ```bash
 mingsui exec -- curl https://example.com
+mingsui exec -connect -- curl https://example.com
 ```
+
+`mingsui exec -connect` 会在机场节点模式下临时启动 Mihomo，执行子命令后自动停止，适合 AI Agent 或一次性脚本。
 
 或者把代理环境变量写入当前 shell：
 

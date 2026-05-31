@@ -87,6 +87,9 @@ exit 0
 EOF
 chmod +x "$fake_mihomo"
 
+echo "==> 检查 exec 可临时启动 Mihomo"
+MINGSUI_MIHOMO_PATH="$fake_mihomo" "$bin" exec -config "$cfg" -connect -connect-timeout 0 -- sh -c 'test "$MINGSUI_HTTP_PROXY" = "http://127.0.0.1:18081"'
+
 echo "==> 诊断机场节点"
 MINGSUI_MIHOMO_PATH="$fake_mihomo" "$bin" doctor -config "$cfg" -skip-local -json >"$WORKDIR/doctor.json"
 grep -q '"mode": "proxy"' "$WORKDIR/doctor.json"

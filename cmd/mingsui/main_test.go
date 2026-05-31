@@ -274,6 +274,36 @@ func TestProxyEnvFallsBackToSOCKSForStandardProxyVars(t *testing.T) {
 	assertEnvValue(t, vars, "ALL_PROXY", "socks5h://127.0.0.1:18080")
 }
 
+func TestRunExecConnectStartsProxyKernel(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+	t.Setenv("MINGSUI_MIHOMO_PATH", fakeMihomoCommand(t, "exit 0"))
+
+	code := run([]string{"exec", "-config", cfgPath, "-connect", "-connect-timeout", "0", "--", "sh", "-c", `test "$MINGSUI_HTTP_PROXY" = "http://127.0.0.1:18081"`})
+	if code != 0 {
+		t.Fatalf("run(exec -connect) = %d, want 0", code)
+	}
+}
+
+func TestRunExecConnectRequiresProxyProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+	if err := config.WriteClient(path, config.DefaultClient(), true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	if code := run([]string{"exec", "-config", path, "-connect", "--", "sh", "-c", "true"}); code != 1 {
+		t.Fatalf("run(exec -connect without proxy) = %d, want 1", code)
+	}
+}
+
 func TestMergeEnvOverridesExistingValues(t *testing.T) {
 	vars := []proxyEnvVar{
 		{Name: "HTTP_PROXY", Value: "http://127.0.0.1:18081"},
