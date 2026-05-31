@@ -74,6 +74,75 @@ func TestGenerateVMessConfig(t *testing.T) {
 	}
 }
 
+func TestGenerateSkipsUnsupportedUnselectedProxy(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "future",
+			Protocol: "vless",
+			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+		},
+		{
+			Name:     "tokyo",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo",
+		},
+	}
+	cfg.ActiveProxyProfile = "tokyo"
+
+	data, err := Generate(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	got := string(data)
+	if strings.Contains(got, `name: "future"`) {
+		t.Fatalf("config =\n%s\nwant unsupported unselected proxy skipped", got)
+	}
+	if !strings.Contains(got, `name: "tokyo"`) {
+		t.Fatalf("config =\n%s\nwant selected supported proxy", got)
+	}
+}
+
+func TestGenerateRejectsUnsupportedSelectedProxy(t *testing.T) {
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{
+			Name:     "future",
+			Protocol: "vless",
+			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+		},
+		{
+			Name:     "tokyo",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo",
+		},
+	}
+	cfg.ActiveProxyProfile = "future"
+
+	if _, err := Generate(cfg, Options{}); err == nil {
+		t.Fatal("Generate() error = nil, want unsupported selected proxy error")
+	}
+}
+
+func TestFirstExportableProfileName(t *testing.T) {
+	profiles := []config.ProxyProfile{
+		{
+			Name:     "future",
+			Protocol: "vless",
+			URL:      "vless://00000000-0000-0000-0000-000000000000@example.com:443#future",
+		},
+		{
+			Name:     "tokyo",
+			Protocol: "ss",
+			URL:      "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo",
+		},
+	}
+	got, ok := FirstExportableProfileName(profiles)
+	if !ok || got != "tokyo" {
+		t.Fatalf("FirstExportableProfileName() = %q, %v, want tokyo true", got, ok)
+	}
+}
+
 func TestGenerateRejectsMissingProxyProfiles(t *testing.T) {
 	if _, err := Generate(config.DefaultClient(), Options{}); err == nil {
 		t.Fatal("Generate() error = nil, want missing proxy profiles error")

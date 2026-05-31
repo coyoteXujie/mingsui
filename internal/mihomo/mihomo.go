@@ -44,14 +44,28 @@ func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {
 	writeScalar(&out, "log-level", opts.LogLevel)
 	writeBool(&out, "allow-lan", false)
 	writeBindAndPorts(&out, cfg)
-	out.WriteString("proxies:\n")
 	names := make([]string, 0, len(cfg.ProxyProfiles))
+	proxies := make([][]byte, 0, len(cfg.ProxyProfiles))
 	for _, profile := range cfg.ProxyProfiles {
 		proxyYAML, err := proxyToYAML(profile)
 		if err != nil {
-			return nil, fmt.Errorf("导出 %s 失败: %w", profile.Name, err)
+			if profile.Name == selected {
+				return nil, fmt.Errorf("当前选择的机场节点 %s 暂不能导出到 Mihomo: %w", profile.Name, err)
+			}
+			continue
 		}
 		names = append(names, profile.Name)
+		proxies = append(proxies, proxyYAML)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("没有可导出到 Mihomo 的机场节点，当前支持 ss 和 vmess")
+	}
+	if selected == "" {
+		selected = names[0]
+	}
+
+	out.WriteString("proxies:\n")
+	for _, proxyYAML := range proxies {
 		out.Write(proxyYAML)
 	}
 
@@ -70,6 +84,20 @@ func Generate(cfg config.ClientConfig, opts Options) ([]byte, error) {
 	out.WriteString("rules:\n")
 	out.WriteString("  - MATCH,明隧\n")
 	return out.Bytes(), nil
+}
+
+func CanExportProfile(profile config.ProxyProfile) bool {
+	_, err := proxyToYAML(profile)
+	return err == nil
+}
+
+func FirstExportableProfileName(profiles []config.ProxyProfile) (string, bool) {
+	for _, profile := range profiles {
+		if CanExportProfile(profile) {
+			return profile.Name, true
+		}
+	}
+	return "", false
 }
 
 func selectedProxyName(cfg config.ClientConfig) string {

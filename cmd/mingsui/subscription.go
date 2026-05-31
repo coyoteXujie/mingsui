@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/subscription"
 )
 
@@ -89,7 +90,11 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, f
 		return 1
 	}
 	if selectedName == "" && selectFirst && len(profiles) > 0 {
-		selectedName = profiles[0].Name
+		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+			selectedName = name
+		} else {
+			selectedName = profiles[0].Name
+		}
 	}
 	if selectedName != "" {
 		if err := cfg.SelectProxyProfile(selectedName); err != nil {

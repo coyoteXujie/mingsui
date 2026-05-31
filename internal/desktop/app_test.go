@@ -171,18 +171,19 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApp() error = %v", err)
 	}
-	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	raw := "vless://00000000-0000-0000-0000-000000000000@example.com:443#future\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
 
 	count, err := app.ImportRelayProfiles([]byte(base64.StdEncoding.EncodeToString([]byte(raw))), false, "")
 	if err != nil {
 		t.Fatalf("ImportRelayProfiles(proxy) error = %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("count = %d, want 1", count)
+	if count != 2 {
+		t.Fatalf("count = %d, want 2", count)
 	}
 	cfg := app.Config()
-	if cfg.ActiveProxyProfile != "tokyo" || len(cfg.ProxyProfiles) != 1 {
-		t.Fatalf("Config() = %+v, want imported active proxy profile", cfg)
+	if cfg.ActiveProxyProfile != "tokyo" || len(cfg.ProxyProfiles) != 2 {
+		t.Fatalf("Config() = %+v, want imported active exportable proxy profile", cfg)
 	}
 	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(t.TempDir(), "missing-mihomo"))
 	if err := app.Start(context.Background()); err == nil {

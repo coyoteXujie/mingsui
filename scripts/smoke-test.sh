@@ -26,6 +26,7 @@ echo "==> 构建 CLI"
 
 echo "==> 准备测试订阅"
 {
+	printf '%s\r\n' 'vless://00000000-0000-0000-0000-000000000000@example.com:443#future'
 	printf '%s\r\n' 'ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo'
 	printf '%s\r\n' 'vmess://eyJwcyI6Im9zYWthIiwiYWRkIjoiZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMjMifQ=='
 } | base64 >"$sub"
@@ -36,7 +37,8 @@ echo "==> 导入机场订阅"
 echo "==> 检查状态"
 "$bin" status -config "$cfg" -json >"$WORKDIR/status.json"
 grep -q '"selected_type": "proxy"' "$WORKDIR/status.json"
-grep -q '"proxy_profiles": 2' "$WORKDIR/status.json"
+grep -q '"selected_proxy": "tokyo"' "$WORKDIR/status.json"
+grep -q '"proxy_profiles": 3' "$WORKDIR/status.json"
 grep -q 'Mihomo' "$WORKDIR/status.json"
 
 echo "==> 检查代理环境变量"

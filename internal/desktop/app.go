@@ -176,7 +176,11 @@ func (a *App) importProxyProfiles(data []byte, replace bool, selectName string, 
 		return 0, err
 	}
 	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
-		selectName = profiles[0].Name
+		if name, ok := mihomo.FirstExportableProfileName(profiles); ok {
+			selectName = name
+		} else {
+			selectName = profiles[0].Name
+		}
 	}
 	if selectName != "" {
 		if err := cfg.SelectProxyProfile(selectName); err != nil {
@@ -237,6 +241,13 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 	}
 	if err := cfg.ImportProxyProfiles(proxyProfiles, replace); err != nil {
 		return 0, err
+	}
+	if strings.TrimSpace(selectName) == "" && len(proxyProfiles) > 0 {
+		if name, ok := mihomo.FirstExportableProfileName(proxyProfiles); ok {
+			selectName = name
+		} else {
+			selectName = proxyProfiles[0].Name
+		}
 	}
 	if selectName != "" {
 		if err := cfg.SelectProxyProfile(selectName); err != nil {
