@@ -395,6 +395,21 @@ textarea {
   padding: 0 10px;
 }
 
+.log-view {
+  min-height: 180px;
+  max-height: 280px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #101817;
+  color: #dbe8e4;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .message {
   min-height: 42px;
   border: 1px solid transparent;

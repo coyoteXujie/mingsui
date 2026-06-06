@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -41,7 +43,8 @@ func run(args []string) int {
 		return 0
 	}
 
-	logger := log.New(os.Stderr, "mingsui desktop: ", log.LstdFlags)
+	logs := desktop.NewLogBuffer(300)
+	logger := log.New(io.MultiWriter(os.Stderr, logs), "mingsui desktop: ", log.LstdFlags)
 	listener, err := net.Listen("tcp", *listenAddr)
 	if err != nil {
 		if code, ok := reuseExistingDesktop(*listenAddr, *openWindow, *webMode, logger); ok {
@@ -61,6 +64,7 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "初始化桌面端界面失败: %v\n", err)
 		return 1
 	}
+	handler = withDesktopLogs(handler, logs)
 
 	server := &http.Server{Handler: handler}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -69,6 +73,7 @@ func run(args []string) int {
 
 	appURL := "http://" + listener.Addr().String()
 	fmt.Fprintf(os.Stdout, "明隧桌面端已启动: %s\n", appURL)
+	logger.Printf("本机服务已启动: %s", appURL)
 	if *openWindow {
 		go func() {
 			time.Sleep(200 * time.Millisecond)
@@ -119,6 +124,25 @@ func run(args []string) int {
 		}
 		return 0
 	}
+}
+
+type logsResponse struct {
+	Logs []string `json:"logs"`
+}
+
+func withDesktopLogs(next http.Handler, logs *desktop.LogBuffer) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(logsResponse{Logs: logs.Lines()})
+	})
+	mux.Handle("/", next)
+	return mux
 }
 
 func reuseExistingDesktop(listenAddr string, openWindow, webMode bool, logger *log.Logger) (int, bool) {

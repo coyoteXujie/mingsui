@@ -5,6 +5,7 @@ const state = {
   systemProxy: null,
   proxyCapabilities: [],
   proxyCheckResults: {},
+  logs: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -85,13 +86,23 @@ async function runProxyCheck(body, options = {}) {
 }
 
 async function refresh() {
-  const data = await api("/api/state");
+  const [data, logData] = await Promise.all([
+    api("/api/state"),
+    api("/api/logs").catch(() => ({ logs: [] })),
+  ]);
   state.configPath = data.config_path;
   state.config = data.config;
   state.status = data.status;
   state.systemProxy = data.system_proxy;
   state.proxyCapabilities = data.proxy_capabilities || [];
+  state.logs = logData.logs || [];
   render();
+}
+
+async function refreshLogs() {
+  const data = await api("/api/logs");
+  state.logs = data.logs || [];
+  renderLogs(state.logs);
 }
 
 function render() {
@@ -142,6 +153,7 @@ function render() {
   renderProfiles(profiles, selectedProfile);
   renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "", capabilityMap, state.proxyCheckResults || {});
   renderSubscriptions(cfg.subscriptions || []);
+  renderLogs(state.logs || []);
 }
 
 function renderConfigForm(cfg) {
@@ -295,6 +307,13 @@ function renderSubscriptions(subscriptions) {
   });
 }
 
+function renderLogs(logs) {
+  const root = $("logs");
+  if (!root) return;
+  root.textContent = logs.length ? logs.join("\n") : "暂无日志";
+  root.scrollTop = root.scrollHeight;
+}
+
 function emptyItem(label) {
   const item = document.createElement("div");
   item.className = "item";
@@ -317,8 +336,10 @@ async function runAction(fn) {
   try {
     setMessage("");
     await fn();
+    await refreshLogs().catch(() => {});
   } catch (err) {
     setMessage(err.message, "error");
+    await refreshLogs().catch(() => {});
   }
 }
 
@@ -343,6 +364,9 @@ function bind() {
     }
     $("advancedToggleBtn").textContent = opening ? "收起高级" : "高级设置";
   });
+  $("refreshLogsBtn").addEventListener("click", () => runAction(async () => {
+    await refreshLogs();
+  }));
   $("configSaveBtn").addEventListener("click", () => runAction(async () => {
     const cfg = buildConfigFromForm();
     const result = await api("/api/config", { method: "POST", body: cfg });

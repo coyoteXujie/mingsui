@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/desktop"
 )
 
 func TestDesktopUsesClientDefaultConfigPath(t *testing.T) {
@@ -73,6 +76,28 @@ func TestDesktopServiceAvailable(t *testing.T) {
 	}
 	if desktopServiceAvailable(context.Background(), "http://127.0.0.1:18200/missing") {
 		t.Fatal("desktopServiceAvailable(missing) = true, want false")
+	}
+}
+
+func TestWithDesktopLogs(t *testing.T) {
+	logs := desktop.NewLogBuffer(10)
+	if _, err := logs.Write([]byte("first\nsecond\n")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	handler := withDesktopLogs(http.NotFoundHandler(), logs)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var got logsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(got.Logs) != 2 || got.Logs[0] != "first" || got.Logs[1] != "second" {
+		t.Fatalf("Logs = %+v, want first/second", got.Logs)
 	}
 }
 
