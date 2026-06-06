@@ -7,6 +7,8 @@ const state = {
   proxyCheckResults: {},
   logs: [],
 };
+let autoRefreshTimer = null;
+let autoRefreshInFlight = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -105,29 +107,66 @@ async function refreshLogs() {
   renderLogs(state.logs);
 }
 
+async function refreshRuntime() {
+  if (!state.config) {
+    await refresh();
+    return;
+  }
+  const [data, logData] = await Promise.all([
+    api("/api/state"),
+    api("/api/logs").catch(() => ({ logs: [] })),
+  ]);
+  state.status = data.status;
+  state.systemProxy = data.system_proxy;
+  state.proxyCapabilities = data.proxy_capabilities || state.proxyCapabilities || [];
+  state.logs = logData.logs || [];
+  renderRuntime();
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) return;
+  autoRefreshTimer = window.setInterval(async () => {
+    if (document.hidden || autoRefreshInFlight) return;
+    autoRefreshInFlight = true;
+    try {
+      await refreshRuntime();
+    } catch (_err) {
+      // Keep transient refresh failures quiet; explicit actions still surface errors.
+    } finally {
+      autoRefreshInFlight = false;
+    }
+  }, 3000);
+}
+
 function render() {
+  renderConfigForm(state.config || {});
+  renderRuntime();
+  const cfg = state.config || {};
+  const profiles = cfg.profiles || [];
+  const proxyProfiles = cfg.proxy_profiles || [];
+  const selectedProfile = cfg.active_profile || "";
+  const activeProxyName = currentActiveProxyName();
+  const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
+  renderProfiles(profiles, selectedProfile);
+  renderProxyProfiles(proxyProfiles, activeProxyName, capabilityMap, state.proxyCheckResults || {});
+  renderSubscriptions(cfg.subscriptions || []);
+}
+
+function renderRuntime() {
   const cfg = state.config || {};
   const status = state.status || {};
   const systemProxy = state.systemProxy || {};
   const metrics = status.metrics || {};
+  const activeProxy = currentActiveProxy();
+  const selectedProfile = cfg.active_profile || "";
   const profiles = cfg.profiles || [];
   const proxyProfiles = cfg.proxy_profiles || [];
-  const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
-  const selectedProfile = cfg.active_profile || "";
-  const selectedProxy = cfg.active_proxy_profile || "";
-  const firstAutoSelectableProxy = proxyProfiles.find((profile) => {
-    const capability = capabilityMap.get(profile.name) || {};
-    return capability.exportable !== false && capability.auto_selectable !== false;
-  });
-  const activeProxy = proxyProfiles.find((profile) => profile.name === selectedProxy)
-    || (!selectedProfile ? firstAutoSelectableProxy || null : null);
   const proxyModeWithoutExportable = !activeProxy && !selectedProfile && proxyProfiles.length > 0;
   const nodeLabel = activeProxy ? activeProxy.name : (proxyModeWithoutExportable ? "没有可自动选择的国外节点" : selectedProfile || (profiles.length ? profiles[0].name : ""));
   const relayAddr = activeProxy ? `${activeProxy.protocol || "-"} 机场节点` : (proxyModeWithoutExportable ? "" : status.relay_addr || cfg.relay_addr);
   const localAddr = status.local_addr || cfg.local_addr;
   const httpAddr = status.http_addr || cfg.http_addr;
 
-  renderConfigForm(cfg);
   $("configPath").textContent = text(state.configPath, "配置未加载");
   $("relayAddr").textContent = text(relayAddr);
   $("localAddr").textContent = text(localAddr);
@@ -150,10 +189,26 @@ function render() {
   $("connectBtn").textContent = status.running ? "断开" : "连接";
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
-  renderProfiles(profiles, selectedProfile);
-  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "", capabilityMap, state.proxyCheckResults || {});
-  renderSubscriptions(cfg.subscriptions || []);
   renderLogs(state.logs || []);
+}
+
+function currentActiveProxy() {
+  const cfg = state.config || {};
+  const proxyProfiles = cfg.proxy_profiles || [];
+  const selectedProfile = cfg.active_profile || "";
+  const selectedProxy = cfg.active_proxy_profile || "";
+  const capabilityMap = new Map((state.proxyCapabilities || []).map((item) => [item.name, item]));
+  const firstAutoSelectableProxy = proxyProfiles.find((profile) => {
+    const capability = capabilityMap.get(profile.name) || {};
+    return capability.exportable !== false && capability.auto_selectable !== false;
+  });
+  return proxyProfiles.find((profile) => profile.name === selectedProxy)
+    || (!selectedProfile ? firstAutoSelectableProxy || null : null);
+}
+
+function currentActiveProxyName() {
+  const proxy = currentActiveProxy();
+  return proxy ? proxy.name : "";
 }
 
 function renderConfigForm(cfg) {
@@ -505,4 +560,6 @@ function buildConfigFromForm() {
 }
 
 bind();
-refresh().catch((err) => setMessage(err.message, "error"));
+refresh()
+  .then(startAutoRefresh)
+  .catch((err) => setMessage(err.message, "error"));
