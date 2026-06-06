@@ -2,6 +2,9 @@ const state = {
   configPath: "",
   config: null,
   status: null,
+  systemProxy: null,
+  proxyCapabilities: [],
+  proxyCheckResults: {},
 };
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +20,9 @@ async function api(path, options = {}) {
   const response = await fetch(path, init);
   const data = await response.json();
   if (!response.ok || data.ok === false) {
-    throw new Error(data.message || `HTTP ${response.status}`);
+    const error = new Error(data.message || `HTTP ${response.status}`);
+    error.data = data;
+    throw error;
   }
   return data;
 }
@@ -38,6 +43,45 @@ function bytes(value) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function rememberProxyCheckReport(report) {
+  if (!report || !Array.isArray(report.results)) return;
+  report.results.forEach((result) => {
+    if (result && result.name) {
+      state.proxyCheckResults[result.name] = result;
+    }
+  });
+}
+
+function proxyCheckStatus(result) {
+  if (!result) return null;
+  if (!result.tested) {
+    return { text: result.skip_reason || "未检测", kind: "warn" };
+  }
+  if (result.ok) {
+    return { text: `正常 · ${result.latency_ms || 0} ms`, kind: "ok" };
+  }
+  return { text: `失败 · ${result.error || "连接失败"}`, kind: "error" };
+}
+
+async function runProxyCheck(body, options = {}) {
+  try {
+    const result = await api("/api/proxy/check", { method: "POST", body });
+    rememberProxyCheckReport(result.proxy_check);
+    if (options.refreshAfter) {
+      await refresh();
+    } else {
+      render();
+    }
+    return result;
+  } catch (err) {
+    if (err.data && err.data.proxy_check) {
+      rememberProxyCheckReport(err.data.proxy_check);
+      render();
+    }
+    throw err;
+  }
 }
 
 async function refresh() {
@@ -96,7 +140,7 @@ function render() {
   $("connectBtn").className = status.running ? "primary-action danger-action" : "primary-action";
 
   renderProfiles(profiles, selectedProfile);
-  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "", capabilityMap);
+  renderProxyProfiles(proxyProfiles, activeProxy ? activeProxy.name : "", capabilityMap, state.proxyCheckResults || {});
   renderSubscriptions(cfg.subscriptions || []);
 }
 
@@ -154,7 +198,7 @@ function renderProfiles(profiles, active) {
   });
 }
 
-function renderProxyProfiles(profiles, active, capabilityMap) {
+function renderProxyProfiles(profiles, active, capabilityMap, checkResults) {
   const root = $("proxyProfiles");
   root.innerHTML = "";
   if (!profiles.length) {
@@ -180,6 +224,13 @@ function renderProxyProfiles(profiles, active, capabilityMap) {
     addr.textContent = `${(profile.protocol || "-").toUpperCase()} · ${compatibility}`;
     addr.className = exportable && autoSelectable ? "" : "warn-text";
     info.append(title, addr);
+    const status = proxyCheckStatus(checkResults[profile.name]);
+    if (status) {
+      const statusLine = document.createElement("span");
+      statusLine.textContent = status.text;
+      statusLine.className = `result-status ${status.kind}`;
+      info.append(statusLine);
+    }
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
@@ -189,7 +240,19 @@ function renderProxyProfiles(profiles, active, capabilityMap) {
       await refresh();
     });
     select.disabled = !exportable;
-    actions.append(select);
+    const check = button("检测", "", async () => {
+      const result = await runProxyCheck({ name: profile.name, timeout_seconds: 10 });
+      setMessage(result.message, "ok");
+    });
+    check.disabled = !exportable;
+    const remove = button("删除", "danger", async () => {
+      if (!window.confirm(`删除机场节点 ${profile.name}？`)) return;
+      const result = await api("/api/proxy/delete", { method: "POST", body: { name: profile.name } });
+      delete state.proxyCheckResults[profile.name];
+      setMessage(result.message, "ok");
+      await refresh();
+    });
+    actions.append(select, check, remove);
     item.append(info, actions);
     root.append(item);
   });
@@ -214,7 +277,7 @@ function renderSubscriptions(subscriptions) {
   const root = $("subscriptions");
   root.innerHTML = "";
   if (!subscriptions.length) {
-    root.append(emptyItem("没有 relay 订阅"));
+    root.append(emptyItem("没有节点订阅"));
     return;
   }
   subscriptions.forEach((sub) => {
@@ -330,12 +393,8 @@ function bind() {
     setMessage(result.message, "ok");
   }));
   $("bestProxyBtn").addEventListener("click", () => runAction(async () => {
-    const result = await api("/api/proxy/check", {
-      method: "POST",
-      body: { select_best: true, timeout_seconds: 10 },
-    });
+    const result = await runProxyCheck({ select_best: true, timeout_seconds: 10 }, { refreshAfter: true });
     setMessage(result.message, "ok");
-    await refresh();
   }));
   $("systemProxyOnBtn").addEventListener("click", () => runAction(async () => {
     const result = await api("/api/system-proxy/enable", { method: "POST", body: {} });
@@ -356,6 +415,7 @@ function bind() {
         select: $("importSelect").value,
       },
     });
+    state.proxyCheckResults = {};
     setMessage(`${result.message}：${result.count}`, "ok");
     await refresh();
   }));
@@ -382,6 +442,7 @@ function bind() {
         replace: $("subReplace").checked,
       },
     });
+    state.proxyCheckResults = {};
     setMessage(`${result.message}：${result.count}`, "ok");
     await refresh();
   }));

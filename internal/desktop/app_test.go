@@ -275,6 +275,45 @@ func TestAppCheckProxyProfilesSelectsBest(t *testing.T) {
 	}
 }
 
+func TestAppCheckProxyProfileScopesToNamedProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "中国大陆", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		if len(cfg.ProxyProfiles) != 1 || cfg.ProxyProfiles[0].Name != "中国大陆" {
+			t.Fatalf("ProxyProfiles = %+v, want only selected node", cfg.ProxyProfiles)
+		}
+		if !opts.IncludeNonAutoSelectable {
+			t.Fatal("IncludeNonAutoSelectable = false, want true")
+		}
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "中国大陆", Protocol: "ss", Tested: true, OK: true, LatencyMS: 80},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	report, err := app.CheckProxyProfile(context.Background(), "中国大陆", proxycheck.Options{})
+	if err != nil {
+		t.Fatalf("CheckProxyProfile() error = %v", err)
+	}
+	if best, ok := report.Best(); !ok || best.Name != "中国大陆" {
+		t.Fatalf("Best() = %+v, %v, want 中国大陆 true", best, ok)
+	}
+}
+
 func TestSaveImportedSubscription(t *testing.T) {
 	cfg := config.DefaultClient()
 	if err := saveImportedSubscription(&cfg, "https://example.com/sub"); err != nil {

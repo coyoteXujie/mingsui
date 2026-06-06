@@ -367,6 +367,22 @@ textarea {
   color: var(--warn);
 }
 
+.item span.result-status {
+  font-weight: 650;
+}
+
+.item span.result-status.ok {
+  color: var(--ok);
+}
+
+.item span.result-status.warn {
+  color: var(--warn);
+}
+
+.item span.result-status.error {
+  color: var(--danger);
+}
+
 .item-actions {
   display: flex;
   flex-wrap: wrap;

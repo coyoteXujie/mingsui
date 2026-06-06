@@ -81,7 +81,7 @@ Architecture: $deb_arch
 Maintainer: MingSui <mingsui@example.invalid>
 Installed-Size: $installed_size
 Description: MingSui desktop and CLI client
- MingSui desktop provides a local desktop console and CLI client that share the same client configuration.
+ MingSui desktop provides a desktop client and CLI client that share the same client configuration.
 EOF
 
 	dpkg-deb --build --root-owner-group "$root" "$DIST_DIR/$pkg.deb"

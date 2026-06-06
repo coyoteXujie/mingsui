@@ -29,11 +29,12 @@ var (
 type ProbeFunc func(ctx context.Context, proxyAddr, targetURL string) error
 
 type Options struct {
-	TargetURL string
-	Timeout   time.Duration
-	Limit     int
-	WorkDir   string
-	Probe     ProbeFunc
+	TargetURL                string
+	Timeout                  time.Duration
+	Limit                    int
+	WorkDir                  string
+	Probe                    ProbeFunc
+	IncludeNonAutoSelectable bool
 }
 
 type Report struct {
@@ -88,7 +89,7 @@ func Check(ctx context.Context, cfg config.ClientConfig, opts Options) (Report, 
 		switch {
 		case !result.Exportable:
 			result.SkipReason = "暂不支持直接连接"
-		case !result.AutoSelectable:
+		case !result.AutoSelectable && !opts.IncludeNonAutoSelectable:
 			result.SkipReason = "国内节点不自动选择"
 		case opts.Limit > 0 && tested >= opts.Limit:
 			result.SkipReason = "超过检测数量上限"

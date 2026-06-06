@@ -15,7 +15,7 @@ CLI 和桌面端自动选择机场节点时会避开看起来是中国大陆/国
 ## 主要组件
 
 - `mingsui`: CLI 客户端，给 AI Agent、脚本和开发者使用。
-- `mingsui-desktop`: 桌面端控制台，给普通用户使用。
+- `mingsui-desktop`: 桌面客户端，给普通用户使用。
 - `mingsui-relay`: 可选的自建 relay 服务端。
 - `mihomo`: 默认通用代理内核，用来连接机场订阅里的节点。
 
@@ -94,13 +94,13 @@ mingsui system-proxy disable
 3. 选择节点。
 4. 点击连接。
 
-当前开发版桌面控制台启动方式：
+当前开发版桌面客户端启动方式：
 
 ```bash
 mingsui-desktop
 ```
 
-命令会自动打开默认浏览器，并打印一个只监听本机的控制台地址，例如 `http://127.0.0.1:18200`。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务。
+命令会自动打开独立桌面窗口，并打印一个只监听本机的本地服务地址。关闭窗口后，本机服务也会退出。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务；开发调试可以使用 `mingsui-desktop -web` 打开浏览器调试界面。
 
 ## 能力边界
 

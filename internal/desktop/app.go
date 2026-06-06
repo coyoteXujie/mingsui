@@ -121,6 +121,14 @@ func (a *App) SelectProxyProfile(name string) error {
 	return a.SaveConfig(cfg)
 }
 
+func (a *App) RemoveProxyProfile(name string) error {
+	cfg := a.Config()
+	if err := cfg.RemoveProxyProfile(name); err != nil {
+		return err
+	}
+	return a.SaveConfig(cfg)
+}
+
 func (a *App) RemoveRelayProfile(name string) error {
 	cfg := a.Config()
 	if err := cfg.RemoveRelayProfile(name); err != nil {
@@ -399,6 +407,31 @@ func (a *App) CheckProxyProfiles(ctx context.Context, opts proxycheck.Options, s
 	}
 	report.Selected = best.Name
 	return report, nil
+}
+
+func (a *App) CheckProxyProfile(ctx context.Context, name string, opts proxycheck.Options) (proxycheck.Report, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return proxycheck.Report{}, errors.New("机场节点名称不能为空")
+	}
+
+	a.mu.Lock()
+	cfg := a.cfg.Clone()
+	running := a.controller.Status().Running || a.kernel.Status().Running
+	a.mu.Unlock()
+	if running {
+		return proxycheck.Report{}, errors.New("客户端运行中，请先断开再检测节点")
+	}
+
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		return proxycheck.Report{}, errors.New("机场节点不存在")
+	}
+	cfg.ActiveProfile = ""
+	cfg.ActiveProxyProfile = profile.Name
+	cfg.ProxyProfiles = []config.ProxyProfile{profile}
+	opts.IncludeNonAutoSelectable = true
+	return proxyCheckRunner(ctx, cfg, opts)
 }
 
 func (a *App) CheckRelayStatus(ctx context.Context) (client.RelayHealth, error) {

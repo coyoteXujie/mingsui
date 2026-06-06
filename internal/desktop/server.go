@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,7 @@ func NewHTTPHandler(app *App) (http.Handler, error) {
 	mux.HandleFunc("/api/profile/select", method(http.MethodPost, handleSelectProfile(app)))
 	mux.HandleFunc("/api/profile/check", method(http.MethodPost, handleCheckProfile(app)))
 	mux.HandleFunc("/api/proxy/select", method(http.MethodPost, handleSelectProxyProfile(app)))
+	mux.HandleFunc("/api/proxy/delete", method(http.MethodPost, handleDeleteProxyProfile(app)))
 	mux.HandleFunc("/api/proxy/check", method(http.MethodPost, handleCheckProxyProfiles(app)))
 	mux.HandleFunc("/api/profiles/import", method(http.MethodPost, handleImportProfiles(app)))
 	mux.HandleFunc("/api/subscription", method(http.MethodPost, handleSaveSubscription(app)))
@@ -75,6 +77,7 @@ type profileNameRequest struct {
 }
 
 type proxyCheckRequest struct {
+	Name           string `json:"name"`
 	URL            string `json:"url"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
 	Limit          int    `json:"limit"`
@@ -281,6 +284,21 @@ func handleSelectProxyProfile(app *App) http.HandlerFunc {
 	}
 }
 
+func handleDeleteProxyProfile(app *App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req profileNameRequest
+		if err := readJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if err := app.RemoveProxyProfile(req.Name); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "机场节点已删除"})
+	}
+}
+
 func handleCheckProxyProfiles(app *App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req proxyCheckRequest
@@ -294,17 +312,28 @@ func handleCheckProxyProfiles(app *App) http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 		defer cancel()
-		report, err := app.CheckProxyProfiles(ctx, proxycheck.Options{
+		opts := proxycheck.Options{
 			TargetURL: req.URL,
 			Timeout:   timeout,
 			Limit:     req.Limit,
-		}, req.SelectBest)
+		}
+		var report proxycheck.Report
+		var err error
+		if strings.TrimSpace(req.Name) != "" {
+			report, err = app.CheckProxyProfile(ctx, req.Name, opts)
+		} else {
+			report, err = app.CheckProxyProfiles(ctx, opts, req.SelectBest)
+		}
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, messageResponse{OK: false, Message: err.Error(), ProxyCheck: &report})
 			return
 		}
 		message := "测速完成"
-		if req.SelectBest && report.Selected != "" {
+		if strings.TrimSpace(req.Name) != "" {
+			if best, ok := report.Best(); ok {
+				message = "节点可连接，延迟 " + formatLatencyMS(best.LatencyMS)
+			}
+		} else if req.SelectBest && report.Selected != "" {
 			message = "测速完成，已选择 " + report.Selected
 		} else if report.BestName != "" {
 			message = "测速完成，最快节点 " + report.BestName
@@ -397,6 +426,10 @@ func handleSyncSubscription(app *App) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "订阅已同步", Count: count})
 	}
+}
+
+func formatLatencyMS(latency int64) string {
+	return strconv.FormatInt(latency, 10) + " ms"
 }
 
 func method(want string, next http.HandlerFunc) http.HandlerFunc {

@@ -212,6 +212,85 @@ func TestHTTPHandlerCheckProxyProfilesSelectsBest(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerCheckSingleProxyProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "中国大陆", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#cn"},
+	}
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		if len(cfg.ProxyProfiles) != 1 || cfg.ProxyProfiles[0].Name != "中国大陆" {
+			t.Fatalf("ProxyProfiles = %+v, want only requested node", cfg.ProxyProfiles)
+		}
+		if !opts.IncludeNonAutoSelectable {
+			t.Fatal("IncludeNonAutoSelectable = false, want true")
+		}
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "中国大陆", Protocol: "ss", Tested: true, OK: true, LatencyMS: 90},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy/check", bytes.NewReader([]byte(`{"name":"中国大陆"}`)))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var got messageResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got.ProxyCheck == nil || got.ProxyCheck.Results[0].Name != "中国大陆" {
+		t.Fatalf("response = %+v, want single proxy check report", got)
+	}
+}
+
+func TestHTTPHandlerDeleteProxyProfile(t *testing.T) {
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = []config.ProxyProfile{
+		{Name: "tokyo", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo"},
+		{Name: "osaka", Protocol: "ss", URL: "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka"},
+	}
+	cfg.ActiveProxyProfile = "osaka"
+	if err := app.SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy/delete", bytes.NewReader([]byte(`{"name":"osaka"}`)))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	got := app.Config()
+	if got.ActiveProxyProfile != "" || len(got.ProxyProfiles) != 1 || got.ProxyProfiles[0].Name != "tokyo" {
+		t.Fatalf("Config() = %+v, want osaka deleted and active selection cleared", got)
+	}
+}
+
 func TestHTTPHandlerCheckProxyProfile(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

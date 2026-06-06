@@ -1,31 +1,32 @@
 # 桌面端
 
-当前仓库已经提供 `mingsui-desktop` 本机控制台壳层。它使用 Go 标准库启动本机 HTTP UI，复用 `internal/desktop.App`，可以启动/停止客户端、检测 relay、管理 profile，并导入或同步节点订阅。
+当前仓库已经提供 `mingsui-desktop` 桌面客户端入口。它会启动本机应用服务，并默认打开独立桌面窗口；窗口复用 `internal/desktop.App`，可以启动/停止客户端、检测 relay、管理 profile，并导入或同步节点订阅。
 
 `mingsui-desktop` 默认读取 `mingsui config path` 指向的同一个客户端配置文件，因此 CLI 和桌面端会天然共享节点、订阅、本地监听和认证设置。
 
-后续如果要做原生窗口，建议使用 Wails 构建，继续复用同一套 Go core 和 `internal/desktop.App`。
+当前实现优先使用系统已安装的 Chrome/Chromium/Edge 应用窗口模式，避免把用户带到普通浏览器标签页。后续接入 Wails 时继续复用同一套 Go core 和 `internal/desktop.App`，用户入口保持 `mingsui-desktop` 不变。
 
 第一阶段桌面端功能：
 
 - 启动/停止本地代理。
 - 编辑 relay 地址、token 和 relay profile。
 - 导入明隧 JSON 节点订阅，并同步已保存订阅。
+- 选择、检测、测速选优和删除机场节点。
 - 编辑本地代理认证用户名和密码。
 - 调用 `CheckRelayStatus` 验证 relay 地址和 token，并展示 relay 运行指标。
 - 显示连接状态、当前本地监听地址和日志。
-- 后续接入节点列表、账号、流量统计和自动更新。
+- 后续接入账号、流量统计和自动更新。
 
 当前仓库先实现 CLI、relay 和核心代理逻辑。桌面端接入时应避免重新实现网络层，只调用 `internal/client` 暴露的服务接口。
 
-启动当前控制台：
+启动桌面客户端：
 
 ```bash
 go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ./bin/mingsui-desktop -config ./client.json
 ```
 
-默认会自动打开浏览器。脚本或测试环境可以加 `-open=false`，然后手动打开命令行输出的本地地址，例如 `http://127.0.0.1:18200`。
+默认会自动打开独立桌面窗口；关闭窗口后，本机服务也会退出。脚本或测试环境可以加 `-open=false` 只启动本机服务；开发调试时可以加 `-web` 用默认浏览器打开调试界面。
 
 Linux 桌面发布包使用 Debian 包：
 
@@ -34,7 +35,7 @@ sh scripts/build-deb.sh
 sudo apt install ./dist/mingsui-desktop_0.0.0-dev_amd64.deb
 ```
 
-Windows 发布包会包含 `mingsui-desktop.exe`，双击会自动打开本机控制台，命令行运行也使用同一套客户端配置。
+Windows 发布包会包含 `mingsui-desktop.exe`，双击会自动打开桌面客户端，命令行运行也使用同一套客户端配置。
 
 CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
 
