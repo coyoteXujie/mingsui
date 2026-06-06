@@ -7,244 +7,286 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <section class="topbar">
-        <div>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
           <h1>明隧</h1>
           <p id="configPath">配置加载中</p>
         </div>
-        <button id="advancedToggleBtn" class="secondary" type="button">高级设置</button>
-      </section>
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-item active" type="button" data-view="overview">总览</button>
+          <button class="nav-item" type="button" data-view="nodes">节点</button>
+          <button class="nav-item" type="button" data-view="subscriptionsView">订阅</button>
+          <button class="nav-item" type="button" data-view="logsView">日志</button>
+          <button class="nav-item" type="button" data-view="settings">设置</button>
+        </nav>
+      </aside>
 
-      <section class="connect-panel">
-        <div class="connect-main">
-          <span id="statusBadge" class="badge">未知</span>
-          <h2 id="connectionTitle">未连接</h2>
-          <p id="connectionSummary">等待节点</p>
-          <div class="connect-actions">
-            <button id="connectBtn" class="primary-action" type="button">连接</button>
-            <button id="checkBtn" class="secondary" type="button">检测线路</button>
-            <button id="bestProxyBtn" class="secondary" type="button">测速选优</button>
-            <button id="systemProxyOnBtn" class="secondary" type="button">开启系统代理</button>
-            <button id="systemProxyOffBtn" class="secondary" type="button">关闭系统代理</button>
-          </div>
-        </div>
-        <dl class="quick-kv">
-          <div><dt>当前节点</dt><dd id="activeProfile">-</dd></div>
-          <div><dt>线路</dt><dd id="relayAddr">-</dd></div>
-          <div><dt>SOCKS5</dt><dd id="localAddr">-</dd></div>
-          <div><dt>HTTP</dt><dd id="httpAddr">-</dd></div>
-          <div><dt>系统代理</dt><dd id="systemProxy">-</dd></div>
-          <div><dt>活跃连接</dt><dd id="activeConnections">0</dd></div>
-          <div><dt>流量</dt><dd id="traffic">0 B / 0 B</dd></div>
-        </dl>
-      </section>
-
-      <section class="quick-grid">
-        <section class="panel">
-          <div class="panel-title">
-            <h2>导入机场</h2>
-          </div>
-          <textarea id="importContent" spellcheck="false" placeholder="粘贴机场订阅 URL 或节点内容"></textarea>
-          <div class="split">
-            <label class="field">
-              <span>默认节点</span>
-              <input id="importSelect" type="text" autocomplete="off" />
-            </label>
-            <label class="checkline align-end">
-              <input id="importReplace" type="checkbox" checked />
-              <span>覆盖同名节点</span>
-            </label>
-          </div>
-          <button id="importBtn" type="button">导入并选择</button>
-        </section>
-
-        <section class="panel account-panel">
-          <div class="panel-title">
-            <h2>明隧账号</h2>
-          </div>
-          <label class="field">
-            <span>邮箱</span>
-            <input id="accountEmail" type="email" autocomplete="username" />
-          </label>
-          <label class="field">
-            <span>访问令牌</span>
-            <input id="accountToken" type="password" autocomplete="current-password" />
-          </label>
-          <button id="loginBtn" type="button">登录</button>
-        </section>
-      </section>
-
-      <section id="advancedPanel" class="advanced" hidden>
-        <section class="panel">
-          <div class="panel-title">
-            <h2>客户端配置</h2>
-          </div>
-          <div class="config-grid">
-            <label class="field">
-              <span>SOCKS5 监听</span>
-              <input id="configLocal" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>HTTP 监听</span>
-              <input id="configHTTP" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>默认 relay</span>
-              <input id="configRelay" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Token</span>
-              <input id="configToken" type="password" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>超时秒数</span>
-              <input id="configTimeout" type="number" min="0" step="1" />
-            </label>
-            <label class="field">
-              <span>TLS ServerName</span>
-              <input id="configTLSServerName" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>TLS CA 文件</span>
-              <input id="configTLSCAFile" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>认证用户名</span>
-              <input id="configAuthUser" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>认证密码</span>
-              <input id="configAuthPass" type="password" autocomplete="off" />
-            </label>
-          </div>
-          <div class="toggle-row">
-            <label class="checkline">
-              <input id="configAuthEnabled" type="checkbox" />
-              <span>启用本地代理认证</span>
-            </label>
-            <label class="checkline">
-              <input id="configTLSEnabled" type="checkbox" />
-              <span>启用 relay TLS</span>
-            </label>
-            <label class="checkline">
-              <input id="configTLSInsecure" type="checkbox" />
-              <span>跳过证书校验</span>
-            </label>
-          </div>
-          <button id="configSaveBtn" type="button">保存配置</button>
-        </section>
-
-        <section class="grid">
-          <section class="panel">
-            <div class="panel-title">
-              <h2>本地代理</h2>
+      <section class="workspace">
+        <section id="overview" class="view active">
+          <section class="connect-panel">
+            <div class="connect-main">
+              <span id="statusBadge" class="badge">未知</span>
+              <h2 id="connectionTitle">未连接</h2>
+              <p id="connectionSummary">等待节点</p>
+              <div class="connect-actions">
+                <button id="connectBtn" class="primary-action" type="button">连接</button>
+                <button id="checkBtn" class="secondary" type="button">检测线路</button>
+                <button id="systemProxyOnBtn" class="secondary" type="button">开启系统代理</button>
+                <button id="systemProxyOffBtn" class="secondary" type="button">关闭系统代理</button>
+              </div>
             </div>
-            <dl class="kv">
-              <div><dt>认证</dt><dd id="authState">-</dd></div>
-              <div><dt>累计连接</dt><dd id="totalConnections">0</dd></div>
+            <dl class="quick-kv">
+              <div><dt>当前节点</dt><dd id="activeProfile">-</dd></div>
+              <div><dt>线路</dt><dd id="relayAddr">-</dd></div>
+              <div><dt>SOCKS5</dt><dd id="localAddr">-</dd></div>
+              <div><dt>HTTP</dt><dd id="httpAddr">-</dd></div>
+              <div><dt>系统代理</dt><dd id="systemProxy">-</dd></div>
+              <div><dt>活跃连接</dt><dd id="activeConnections">0</dd></div>
+              <div><dt>流量</dt><dd id="traffic">0 B / 0 B</dd></div>
             </dl>
           </section>
 
-          <section class="panel">
-            <div class="panel-title">
-              <h2>当前 relay</h2>
-            </div>
-            <dl class="kv">
-              <div><dt>TLS</dt><dd id="tlsState">-</dd></div>
-            </dl>
-          </section>
-        </section>
+          <section class="dashboard-grid">
+            <section class="panel">
+              <div class="panel-title">
+                <h2>快速导入</h2>
+              </div>
+              <textarea id="importContent" spellcheck="false" placeholder="粘贴机场订阅 URL 或节点内容"></textarea>
+              <div class="split">
+                <label class="field">
+                  <span>默认节点</span>
+                  <input id="importSelect" type="text" autocomplete="off" />
+                </label>
+                <label class="checkline align-end">
+                  <input id="importReplace" type="checkbox" checked />
+                  <span>覆盖同名节点</span>
+                </label>
+              </div>
+              <button id="importBtn" type="button">导入并选择</button>
+            </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Relay Profile</h2>
-          </div>
-          <div class="profile-form">
-            <div class="config-grid">
+            <section class="panel">
+              <div class="panel-title">
+                <h2>明隧账号</h2>
+              </div>
               <label class="field">
-                <span>名称</span>
-                <input id="profileName" type="text" autocomplete="off" />
+                <span>邮箱</span>
+                <input id="accountEmail" type="email" autocomplete="username" />
               </label>
               <label class="field">
-                <span>Relay 地址</span>
-                <input id="profileRelay" type="text" autocomplete="off" />
+                <span>访问令牌</span>
+                <input id="accountToken" type="password" autocomplete="current-password" />
+              </label>
+              <button id="loginBtn" type="button">登录</button>
+            </section>
+          </section>
+        </section>
+
+        <section id="nodes" class="view">
+          <div class="view-header">
+            <div>
+              <h2>节点</h2>
+            </div>
+            <button id="bestProxyBtn" type="button">测速选优</button>
+          </div>
+
+          <section class="content-grid">
+            <section class="panel wide">
+              <div class="panel-title">
+                <h2>机场节点</h2>
+              </div>
+              <div id="proxyProfiles" class="list"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <h2>Relay Profile</h2>
+              </div>
+              <div class="profile-form">
+                <label class="field">
+                  <span>名称</span>
+                  <input id="profileName" type="text" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Relay 地址</span>
+                  <input id="profileRelay" type="text" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>Token</span>
+                  <input id="profileToken" type="password" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>TLS ServerName</span>
+                  <input id="profileTLSServerName" type="text" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>TLS CA 文件</span>
+                  <input id="profileTLSCAFile" type="text" autocomplete="off" />
+                </label>
+                <div class="toggle-row">
+                  <label class="checkline">
+                    <input id="profileTLSEnabled" type="checkbox" />
+                    <span>启用 TLS</span>
+                  </label>
+                  <label class="checkline">
+                    <input id="profileTLSInsecure" type="checkbox" />
+                    <span>跳过证书校验</span>
+                  </label>
+                </div>
+                <div class="actions">
+                  <button id="profileSaveBtn" type="button">保存 profile</button>
+                  <button id="profileDeleteBtn" class="danger" type="button">删除</button>
+                  <button id="profileClearBtn" class="secondary" type="button">清空</button>
+                </div>
+              </div>
+              <div id="profiles" class="list"></div>
+            </section>
+          </section>
+        </section>
+
+        <section id="subscriptionsView" class="view">
+          <div class="view-header">
+            <div>
+              <h2>订阅</h2>
+            </div>
+          </div>
+
+          <section class="content-grid">
+            <section class="panel">
+              <div class="panel-title">
+                <h2>节点订阅</h2>
+              </div>
+              <div class="split">
+                <label class="field">
+                  <span>名称</span>
+                  <input id="subName" type="text" autocomplete="off" />
+                </label>
+                <label class="field">
+                  <span>URL</span>
+                  <input id="subURL" type="url" autocomplete="off" />
+                </label>
+              </div>
+              <label class="checkline">
+                <input id="subReplace" type="checkbox" checked />
+                <span>覆盖同名节点</span>
+              </label>
+              <div class="actions">
+                <button id="subSaveBtn" type="button">保存订阅</button>
+                <button id="subSyncBtn" type="button">同步</button>
+                <button id="subDeleteBtn" class="secondary" type="button">删除</button>
+              </div>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-title">
+                <h2>已保存订阅</h2>
+              </div>
+              <div id="subscriptions" class="list compact"></div>
+            </section>
+          </section>
+        </section>
+
+        <section id="logsView" class="view">
+          <div class="view-header">
+            <div>
+              <h2>日志</h2>
+            </div>
+            <button id="refreshLogsBtn" class="secondary" type="button">刷新</button>
+          </div>
+          <pre id="logs" class="log-view tall">暂无日志</pre>
+        </section>
+
+        <section id="settings" class="view">
+          <div class="view-header">
+            <div>
+              <h2>设置</h2>
+            </div>
+          </div>
+
+          <section class="panel">
+            <div class="panel-title">
+              <h2>客户端配置</h2>
+            </div>
+            <div class="config-grid">
+              <label class="field">
+                <span>SOCKS5 监听</span>
+                <input id="configLocal" type="text" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>HTTP 监听</span>
+                <input id="configHTTP" type="text" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>默认 relay</span>
+                <input id="configRelay" type="text" autocomplete="off" />
               </label>
               <label class="field">
                 <span>Token</span>
-                <input id="profileToken" type="password" autocomplete="off" />
+                <input id="configToken" type="password" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>超时秒数</span>
+                <input id="configTimeout" type="number" min="0" step="1" />
               </label>
               <label class="field">
                 <span>TLS ServerName</span>
-                <input id="profileTLSServerName" type="text" autocomplete="off" />
+                <input id="configTLSServerName" type="text" autocomplete="off" />
               </label>
               <label class="field">
                 <span>TLS CA 文件</span>
-                <input id="profileTLSCAFile" type="text" autocomplete="off" />
+                <input id="configTLSCAFile" type="text" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>认证用户名</span>
+                <input id="configAuthUser" type="text" autocomplete="off" />
+              </label>
+              <label class="field">
+                <span>认证密码</span>
+                <input id="configAuthPass" type="password" autocomplete="off" />
               </label>
             </div>
             <div class="toggle-row">
               <label class="checkline">
-                <input id="profileTLSEnabled" type="checkbox" />
-                <span>启用 TLS</span>
+                <input id="configAuthEnabled" type="checkbox" />
+                <span>启用本地代理认证</span>
               </label>
               <label class="checkline">
-                <input id="profileTLSInsecure" type="checkbox" />
+                <input id="configTLSEnabled" type="checkbox" />
+                <span>启用 relay TLS</span>
+              </label>
+              <label class="checkline">
+                <input id="configTLSInsecure" type="checkbox" />
                 <span>跳过证书校验</span>
               </label>
             </div>
-            <div class="actions">
-              <button id="profileSaveBtn" type="button">保存 profile</button>
-              <button id="profileDeleteBtn" class="danger" type="button">删除</button>
-              <button id="profileClearBtn" class="secondary" type="button">清空</button>
-            </div>
-          </div>
-          <div id="profiles" class="list"></div>
+            <button id="configSaveBtn" type="button">保存配置</button>
+          </section>
+
+          <section class="status-grid">
+            <section class="panel">
+              <div class="panel-title">
+                <h2>本地代理</h2>
+              </div>
+              <dl class="kv">
+                <div><dt>认证</dt><dd id="authState">-</dd></div>
+                <div><dt>累计连接</dt><dd id="totalConnections">0</dd></div>
+              </dl>
+            </section>
+
+            <section class="panel">
+              <div class="panel-title">
+                <h2>当前 relay</h2>
+              </div>
+              <dl class="kv">
+                <div><dt>TLS</dt><dd id="tlsState">-</dd></div>
+              </dl>
+            </section>
+          </section>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>机场节点</h2>
-          </div>
-          <div id="proxyProfiles" class="list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>节点订阅</h2>
-          </div>
-          <div class="split">
-            <label class="field">
-              <span>名称</span>
-              <input id="subName" type="text" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>URL</span>
-              <input id="subURL" type="url" autocomplete="off" />
-            </label>
-          </div>
-          <label class="checkline">
-            <input id="subReplace" type="checkbox" checked />
-            <span>覆盖同名节点</span>
-          </label>
-          <div class="actions">
-            <button id="subSaveBtn" type="button">保存订阅</button>
-            <button id="subSyncBtn" type="button">同步</button>
-            <button id="subDeleteBtn" type="button">删除</button>
-          </div>
-          <div id="subscriptions" class="list compact"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h2>运行日志</h2>
-            <button id="refreshLogsBtn" class="secondary" type="button">刷新</button>
-          </div>
-          <pre id="logs" class="log-view">暂无日志</pre>
-        </section>
+        <section id="message" class="message" aria-live="polite"></section>
       </section>
-
-      <section id="message" class="message" aria-live="polite"></section>
     </main>
     <script src="/app.js"></script>
   </body>

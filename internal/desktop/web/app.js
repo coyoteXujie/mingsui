@@ -408,16 +408,20 @@ function escapeHTML(value) {
   })[ch]);
 }
 
+function setActiveView(viewID) {
+  document.querySelectorAll(".view").forEach((view) => {
+    view.classList.toggle("active", view.id === viewID);
+  });
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.toggle("active", item.dataset.view === viewID);
+  });
+}
+
 function bind() {
-  $("advancedToggleBtn").addEventListener("click", () => {
-    const panel = $("advancedPanel");
-    const opening = panel.hasAttribute("hidden");
-    if (opening) {
-      panel.removeAttribute("hidden");
-    } else {
-      panel.setAttribute("hidden", "");
-    }
-    $("advancedToggleBtn").textContent = opening ? "收起高级" : "高级设置";
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      setActiveView(item.dataset.view);
+    });
   });
   $("refreshLogsBtn").addEventListener("click", () => runAction(async () => {
     await refreshLogs();
