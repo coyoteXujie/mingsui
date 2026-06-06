@@ -100,7 +100,7 @@ mingsui system-proxy disable
 mingsui-desktop
 ```
 
-命令会自动打开独立桌面窗口，并打印一个只监听本机的本地服务地址。关闭窗口后，本机服务也会退出。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务；开发调试可以使用 `mingsui-desktop -web` 打开浏览器调试界面。
+命令会自动打开独立桌面窗口，并打印一个只监听本机的本地服务地址。关闭窗口后，本机服务也会退出。重复启动时会复用已经运行的本机服务。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务；开发调试可以使用 `mingsui-desktop -web` 打开浏览器调试界面。
 
 ## 能力边界
 

@@ -42,6 +42,15 @@ func run(args []string) int {
 	}
 
 	logger := log.New(os.Stderr, "mingsui desktop: ", log.LstdFlags)
+	listener, err := net.Listen("tcp", *listenAddr)
+	if err != nil {
+		if code, ok := reuseExistingDesktop(*listenAddr, *openWindow, *webMode, logger); ok {
+			return code
+		}
+		fmt.Fprintf(os.Stderr, "监听桌面端地址失败: %v\n", err)
+		return 1
+	}
+
 	app, err := desktop.NewApp(*cfgPath, logger)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "初始化桌面端失败: %v\n", err)
@@ -53,11 +62,6 @@ func run(args []string) int {
 		return 1
 	}
 
-	listener, err := net.Listen("tcp", *listenAddr)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "监听桌面端地址失败: %v\n", err)
-		return 1
-	}
 	server := &http.Server{Handler: handler}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -117,6 +121,58 @@ func run(args []string) int {
 	}
 }
 
+func reuseExistingDesktop(listenAddr string, openWindow, webMode bool, logger *log.Logger) (int, bool) {
+	appURL, ok := desktopServiceURL(listenAddr)
+	if !ok {
+		return 0, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	defer cancel()
+	if !desktopServiceAvailable(ctx, appURL) {
+		return 0, false
+	}
+	fmt.Fprintf(os.Stdout, "明隧桌面端已在运行: %s\n", appURL)
+	if !openWindow {
+		return 0, true
+	}
+	var err error
+	if webMode {
+		err = openURL(appURL)
+	} else {
+		err = openDetachedDesktopWindow(appURL)
+	}
+	if err != nil {
+		logger.Printf("打开已有桌面端失败: %v", err)
+		return 1, true
+	}
+	return 0, true
+}
+
+func desktopServiceURL(listenAddr string) (string, bool) {
+	host, port, err := net.SplitHostPort(listenAddr)
+	if err != nil || port == "" || port == "0" {
+		return "", false
+	}
+	switch host {
+	case "", "0.0.0.0", "::":
+		host = "127.0.0.1"
+	}
+	return "http://" + net.JoinHostPort(host, port), true
+}
+
+func desktopServiceAvailable(ctx context.Context, appURL string) bool {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, appURL+"/api/state", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := desktopHTTPClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 func shutdownServer(server *http.Server) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -169,6 +225,14 @@ func openDesktopWindow(url string) (*desktopWindow, error) {
 	return &desktopWindow{Done: done}, nil
 }
 
+func openDetachedDesktopWindow(url string) error {
+	spec, ok := detachedDesktopWindowCommand(url)
+	if !ok {
+		return errNoDesktopWindowHost
+	}
+	return exec.Command(spec.Name, spec.Args...).Start()
+}
+
 func newLinuxBrowserSpec(name, url string) (desktopWindowSpec, error) {
 	profileDir, err := os.MkdirTemp("", "mingsui-desktop-profile-*")
 	if err != nil {
@@ -192,6 +256,18 @@ func newLinuxBrowserSpec(name, url string) (desktopWindowSpec, error) {
 	}, nil
 }
 
+func newDetachedLinuxBrowserSpec(name, url string) (desktopWindowSpec, error) {
+	return desktopWindowSpec{
+		Name: name,
+		Args: []string{
+			"--app=" + url,
+			"--class=MingSui",
+			"--name=MingSui",
+		},
+		Monitor: false,
+	}, nil
+}
+
 func newSimpleBrowserSpec(name, url string) (desktopWindowSpec, error) {
 	return desktopWindowSpec{
 		Name:    name,
@@ -201,6 +277,25 @@ func newSimpleBrowserSpec(name, url string) (desktopWindowSpec, error) {
 }
 
 var lookPath = exec.LookPath
+var desktopHTTPClient = http.DefaultClient
+
+func detachedDesktopWindowCommand(url string) (desktopWindowSpec, bool) {
+	switch runtime.GOOS {
+	case "windows":
+		return firstAppBrowserCommand([]string{"msedge.exe", "chrome.exe"}, url, newSimpleBrowserSpec)
+	case "darwin":
+		if _, err := lookPath("open"); err == nil {
+			return desktopWindowSpec{
+				Name:    "open",
+				Args:    []string{"-b", "com.google.Chrome", "--args", "--app=" + url},
+				Monitor: false,
+			}, true
+		}
+	case "linux":
+		return firstAppBrowserCommand([]string{"google-chrome", "chromium", "chromium-browser", "microsoft-edge"}, url, newDetachedLinuxBrowserSpec)
+	}
+	return desktopWindowSpec{}, false
+}
 
 func desktopWindowCommand(url string) (desktopWindowSpec, bool) {
 	switch runtime.GOOS {

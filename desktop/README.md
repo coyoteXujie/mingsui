@@ -26,7 +26,7 @@ go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ./bin/mingsui-desktop -config ./client.json
 ```
 
-默认会自动打开独立桌面窗口；关闭窗口后，本机服务也会退出。脚本或测试环境可以加 `-open=false` 只启动本机服务；开发调试时可以加 `-web` 用默认浏览器打开调试界面。
+默认会自动打开独立桌面窗口；关闭窗口后，本机服务也会退出。重复启动时会复用已经运行的本机服务。脚本或测试环境可以加 `-open=false` 只启动本机服务；开发调试时可以加 `-web` 用默认浏览器打开调试界面。
 
 Linux 桌面发布包使用 Debian 包：
 
