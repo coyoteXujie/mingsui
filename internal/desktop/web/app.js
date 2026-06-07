@@ -6,6 +6,8 @@ const state = {
   proxyCapabilities: [],
   proxyCheckResults: {},
   logs: [],
+  proxyFilter: "all",
+  proxySearch: "",
 };
 let autoRefreshTimer = null;
 let autoRefreshInFlight = false;
@@ -269,18 +271,36 @@ function renderProxyProfiles(profiles, active, capabilityMap, checkResults) {
   const root = $("proxyProfiles");
   root.innerHTML = "";
   if (!profiles.length) {
+    renderProxyFilters([]);
     root.append(emptyItem("没有机场节点"));
     return;
   }
-  profiles.forEach((profile) => {
+
+  const items = profiles.map((profile) => {
     const capability = capabilityMap.get(profile.name) || {};
-    const exportable = capability.exportable !== false;
-    const autoSelectable = capability.auto_selectable !== false;
+    return {
+      profile,
+      exportable: capability.exportable !== false,
+      autoSelectable: capability.auto_selectable !== false,
+      current: profile.name === active,
+      status: proxyCheckStatus(checkResults[profile.name]),
+    };
+  });
+  renderProxyFilters(items);
+
+  const visibleItems = items.filter(proxyItemVisible);
+  if (!visibleItems.length) {
+    root.append(emptyItem("没有匹配的机场节点"));
+    return;
+  }
+
+  visibleItems.forEach((itemData) => {
+    const { profile, exportable, autoSelectable, current, status } = itemData;
     const item = document.createElement("div");
     item.className = "item";
     const info = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = profile.name === active ? `${profile.name} · 当前` : profile.name;
+    title.textContent = current ? `${profile.name} · 当前` : profile.name;
     const addr = document.createElement("span");
     let compatibility = "可连接";
     if (!exportable) {
@@ -291,7 +311,6 @@ function renderProxyProfiles(profiles, active, capabilityMap, checkResults) {
     addr.textContent = `${(profile.protocol || "-").toUpperCase()} · ${compatibility}`;
     addr.className = exportable && autoSelectable ? "" : "warn-text";
     info.append(title, addr);
-    const status = proxyCheckStatus(checkResults[profile.name]);
     if (status) {
       const statusLine = document.createElement("span");
       statusLine.textContent = status.text;
@@ -323,6 +342,50 @@ function renderProxyProfiles(profiles, active, capabilityMap, checkResults) {
     item.append(info, actions);
     root.append(item);
   });
+}
+
+function renderProxyFilters(items) {
+  const counts = {
+    all: items.length,
+    usable: items.filter((item) => item.exportable).length,
+    current: items.filter((item) => item.current).length,
+    domestic: items.filter((item) => item.exportable && !item.autoSelectable).length,
+    unsupported: items.filter((item) => !item.exportable).length,
+  };
+  const countIDs = {
+    all: "proxyCountAll",
+    usable: "proxyCountUsable",
+    current: "proxyCountCurrent",
+    domestic: "proxyCountDomestic",
+    unsupported: "proxyCountUnsupported",
+  };
+  Object.entries(countIDs).forEach(([key, id]) => {
+    const el = $(id);
+    if (el) el.textContent = counts[key];
+  });
+  document.querySelectorAll("[data-proxy-filter]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.proxyFilter === state.proxyFilter);
+  });
+}
+
+function proxyItemVisible(item) {
+  const query = state.proxySearch.trim().toLowerCase();
+  if (query) {
+    const haystack = `${item.profile.name || ""} ${item.profile.protocol || ""}`.toLowerCase();
+    if (!haystack.includes(query)) return false;
+  }
+  switch (state.proxyFilter) {
+    case "usable":
+      return item.exportable;
+    case "current":
+      return item.current;
+    case "domestic":
+      return item.exportable && !item.autoSelectable;
+    case "unsupported":
+      return !item.exportable;
+    default:
+      return true;
+  }
 }
 
 function fillProfileForm(profile) {
@@ -408,19 +471,66 @@ function escapeHTML(value) {
   })[ch]);
 }
 
-function setActiveView(viewID) {
+function viewFromHash() {
+  let id = "";
+  try {
+    id = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+  } catch (_err) {
+    return "overview";
+  }
+  const viewID = id.startsWith("view=") ? id.slice("view=".length) : id;
+  const view = viewID ? $(viewID) : null;
+  return view && view.classList.contains("view") ? viewID : "overview";
+}
+
+function setActiveView(viewID, updateHash = true) {
+  const view = $(viewID);
+  if (!view || !view.classList.contains("view")) {
+    viewID = "overview";
+  }
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === viewID);
   });
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === viewID);
   });
+  const nextHash = `#view=${encodeURIComponent(viewID)}`;
+  if (updateHash && window.location.hash !== nextHash) {
+    window.history.replaceState(null, "", nextHash);
+  }
+  resetViewScrollSoon();
+}
+
+function resetViewScroll() {
+  const workspace = document.querySelector(".workspace");
+  if (workspace) workspace.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
+function resetViewScrollSoon() {
+  resetViewScroll();
+  window.requestAnimationFrame(resetViewScroll);
+  window.setTimeout(resetViewScroll, 80);
 }
 
 function bind() {
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.addEventListener("click", () => {
       setActiveView(item.dataset.view);
+    });
+  });
+  window.addEventListener("hashchange", () => {
+    setActiveView(viewFromHash(), false);
+  });
+  setActiveView(viewFromHash(), true);
+  $("proxySearch").addEventListener("input", () => {
+    state.proxySearch = $("proxySearch").value;
+    render();
+  });
+  document.querySelectorAll("[data-proxy-filter]").forEach((item) => {
+    item.addEventListener("click", () => {
+      state.proxyFilter = item.dataset.proxyFilter || "all";
+      render();
     });
   });
   $("refreshLogsBtn").addEventListener("click", () => runAction(async () => {

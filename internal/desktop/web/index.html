@@ -91,6 +91,30 @@
             <button id="bestProxyBtn" type="button">测速选优</button>
           </div>
 
+          <section class="panel node-tools">
+            <label class="field search-field">
+              <span>搜索节点</span>
+              <input id="proxySearch" type="search" autocomplete="off" />
+            </label>
+            <div class="filter-row" role="group" aria-label="节点筛选">
+              <button class="filter-pill active" type="button" data-proxy-filter="all">
+                全部 <span id="proxyCountAll">0</span>
+              </button>
+              <button class="filter-pill" type="button" data-proxy-filter="usable">
+                可连接 <span id="proxyCountUsable">0</span>
+              </button>
+              <button class="filter-pill" type="button" data-proxy-filter="current">
+                当前 <span id="proxyCountCurrent">0</span>
+              </button>
+              <button class="filter-pill" type="button" data-proxy-filter="domestic">
+                国内 <span id="proxyCountDomestic">0</span>
+              </button>
+              <button class="filter-pill" type="button" data-proxy-filter="unsupported">
+                不支持 <span id="proxyCountUnsupported">0</span>
+              </button>
+            </div>
+          </section>
+
           <section class="content-grid">
             <section class="panel wide">
               <div class="panel-title">
