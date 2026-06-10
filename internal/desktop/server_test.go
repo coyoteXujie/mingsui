@@ -148,6 +148,45 @@ func TestHTTPHandlerImportAndSelectProxyProfile(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerSyncSubscriptionReturnsReport(t *testing.T) {
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
+			"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+		_, _ = w.Write([]byte(base64.StdEncoding.EncodeToString([]byte(raw))))
+	}))
+	defer source.Close()
+
+	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	if err := app.UpsertRelaySubscription(config.RelaySubscription{Name: "airport", URL: source.URL}, false); err != nil {
+		t.Fatalf("UpsertRelaySubscription() error = %v", err)
+	}
+	handler, err := NewHTTPHandler(app)
+	if err != nil {
+		t.Fatalf("NewHTTPHandler() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/subscription/sync", bytes.NewReader([]byte(`{"name":"airport","replace":true}`)))
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var got messageResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if got.SyncReport == nil || got.SyncReport.Imported != 2 || got.SyncReport.ImportedExportableProxyProfiles != 1 {
+		t.Fatalf("response = %+v, want sync report with imported proxy counts", got)
+	}
+	if got.Count != 2 || app.Config().ActiveProxyProfile != "tokyo" {
+		t.Fatalf("response/config = %+v / %+v, want count and selected proxy", got, app.Config())
+	}
+}
+
 func TestHTTPHandlerRejectsUnsupportedProxySelection(t *testing.T) {
 	app, err := NewApp(filepath.Join(t.TempDir(), "client.json"), testLogger())
 	if err != nil {

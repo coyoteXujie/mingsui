@@ -283,6 +283,49 @@ export namespace main {
 
 }
 
+export namespace subscription {
+
+	export class SyncReport {
+	    name: string;
+	    kind: string;
+	    imported: number;
+	    relay_profiles: number;
+	    proxy_profiles: number;
+	    exportable_proxy_profiles: number;
+	    auto_selectable_proxy_profiles: number;
+	    imported_exportable_proxy_profiles: number;
+	    imported_auto_selectable_proxy_profiles: number;
+	    active_profile?: string;
+	    active_proxy_profile?: string;
+	    selected?: string;
+	    warnings?: string[];
+	    message: string;
+
+	    static createFrom(source: any = {}) {
+	        return new SyncReport(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.kind = source["kind"];
+	        this.imported = source["imported"];
+	        this.relay_profiles = source["relay_profiles"];
+	        this.proxy_profiles = source["proxy_profiles"];
+	        this.exportable_proxy_profiles = source["exportable_proxy_profiles"];
+	        this.auto_selectable_proxy_profiles = source["auto_selectable_proxy_profiles"];
+	        this.imported_exportable_proxy_profiles = source["imported_exportable_proxy_profiles"];
+	        this.imported_auto_selectable_proxy_profiles = source["imported_auto_selectable_proxy_profiles"];
+	        this.active_profile = source["active_profile"];
+	        this.active_proxy_profile = source["active_proxy_profile"];
+	        this.selected = source["selected"];
+	        this.warnings = source["warnings"];
+	        this.message = source["message"];
+	    }
+	}
+
+}
+
 export namespace systemproxy {
 	
 	export class Status {
@@ -305,4 +348,3 @@ export namespace systemproxy {
 	}
 
 }
-

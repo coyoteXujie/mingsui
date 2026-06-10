@@ -15,6 +15,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
 	"github.com/coyoteXujie/mingsui/internal/proxycheck"
+	"github.com/coyoteXujie/mingsui/internal/subscription"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
 
@@ -58,12 +59,13 @@ type stateResponse struct {
 }
 
 type messageResponse struct {
-	OK         bool                `json:"ok"`
-	Message    string              `json:"message,omitempty"`
-	Mode       string              `json:"mode,omitempty"`
-	Health     *client.RelayHealth `json:"health,omitempty"`
-	Count      int                 `json:"count,omitempty"`
-	ProxyCheck *proxycheck.Report  `json:"proxy_check,omitempty"`
+	OK         bool                     `json:"ok"`
+	Message    string                   `json:"message,omitempty"`
+	Mode       string                   `json:"mode,omitempty"`
+	Health     *client.RelayHealth      `json:"health,omitempty"`
+	Count      int                      `json:"count,omitempty"`
+	ProxyCheck *proxycheck.Report       `json:"proxy_check,omitempty"`
+	SyncReport *subscription.SyncReport `json:"sync_report,omitempty"`
 }
 
 type proxyCapability struct {
@@ -419,12 +421,12 @@ func handleSyncSubscription(app *App) http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
-		count, err := app.SyncRelaySubscription(ctx, req.Name, req.Replace, req.Select)
+		report, err := app.SyncRelaySubscriptionReport(ctx, req.Name, req.Replace, req.Select)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "订阅已同步", Count: count})
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: report.Message, Count: report.Imported, SyncReport: &report})
 	}
 }
 

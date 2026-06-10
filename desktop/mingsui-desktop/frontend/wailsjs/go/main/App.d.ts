@@ -4,6 +4,7 @@ import {config} from '../models';
 import {client} from '../models';
 import {systemproxy} from '../models';
 import {main} from '../models';
+import {subscription} from '../models';
 
 export function CheckBestProxy(arg1:number):Promise<Record<string, any>>;
 
@@ -47,4 +48,4 @@ export function Start():Promise<string>;
 
 export function Stop():Promise<string>;
 
-export function SyncSubscription(arg1:string,arg2:boolean):Promise<Array<any>>;
+export function SyncSubscription(arg1:string,arg2:boolean):Promise<subscription.SyncReport>;

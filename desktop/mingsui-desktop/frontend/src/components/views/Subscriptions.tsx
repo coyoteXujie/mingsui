@@ -18,7 +18,7 @@ import {
 } from 'react-icons/fi'
 import {ClipboardSetText} from '../../../wailsjs/runtime/runtime'
 import {useDesktop} from '../../hooks/useDesktop'
-import type {Subscription} from '../../hooks/useDesktop'
+import type {Subscription, SubscriptionSyncResult} from '../../hooks/useDesktop'
 
 const CheckIcon = FiCheckCircle as ComponentType<{className?: string}>
 const CloudIcon = FiCloud as ComponentType<{className?: string}>
@@ -75,6 +75,42 @@ function sourceType(rawURL: string) {
 
 function shellQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function syncResultTitle(result: SubscriptionSyncResult) {
+  if (result.kind === 'proxy') return `${result.imported} 个节点`
+  if (result.kind === 'relay') return `${result.imported} 个 profile`
+  return `${result.imported} 个项目`
+}
+
+function syncResultDetail(result: SubscriptionSyncResult) {
+  const parts: string[] = []
+  if (result.kind === 'proxy') {
+    const exportable = result.imported_exportable_proxy_profiles ?? result.exportable_proxy_profiles
+    const autoSelectable = result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles
+    parts.push(`${exportable} 可连接`)
+    parts.push(`${autoSelectable} 自动候选`)
+  } else if (result.kind === 'relay') {
+    parts.push(`${result.relay_profiles} 个 relay profile`)
+  }
+  if (result.selected) {
+    parts.push(`当前 ${result.selected}`)
+  }
+  if (result.warnings?.length) {
+    parts.push(result.warnings.join('；'))
+  }
+  return parts.join(' · ') || result.message
+}
+
+function syncResultTone(result: SubscriptionSyncResult): Tone {
+  if (result.warnings?.length) return 'warning'
+  if (result.imported === 0) return 'warning'
+  return 'success'
+}
+
+function shouldCheckAfterSync(result: SubscriptionSyncResult, syncCheck: boolean) {
+  const autoSelectable = result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles
+  return syncCheck && result.kind === 'proxy' && autoSelectable > 0
 }
 
 function StatTile({item}: {item: StatCard}) {
@@ -201,9 +237,11 @@ export function Subscriptions() {
     try {
       setBusy('save-sync')
       await saveSubscription({name: target, url: url.trim(), replace})
-      const count = await syncSubscription(target, replace)
-      const text = await runBestCheck(`订阅已保存并同步：${count} 个节点`)
-      setLastResult({title: `${count} 个节点`, detail: target, tone: count > 0 ? 'success' : 'warning'})
+      const result = await syncSubscription(target, replace)
+      const summary = syncResultDetail(result)
+      const prefix = `订阅已保存并同步：${syncResultTitle(result)}；${summary}`
+      const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
+      setLastResult({title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
       setMessage(text)
     } catch (err: any) {
       setLastResult({title: '保存或同步失败', detail: err.message, tone: 'danger'})
@@ -231,9 +269,11 @@ export function Subscriptions() {
     }
     try {
       setBusy(`sync:${target}`)
-      const count = await syncSubscription(target, replace)
-      const text = await runBestCheck(`订阅已同步：${count} 个节点`)
-      setLastResult({title: `${count} 个节点`, detail: target, tone: 'success'})
+      const result = await syncSubscription(target, replace)
+      const summary = syncResultDetail(result)
+      const prefix = `订阅已同步：${syncResultTitle(result)}；${summary}`
+      const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
+      setLastResult({title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
       setMessage(text)
     } catch (err: any) {
       setLastResult({title: '同步失败', detail: err.message, tone: 'danger'})
@@ -251,11 +291,20 @@ export function Subscriptions() {
     try {
       setBusy('sync:__all__')
       let total = 0
+      const warnings: string[] = []
+      let autoSelectable = 0
       for (const sub of subscriptions) {
-        total += await syncSubscription(sub.name, replace)
+        const result = await syncSubscription(sub.name, replace)
+        total += result.imported
+        autoSelectable += result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles
+        if (result.warnings?.length) {
+          warnings.push(`${sub.name}: ${result.warnings.join('；')}`)
+        }
       }
-      const text = await runBestCheck(`已同步 ${subscriptions.length} 个订阅，共 ${total} 个节点`)
-      setLastResult({title: `${total} 个节点`, detail: `${subscriptions.length} 个来源`, tone: 'success'})
+      const summary = warnings.length ? warnings.join('；') : `${subscriptions.length} 个来源`
+      const prefix = `已同步 ${subscriptions.length} 个订阅，共 ${total} 个项目`
+      const text = syncCheck && autoSelectable > 0 ? await runBestCheck(prefix) : `${prefix}；${summary}`
+      setLastResult({title: `${total} 个项目`, detail: summary, tone: warnings.length ? 'warning' : 'success'})
       setMessage(text)
     } catch (err: any) {
       setLastResult({title: '同步失败', detail: err.message, tone: 'danger'})

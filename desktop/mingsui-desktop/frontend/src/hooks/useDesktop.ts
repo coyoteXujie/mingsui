@@ -107,6 +107,23 @@ export interface Subscription {
   url: string
 }
 
+export interface SubscriptionSyncResult {
+  name: string
+  kind: 'relay' | 'proxy' | string
+  imported: number
+  relay_profiles: number
+  proxy_profiles: number
+  exportable_proxy_profiles: number
+  auto_selectable_proxy_profiles: number
+  imported_exportable_proxy_profiles?: number
+  imported_auto_selectable_proxy_profiles?: number
+  active_profile?: string
+  active_proxy_profile?: string
+  selected?: string
+  warnings?: string[]
+  message: string
+}
+
 export interface AppState {
   config_path: string
   config: ClientConfig
@@ -240,7 +257,7 @@ declare global {
           CheckRelayProfile: (name: string) => Promise<any>
           SaveSubscription: (req: {name: string; url: string; replace: boolean}) => Promise<string>
           DeleteSubscription: (name: string) => Promise<string>
-          SyncSubscription: (name: string, replace: boolean) => Promise<[number, string]>
+          SyncSubscription: (name: string, replace: boolean) => Promise<SubscriptionSyncResult>
           GetLogs: () => Promise<string[]>
         }
       }
@@ -361,9 +378,9 @@ export function useDesktop() {
   }, [refresh])
 
   const syncSubscription = useCallback(async (name: string, replace: boolean = true) => {
-    const [count] = await window.go.main.App.SyncSubscription(name, replace)
+    const result = await window.go.main.App.SyncSubscription(name, replace)
     await refresh()
-    return count
+    return result
   }, [refresh])
 
   return {

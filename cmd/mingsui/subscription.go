@@ -460,6 +460,13 @@ func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName str
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个 profile\n", subscriptionName, len(profiles))
+	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  subscriptionName,
+		Kind:                  subscription.SyncKindRelay,
+		Imported:              len(profiles),
+		ImportedRelayProfiles: profiles,
+		Config:                cfg,
+	}))
 	return 0
 }
 
@@ -493,10 +500,47 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
+	report := subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  subscriptionName,
+		Kind:                  subscription.SyncKindProxy,
+		Imported:              len(profiles),
+		ImportedProxyProfiles: profiles,
+		Config:                cfg,
+	})
+	printSubscriptionSyncReport(report)
+	if check.Enabled && report.AutoSelectableProxyProfiles == 0 {
+		fmt.Fprintf(os.Stderr, "机场节点已保存，但测速选优失败: %v\n", proxycheck.ErrNoCandidates)
+		return 1
+	}
 	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
 		return code
 	}
 	return 0
+}
+
+func printSubscriptionSyncReport(report subscription.SyncReport) {
+	switch report.Kind {
+	case subscription.SyncKindRelay:
+		fmt.Fprintf(os.Stdout, "检查结果: relay profile 总数 %d", report.RelayProfiles)
+	case subscription.SyncKindProxy:
+		fmt.Fprintf(
+			os.Stdout,
+			"检查结果: 本次可连接 %d / 自动候选 %d；节点总数 %d / 可连接总数 %d",
+			report.ImportedExportableProxyProfiles,
+			report.ImportedAutoSelectableProxyProfiles,
+			report.ProxyProfiles,
+			report.ExportableProxyProfiles,
+		)
+	default:
+		fmt.Fprint(os.Stdout, "检查结果: 未知订阅类型")
+	}
+	if report.Selected != "" {
+		fmt.Fprintf(os.Stdout, "；当前 %s", report.Selected)
+	}
+	fmt.Fprintln(os.Stdout)
+	for _, warning := range report.Warnings {
+		fmt.Fprintf(os.Stdout, "警告: %s\n", warning)
+	}
 }
 
 func selectExportableProxyProfile(cfg *config.ClientConfig, name string) error {

@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"io"
 	"log"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -189,6 +191,37 @@ func TestAppImportProxyProfiles(t *testing.T) {
 	t.Setenv("MINGSUI_MIHOMO_PATH", filepath.Join(t.TempDir(), "missing-mihomo"))
 	if err := app.Start(context.Background()); err == nil {
 		t.Fatal("Start() error = nil, want missing Mihomo error for proxy profile")
+	}
+}
+
+func TestAppSyncSubscriptionReportForProxyProfiles(t *testing.T) {
+	dir := t.TempDir()
+	app, err := NewApp(filepath.Join(dir, "client.json"), testLogger())
+	if err != nil {
+		t.Fatalf("NewApp() error = %v", err)
+	}
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(base64.StdEncoding.EncodeToString([]byte(raw))))
+	}))
+	defer server.Close()
+	if err := app.UpsertRelaySubscription(config.RelaySubscription{Name: "airport", URL: server.URL}, false); err != nil {
+		t.Fatalf("UpsertRelaySubscription() error = %v", err)
+	}
+
+	report, err := app.SyncRelaySubscriptionReport(context.Background(), "airport", false, "")
+	if err != nil {
+		t.Fatalf("SyncRelaySubscriptionReport() error = %v", err)
+	}
+	if report.Kind != "proxy" || report.Imported != 2 {
+		t.Fatalf("report kind/imported = %q/%d, want proxy/2", report.Kind, report.Imported)
+	}
+	if report.ProxyProfiles != 2 || report.ExportableProxyProfiles != 1 || report.AutoSelectableProxyProfiles != 1 {
+		t.Fatalf("report counts = %+v, want 2 proxy, 1 exportable, 1 auto-selectable", report)
+	}
+	if report.Selected != "tokyo" || app.Config().ActiveProxyProfile != "tokyo" {
+		t.Fatalf("selected/config = %q/%q, want tokyo", report.Selected, app.Config().ActiveProxyProfile)
 	}
 }
 

@@ -43,6 +43,22 @@ function text(value, fallback = "-") {
   return String(value);
 }
 
+function formatSyncMessage(result) {
+  const report = result.sync_report;
+  if (!report) return `${result.message}：${result.count}`;
+  const parts = [report.message || result.message];
+  if (report.kind === "proxy") {
+    parts.push(`本次可连接 ${report.imported_exportable_proxy_profiles || 0}`);
+    parts.push(`自动候选 ${report.imported_auto_selectable_proxy_profiles || 0}`);
+  } else {
+    parts.push(`导入 ${report.imported || 0}`);
+  }
+  if (Array.isArray(report.warnings) && report.warnings.length > 0) {
+    parts.push(`警告：${report.warnings.join("；")}`);
+  }
+  return parts.join(" · ");
+}
+
 function bytes(value) {
   const n = Number(value || 0);
   if (n < 1024) return `${n} B`;
@@ -609,7 +625,7 @@ function bind() {
       },
     });
     state.proxyCheckResults = {};
-    setMessage(`${result.message}：${result.count}`, "ok");
+    setMessage(formatSyncMessage(result), "ok");
     await refresh();
   }));
   $("loginBtn").addEventListener("click", () => {
@@ -636,7 +652,7 @@ function bind() {
       },
     });
     state.proxyCheckResults = {};
-    setMessage(`${result.message}：${result.count}`, "ok");
+    setMessage(formatSyncMessage(result), "ok");
     await refresh();
   }));
   $("subDeleteBtn").addEventListener("click", () => runAction(async () => {

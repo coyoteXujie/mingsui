@@ -333,18 +333,18 @@ func (a *App) DeleteSubscription(name string) (string, error) {
 	return "订阅已删除", nil
 }
 
-func (a *App) SyncSubscription(name string, replace bool) ([]interface{}, error) {
+func (a *App) SyncSubscription(name string, replace bool) (desktop.SubscriptionSyncReport, error) {
 	app, err := a.ensureDesktopApp()
 	if err != nil {
-		return nil, err
+		return desktop.SubscriptionSyncReport{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	count, err := app.SyncRelaySubscription(ctx, name, replace, "")
+	report, err := app.SyncRelaySubscriptionReport(ctx, name, replace, "")
 	if err != nil {
-		return nil, err
+		return desktop.SubscriptionSyncReport{}, err
 	}
-	return []interface{}{count, "订阅已同步"}, nil
+	return report, nil
 }
 
 func (a *App) GetRuntimeStatus() client.RuntimeStatus {

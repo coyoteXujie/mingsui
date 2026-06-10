@@ -18,6 +18,8 @@ import (
 
 var proxyCheckRunner = proxycheck.Check
 
+type SubscriptionSyncReport = subscription.SyncReport
+
 type App struct {
 	mu         sync.Mutex
 	cfgPath    string
@@ -227,40 +229,54 @@ func (a *App) RemoveRelaySubscription(name string) error {
 }
 
 func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bool, selectName string) (int, error) {
+	report, err := a.SyncRelaySubscriptionReport(ctx, name, replace, selectName)
+	if err != nil {
+		return 0, err
+	}
+	return report.Imported, nil
+}
+
+func (a *App) SyncRelaySubscriptionReport(ctx context.Context, name string, replace bool, selectName string) (SubscriptionSyncReport, error) {
 	cfg := a.Config()
 	sub, ok := cfg.RelaySubscription(name)
 	if !ok {
-		return 0, errors.New("订阅不存在")
+		return SubscriptionSyncReport{}, errors.New("订阅不存在")
 	}
 	profiles, err := subscription.LoadRelayProfiles(ctx, sub.URL, nil)
 	if err == nil {
 		if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
 		if strings.TrimSpace(selectName) == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(profiles) > 0 {
 			selectName = profiles[0].Name
 		}
 		if selectName != "" {
 			if err := cfg.SelectRelayProfile(selectName); err != nil {
-				return 0, err
+				return SubscriptionSyncReport{}, err
 			}
 		}
 		if err := a.SaveConfig(cfg); err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
-		return len(profiles), nil
+		return subscription.BuildSyncReport(subscription.SyncReportInput{
+			Name:                  name,
+			Kind:                  subscription.SyncKindRelay,
+			Imported:              len(profiles),
+			ImportedRelayProfiles: profiles,
+			Config:                a.Config(),
+		}), nil
 	}
 
 	data, dataErr := subscription.LoadSource(ctx, sub.URL, nil)
 	if dataErr != nil {
-		return 0, dataErr
+		return SubscriptionSyncReport{}, dataErr
 	}
 	proxyProfiles, proxyErr := subscription.ParseProxyProfiles(data)
 	if proxyErr != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if err := cfg.ImportProxyProfiles(proxyProfiles, replace); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if strings.TrimSpace(selectName) == "" && strings.TrimSpace(cfg.ActiveProfile) == "" && strings.TrimSpace(cfg.ActiveProxyProfile) == "" && len(proxyProfiles) > 0 {
 		if name, ok := mihomo.FirstAutoSelectableProfileName(proxyProfiles); ok {
@@ -269,13 +285,19 @@ func (a *App) SyncRelaySubscription(ctx context.Context, name string, replace bo
 	}
 	if selectName != "" {
 		if err := selectExportableProxyProfile(&cfg, selectName); err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
 	}
 	if err := a.SaveConfig(cfg); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
-	return len(proxyProfiles), nil
+	return subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  name,
+		Kind:                  subscription.SyncKindProxy,
+		Imported:              len(proxyProfiles),
+		ImportedProxyProfiles: proxyProfiles,
+		Config:                a.Config(),
+	}), nil
 }
 
 func saveImportedSubscription(cfg *config.ClientConfig, sourceURL string) error {
