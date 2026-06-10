@@ -128,6 +128,8 @@ cp -R skills/mingsui-cli ~/.codex/skills/
 
 新启动的 Codex 会在需要代理联网、检查明隧状态、给命令注入代理环境变量时触发 `mingsui-cli` Skill。
 
+桌面端首页的「终端 / AI Agent」面板也会同步展示本地 HTTP/SOCKS 地址，并提供 `mingsui env`、`mingsui exec -connect` 和原始代理变量的一键复制入口。推荐把桌面端作为日常连接控制台，把 CLI 作为 AI Agent、脚本和终端命令的执行入口。
+
 ## 自建 relay
 
 海外 ECS 部署步骤见 [docs/ecs-relay.md](docs/ecs-relay.md)。

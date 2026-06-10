@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import type {ComponentType} from 'react'
-import {FiCheckCircle, FiCpu, FiShield, FiTerminal, FiUploadCloud, FiXCircle} from 'react-icons/fi'
+import {FiCheckCircle, FiCopy, FiCpu, FiShield, FiTerminal, FiUploadCloud, FiXCircle} from 'react-icons/fi'
+import {ClipboardSetText} from '../../../wailsjs/runtime/runtime'
 import {useDesktop, RuntimeStatus, ClientConfig} from '../../hooks/useDesktop'
 
 const CheckIcon = FiCheckCircle as ComponentType<{className?: string}>
@@ -9,6 +10,7 @@ const ShieldIcon = FiShield as ComponentType<{className?: string}>
 const ImportIcon = FiUploadCloud as ComponentType<{className?: string}>
 const TerminalIcon = FiTerminal as ComponentType<{className?: string}>
 const CpuIcon = FiCpu as ComponentType<{className?: string}>
+const CopyIcon = FiCopy as ComponentType<{className?: string}>
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -71,13 +73,56 @@ export function Overview() {
     }
   }
 
+  const copyText = async (label: string, text: string) => {
+    if (!text.trim()) {
+      setMessage(`${label} 暂不可复制`)
+      return
+    }
+    try {
+      let ok = false
+      if ((window as any).runtime?.ClipboardSetText) {
+        ok = await ClipboardSetText(text)
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        ok = true
+      }
+      setMessage(ok ? `已复制 ${label}` : `复制 ${label} 失败`)
+    } catch (err: any) {
+      setMessage(err.message || `复制 ${label} 失败`)
+    }
+  }
+
   const activeProxy = config.proxy_profiles.find(p => p.name === config.active_proxy_profile)
   const nodeLabel = activeProxy ? activeProxy.name : config.active_profile || '未选择'
   const metrics = status.metrics || {active_connections: 0, total_connections: 0, upload_bytes: 0, download_bytes: 0}
-  const httpProxy = `http://${status.http_addr || config.http_addr || '-'}`
-  const socksProxy = `socks5://${status.local_addr || config.local_addr || '-'}`
+  const httpAddr = status.http_addr || config.http_addr
+  const socksAddr = status.local_addr || config.local_addr
+  const httpProxy = httpAddr ? `http://${httpAddr}` : '-'
+  const socksProxy = socksAddr ? `socks5://${socksAddr}` : '-'
   const readiness = state?.readiness
   const readinessActions = readiness?.actions?.slice(0, 3) || []
+  const proxyEnvBlock = [
+    httpAddr ? `export HTTP_PROXY="${httpProxy}"` : '',
+    httpAddr ? `export HTTPS_PROXY="${httpProxy}"` : '',
+    socksAddr ? `export ALL_PROXY="${socksProxy}"` : '',
+  ].filter(Boolean).join('\n')
+  const terminalActions = [
+    {
+      label: '复制 env 命令',
+      description: '当前 shell 后续命令走 MingSui',
+      command: 'eval "$(mingsui env)"',
+    },
+    {
+      label: '复制 exec 模板',
+      description: '单条 AI/脚本命令自动连接后退出',
+      command: 'mingsui exec -connect -- <command>',
+    },
+    {
+      label: '复制代理变量',
+      description: httpAddr || socksAddr ? '给不读取 mingsui 的工具手动粘贴' : '连接后显示本地代理地址',
+      command: proxyEnvBlock,
+    },
+  ]
 
   if (loading) {
     return <div className="flex h-64 items-center justify-center text-subtle">加载中...</div>
@@ -241,6 +286,24 @@ export function Overview() {
               <h3 className="text-lg font-semibold text-main">终端 / AI Agent</h3>
             </div>
             <CpuIcon className="h-4 w-4 text-faint" />
+          </div>
+          <div className="mb-4 grid gap-2 xl:grid-cols-3">
+            {terminalActions.map(action => (
+              <button
+                key={action.label}
+                onClick={() => copyText(action.label.replace('复制 ', ''), action.command)}
+                disabled={!action.command}
+                title={action.command || '当前没有可复制内容'}
+                className="row-surface group flex min-h-28 flex-col items-start justify-between p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-main">{action.label}</span>
+                  <CopyIcon className="h-4 w-4 text-faint group-hover:text-emerald-700" />
+                </div>
+                <div className="mt-2 text-xs text-faint">{action.description}</div>
+                <div className="mt-3 line-clamp-2 break-all font-mono text-xs text-subtle">{action.command || '等待本地监听地址'}</div>
+              </button>
+            ))}
           </div>
           <div className="divide-y divide-[#ded8f5]">
             <div className="py-3">
