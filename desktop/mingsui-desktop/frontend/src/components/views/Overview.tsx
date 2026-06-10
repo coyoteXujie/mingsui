@@ -130,39 +130,42 @@ export function Overview() {
 
   return (
     <div className="space-y-6">
-      <div className="panel p-6">
-        <div className="flex items-start justify-between">
+      <div className="panel overflow-hidden">
+        <div className="bg-[#172033] px-6 py-5 text-white">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className={`grid h-14 w-14 place-items-center rounded-lg border ${
               status.running
-                ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700'
-                : 'border-slate-200 bg-white/70 text-faint'
+                ? 'border-emerald-400/35 bg-emerald-400/15 text-emerald-200'
+                : 'border-white/15 bg-white/10 text-slate-300'
             }`}>
               {status.running ? <CheckIcon className="h-10 w-10" /> : <XIcon className="h-10 w-10" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-3xl font-semibold text-main">{status.running ? '已连接' : '未连接'}</h2>
-                <span className="pill px-2.5 py-1 text-xs">
+                <h2 className="text-3xl font-semibold text-white">{status.running ? '已连接' : '未连接'}</h2>
+                <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs text-slate-200">
                   {activeProxy ? activeProxy.protocol.toUpperCase() : config.active_profile ? 'RELAY' : 'IDLE'}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-subtle">{nodeLabel} · {status.relay_addr || '未选择节点'}</p>
+              <p className="mt-2 text-sm text-slate-300">{nodeLabel} · {status.relay_addr || '未选择节点'}</p>
             </div>
           </div>
           <button
             onClick={handleConnect}
-            className={`min-w-28 rounded-lg px-6 py-2.5 font-medium transition-colors ${
+            className={`min-w-28 rounded-lg px-6 py-2.5 font-medium shadow-none transition-colors ${
               status.running
-                ? 'danger-button'
-                : 'primary-button'
+                ? 'border border-red-400/30 bg-red-500/15 text-red-100 hover:bg-red-500/20'
+                : 'bg-emerald-400 text-[#0f172a] hover:bg-emerald-300'
             }`}
           >
             {status.running ? '断开' : '连接'}
           </button>
         </div>
+        </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[#ded8f5] pt-6 md:grid-cols-3 xl:grid-cols-6">
+        <div className="p-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           {[
             ['当前节点', nodeLabel],
             ['SOCKS5', status.local_addr || '-'],
@@ -236,6 +239,7 @@ export function Overview() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">

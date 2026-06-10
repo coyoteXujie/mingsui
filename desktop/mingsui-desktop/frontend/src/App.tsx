@@ -39,11 +39,18 @@ function App() {
       <div className="flex min-h-screen">
         <Sidebar activeView={activeView} onViewChange={(view) => setActiveView(view as ViewType)} state={state} />
         <main className="min-w-0 flex-1 overflow-auto">
-          <header className="topbar sticky top-0 z-10 px-6 py-4">
+          <header className="topbar sticky top-0 z-10 px-6 py-3">
             <div className="flex items-center justify-between gap-4">
-              <div>
-                <h1 className="text-xl font-semibold text-main">{view.title}</h1>
-                <p className="mt-1 text-sm text-subtle">{view.detail}</p>
+              <div className="flex items-center gap-4">
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+                  <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
+                  <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold text-main">{view.title}</h1>
+                  <p className="mt-0.5 text-xs text-subtle">{view.detail}</p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className={`rounded-full border px-3 py-1 text-sm ${
