@@ -107,12 +107,22 @@ mingsui system-proxy disable
 make wails-dev
 ```
 
+Linux 如果报 `gcc`、GTK 或 WebKit 相关错误，先安装原生桌面构建依赖。Ubuntu 26.04 等新系统使用 WebKitGTK 4.1：
+
+```bash
+sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+老系统如果软件源只有 WebKitGTK 4.0，则安装 `libwebkit2gtk-4.0-dev`。Makefile 会在检测到 `webkit2gtk-4.1` 时自动给 Wails 加 `webkit2_41` 构建标签。
+
 没有 `make` 时：
 
 ```bash
 cd desktop/mingsui-desktop
-wails dev
+wails dev -tags webkit2_41
 ```
+
+如果系统安装的是 `libwebkit2gtk-4.0-dev`，直接运行 `wails dev`，不要加 `webkit2_41` 标签。
 
 `wails dev` 会打开独立桌面窗口，同时为前端提供热更新。这个窗口才是桌面客户端；不要把 Vite 或浏览器预览页当成桌面端成品。
 
@@ -126,8 +136,10 @@ make wails-desktop
 
 ```bash
 cd desktop/mingsui-desktop
-wails build
+wails build -tags webkit2_41
 ```
+
+如果系统安装的是 `libwebkit2gtk-4.0-dev`，直接运行 `wails build`。
 
 正式安装后直接启动：
 

@@ -2,6 +2,8 @@ APP_VERSION ?= dev
 GO ?= go
 WAILS ?= wails
 WAILS_GO_ENV ?= GOCACHE=/tmp/mingsui-gocache GOMODCACHE=/tmp/mingsui-gomod
+WAILS_TAGS ?= $(shell pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo webkit2_41)
+WAILS_TAGS_FLAG = $(if $(strip $(WAILS_TAGS)),-tags "$(WAILS_TAGS)",)
 DIST_DIR ?= dist
 DIST_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 NPM_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
@@ -35,10 +37,10 @@ desktop-deb:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-deb.sh
 
 wails-desktop:
-	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) build -clean -ldflags "$(LDFLAGS)"
+	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) build $(WAILS_TAGS_FLAG) -clean -ldflags "$(LDFLAGS)"
 
 wails-dev:
-	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) dev
+	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) dev $(WAILS_TAGS_FLAG)
 
 npm-package:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-npm.sh

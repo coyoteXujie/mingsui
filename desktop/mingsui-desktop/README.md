@@ -9,7 +9,7 @@
 在这个目录启动原生桌面窗口：
 
 ```bash
-wails dev
+wails dev -tags webkit2_41
 ```
 
 从仓库根目录也可以运行：
@@ -33,7 +33,7 @@ npm run build
 生成本机平台的桌面端发布产物：
 
 ```bash
-wails build
+wails build -tags webkit2_41
 ```
 
 从仓库根目录也可以运行：
@@ -42,7 +42,13 @@ wails build
 make wails-desktop
 ```
 
-Linux 上如果 Wails 报 `gcc`、GTK 或 WebKit 相关错误，需要先安装 Wails 官方要求的系统依赖。Debian/Ubuntu 通常至少需要 `build-essential`、`pkg-config`、`libgtk-3-dev`、`libwebkit2gtk-4.0-dev`。
+Linux 上如果 Wails 报 `gcc`、GTK 或 WebKit 相关错误，需要先安装原生构建依赖。Ubuntu 26.04 等新系统使用 WebKitGTK 4.1：
+
+```bash
+sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+老系统如果软件源只有 WebKitGTK 4.0，则安装 `libwebkit2gtk-4.0-dev`，并直接运行 `wails dev` / `wails build`，不要加 `webkit2_41` 标签。仓库根目录的 `make wails-dev` 和 `make wails-desktop` 会自动检测 4.1 并加标签。
 
 ## 和根目录入口的区别
 

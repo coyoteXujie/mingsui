@@ -28,7 +28,15 @@ make wails-dev
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-Linux 本机还需要 Wails 对应的系统依赖，包括 C 编译器和 GTK/WebKit 开发包。Debian/Ubuntu 通常至少需要 `build-essential`、`pkg-config`、`libgtk-3-dev`、`libwebkit2gtk-4.0-dev`；依赖缺失时，先用下面的前端构建命令验证界面代码：
+Linux 本机还需要 Wails 对应的系统依赖，包括 C 编译器和 GTK/WebKit 开发包。Ubuntu 26.04 等新系统通常需要：
+
+```bash
+sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+老系统如果软件源只有 WebKitGTK 4.0，则安装 `libwebkit2gtk-4.0-dev`。仓库 Makefile 会自动检测 `webkit2gtk-4.1` 并给 Wails 加 `webkit2_41` 构建标签；直接运行 Wails CLI 时，4.1 系统需要手动加 `-tags webkit2_41`。
+
+依赖缺失时，先用下面的前端构建命令验证界面代码：
 
 ```bash
 cd desktop/mingsui-desktop/frontend
@@ -42,7 +50,7 @@ npm run build
 make wails-desktop
 ```
 
-如果不想通过 Makefile，也可以在 `desktop/mingsui-desktop` 目录直接运行 `wails dev` 或 `wails build`。
+如果不想通过 Makefile，也可以在 `desktop/mingsui-desktop` 目录直接运行 `wails dev -tags webkit2_41` 或 `wails build -tags webkit2_41`。如果系统安装的是 `libwebkit2gtk-4.0-dev`，不要加 `webkit2_41` 标签。
 
 根目录兼容入口仍可用于脚本或只验证本机服务：
 
