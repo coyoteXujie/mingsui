@@ -214,6 +214,8 @@ function normalizeAppState(state: Partial<AppState>): AppState {
   }
 }
 
+let cachedState: AppState | null = null
+
 declare global {
   interface Window {
     go: {
@@ -247,15 +249,19 @@ declare global {
 }
 
 export function useDesktop() {
-  const [state, setState] = useState<AppState | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState<AppState | null>(cachedState)
+  const [loading, setLoading] = useState(!cachedState)
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (showLoading = false) => {
     try {
-      setLoading(true)
+      if (showLoading && !cachedState) {
+        setLoading(true)
+      }
       const data = await window.go.main.App.GetState()
-      setState(normalizeAppState(data))
+      const nextState = normalizeAppState(data)
+      cachedState = nextState
+      setState(nextState)
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to fetch state')
@@ -265,8 +271,8 @@ export function useDesktop() {
   }, [])
 
   useEffect(() => {
-    refresh()
-    const interval = setInterval(refresh, 3000)
+    refresh(true)
+    const interval = setInterval(() => refresh(false), 3000)
     return () => clearInterval(interval)
   }, [refresh])
 

@@ -189,7 +189,8 @@ export function Subscriptions() {
   }
 
   const handleSave = async () => {
-    if (!name.trim()) {
+    const target = name.trim()
+    if (!target) {
       setMessage('订阅名称不能为空')
       return
     }
@@ -198,12 +199,14 @@ export function Subscriptions() {
       return
     }
     try {
-      setBusy('save')
-      await saveSubscription({name: name.trim(), url: url.trim(), replace})
-      setLastResult({title: '已保存', detail: name.trim(), tone: 'success'})
-      setMessage('订阅已保存')
+      setBusy('save-sync')
+      await saveSubscription({name: target, url: url.trim(), replace})
+      const count = await syncSubscription(target, replace)
+      const text = await runBestCheck(`订阅已保存并同步：${count} 个节点`)
+      setLastResult({title: `${count} 个节点`, detail: target, tone: count > 0 ? 'success' : 'warning'})
+      setMessage(text)
     } catch (err: any) {
-      setLastResult({title: '保存失败', detail: err.message, tone: 'danger'})
+      setLastResult({title: '保存或同步失败', detail: err.message, tone: 'danger'})
       setMessage(err.message)
     } finally {
       setBusy(null)
@@ -408,8 +411,8 @@ export function Subscriptions() {
                   disabled={!canSave}
                   className="primary-button px-4 py-2 text-sm font-medium disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                 >
-                  <SaveIcon className="h-4 w-4" />
-                  {busy === 'save' ? '保存中' : '保存订阅'}
+                  {busy === 'save-sync' ? <RefreshIcon className="h-4 w-4" /> : <SaveIcon className="h-4 w-4" />}
+                  {busy === 'save-sync' ? '保存同步中' : '保存并同步'}
                 </button>
                 <button
                   onClick={() => handleSync()}
