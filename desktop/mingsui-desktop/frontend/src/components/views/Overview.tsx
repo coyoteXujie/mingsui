@@ -3,7 +3,10 @@ import type {ComponentType, ReactNode} from 'react'
 import {
   FiActivity,
   FiAlertCircle,
+  FiBox,
   FiCheckCircle,
+  FiCode,
+  FiCommand,
   FiCopy,
   FiCpu,
   FiFileText,
@@ -24,7 +27,10 @@ import type {ClientConfig, ReadinessAction, ReadinessStatus, RuntimeStatus} from
 
 const ActivityIcon = FiActivity as ComponentType<{className?: string}>
 const AlertIcon = FiAlertCircle as ComponentType<{className?: string}>
+const BoxIcon = FiBox as ComponentType<{className?: string}>
 const CheckIcon = FiCheckCircle as ComponentType<{className?: string}>
+const CodeIcon = FiCode as ComponentType<{className?: string}>
+const CommandIcon = FiCommand as ComponentType<{className?: string}>
 const CopyIcon = FiCopy as ComponentType<{className?: string}>
 const CpuIcon = FiCpu as ComponentType<{className?: string}>
 const FileIcon = FiFileText as ComponentType<{className?: string}>
@@ -53,6 +59,9 @@ interface TerminalAction {
   label: string
   description: string
   command: string
+  icon: ReactNode
+  badge: string
+  ready: boolean
 }
 
 const toneClasses: Record<Tone, string> = {
@@ -83,6 +92,10 @@ function formatRuntime(startedAt: string): string {
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${minutes % 60}m`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function readinessTone(readiness?: ReadinessStatus): Tone {
@@ -178,6 +191,11 @@ export function Overview() {
   const relayAddr = status.relay_addr || config.relay_addr
   const httpProxy = httpAddr ? `http://${httpAddr}` : ''
   const socksProxy = socksAddr ? `socks5://${socksAddr}` : ''
+  const configFlag = state?.config_path ? ` -config ${shellQuote(state.config_path)}` : ''
+  const envCommand = `eval "$(mingsui env${configFlag})"`
+  const execTemplate = `mingsui exec${configFlag} -connect -- <command>`
+  const testCommand = `mingsui exec${configFlag} -connect -- curl -I https://www.google.com/generate_204`
+  const doctorCommand = `mingsui doctor${configFlag}`
   const readiness = state?.readiness
   const readinessActions = readiness?.actions?.slice(0, 4) || []
   const warnings = readiness?.warnings || []
@@ -190,22 +208,44 @@ export function Overview() {
     httpAddr ? `export HTTP_PROXY="${httpProxy}"` : '',
     httpAddr ? `export HTTPS_PROXY="${httpProxy}"` : '',
     socksAddr ? `export ALL_PROXY="${socksProxy}"` : '',
+    httpAddr || socksAddr ? 'export NO_PROXY="localhost,127.0.0.1,::1"' : '',
+    httpAddr ? `export http_proxy="${httpProxy}"` : '',
+    httpAddr ? `export https_proxy="${httpProxy}"` : '',
+    socksAddr ? `export all_proxy="${socksProxy}"` : '',
+    httpAddr || socksAddr ? 'export no_proxy="localhost,127.0.0.1,::1"' : '',
   ].filter(Boolean).join('\n')
   const terminalActions: TerminalAction[] = [
     {
-      label: 'Shell 环境',
-      description: '当前 shell 后续命令都走 MingSui',
-      command: 'eval "$(mingsui env)"',
+      label: '接管当前 Shell',
+      description: '适合连续运行 curl、npm、git 或 AI CLI',
+      command: envCommand,
+      icon: <TerminalIcon className="h-4 w-4" />,
+      badge: '持久会话',
+      ready: Boolean(httpAddr || socksAddr),
     },
     {
-      label: '单条命令',
-      description: '为 AI 或脚本自动连接，结束后退出',
-      command: 'mingsui exec -connect -- <command>',
+      label: 'AI Agent 单次执行',
+      description: '运行前临时连接，命令结束后自动释放',
+      command: execTemplate,
+      icon: <CommandIcon className="h-4 w-4" />,
+      badge: '推荐',
+      ready: Boolean(config.active_proxy_profile || config.active_profile || relayAddr),
     },
     {
-      label: '代理变量',
-      description: httpAddr || socksAddr ? '给不读取 mingsui 的工具手动粘贴' : '连接后显示本地代理地址',
-      command: proxyEnvBlock,
+      label: '连通性测试',
+      description: '快速确认当前节点是否能访问外网',
+      command: testCommand,
+      icon: <CodeIcon className="h-4 w-4" />,
+      badge: '诊断',
+      ready: Boolean(config.active_proxy_profile || config.active_profile || relayAddr),
+    },
+    {
+      label: 'CLI 诊断',
+      description: '输出 readiness、端口和配置问题',
+      command: doctorCommand,
+      icon: <BoxIcon className="h-4 w-4" />,
+      badge: readinessLabel(readiness),
+      ready: true,
     },
   ]
   const stats: StatItem[] = [
@@ -472,39 +512,61 @@ export function Overview() {
         <div className="panel p-5">
           <SectionHeader
             icon={<TerminalIcon className="h-4 w-4" />}
-            title="终端 / AI Agent"
-            detail="桌面端和 CLI 共享同一份代理配置"
-            action={<CpuIcon className="h-4 w-4 text-faint" />}
+            title="AI / CLI 启动台"
+            detail="从桌面端直接复制终端和 Agent 的真实入口"
+            action={<span className={`rounded-full border px-2.5 py-1 text-xs ${status.running ? toneClasses.success : toneClasses.neutral}`}>{status.running ? '代理在线' : '待连接'}</span>}
           />
 
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {terminalActions.map(action => (
               <button
                 key={action.label}
                 onClick={() => copyText(action.label, action.command)}
-                disabled={!action.command}
+                disabled={!action.command || !action.ready}
                 title={action.command || '当前没有可复制内容'}
-                className="row-surface group flex w-full items-start justify-between gap-3 p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                className={`row-surface group flex min-h-36 w-full flex-col justify-between gap-3 p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  action.ready ? 'hover:border-[#0b8a7e]/30 hover:bg-white/88' : ''
+                }`}
               >
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-main">{action.label}</div>
-                  <div className="mt-1 text-xs text-subtle">{action.description}</div>
-                  <div className="mt-2 truncate font-mono text-xs text-faint">{action.command || '等待本地监听地址'}</div>
+                <div className="flex w-full items-start justify-between gap-3">
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${action.ready ? toneClasses.success : toneClasses.warning}`}>
+                    {action.icon}
+                  </span>
+                  <span className="rounded-full border border-[#dbe1eb] bg-white/68 px-2 py-0.5 text-xs text-subtle dark:border-white/10 dark:bg-white/5">
+                    {action.ready ? action.badge : '待配置'}
+                  </span>
                 </div>
-                <CopyIcon className="mt-0.5 h-4 w-4 shrink-0 text-faint group-hover:text-emerald-700" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-main">{action.label}</div>
+                  <div className="mt-1 min-h-8 text-xs leading-4 text-subtle">{action.description}</div>
+                  <div className="mt-3 line-clamp-2 break-all font-mono text-xs leading-5 text-faint">{action.command}</div>
+                </div>
+                <div className="flex w-full items-center justify-between border-t border-[#dbe1eb] pt-3 text-xs text-faint dark:border-white/10">
+                  <span>{action.ready ? '点击复制' : '先完成配置'}</span>
+                  <CopyIcon className="h-4 w-4 shrink-0 group-hover:text-emerald-700" />
+                </div>
               </button>
             ))}
           </div>
 
-          <div className="mt-4 divide-y divide-[#dbe1eb] rounded-lg border border-[#dbe1eb] px-3 dark:divide-white/10 dark:border-white/10">
-            <div className="py-3">
-              <div className="text-xs text-faint">HTTP_PROXY / HTTPS_PROXY</div>
-              <div className="mt-1 break-all font-mono text-sm text-subtle">{httpProxy || '-'}</div>
+          <div className="mt-4 rounded-lg border border-[#dbe1eb] bg-[#101828] p-4 text-white shadow-sm dark:border-white/10">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs text-slate-400">完整代理环境</div>
+                <div className="mt-1 truncate text-sm font-semibold text-white">{httpProxy || socksProxy || '等待本地监听地址'}</div>
+              </div>
+              <button
+                onClick={() => copyText('完整代理环境', proxyEnvBlock)}
+                disabled={!proxyEnvBlock.trim()}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-white/12 bg-white/10 px-3 py-1.5 text-sm text-slate-100 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CopyIcon className="h-4 w-4" />
+                复制
+              </button>
             </div>
-            <div className="py-3">
-              <div className="text-xs text-faint">ALL_PROXY</div>
-              <div className="mt-1 break-all font-mono text-sm text-subtle">{socksProxy || '-'}</div>
-            </div>
+            <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-xs leading-5 text-slate-200">
+              {proxyEnvBlock || '连接后显示 HTTP_PROXY / ALL_PROXY / NO_PROXY'}
+            </pre>
           </div>
         </div>
       </div>
