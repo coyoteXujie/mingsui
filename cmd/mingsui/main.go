@@ -22,6 +22,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/diagnostic"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
+	"github.com/coyoteXujie/mingsui/internal/productstatus"
 	"github.com/coyoteXujie/mingsui/internal/protocol"
 	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/security"
@@ -490,24 +491,7 @@ func runProxyKernel(cfg config.ClientConfig, proxy config.ProxyProfile) int {
 	return 0
 }
 
-type cliStatus struct {
-	OK              bool   `json:"ok"`
-	ConfigPath      string `json:"config_path"`
-	Mode            string `json:"mode"`
-	Managed         bool   `json:"managed"`
-	SelectedType    string `json:"selected_type,omitempty"`
-	SelectedProfile string `json:"selected_profile,omitempty"`
-	SelectedProxy   string `json:"selected_proxy,omitempty"`
-	ProxyProtocol   string `json:"proxy_protocol,omitempty"`
-	RelayProfiles   int    `json:"relay_profiles"`
-	ProxyProfiles   int    `json:"proxy_profiles"`
-	LocalAddr       string `json:"local_addr"`
-	HTTPAddr        string `json:"http_addr,omitempty"`
-	RelayAddr       string `json:"relay_addr"`
-	AuthEnabled     bool   `json:"auth_enabled"`
-	TLSEnabled      bool   `json:"tls_enabled"`
-	Message         string `json:"message"`
-}
+type cliStatus = productstatus.Status
 
 func runStatus(args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
@@ -526,61 +510,34 @@ func runStatus(args []string) int {
 		return 2
 	}
 
-	status := cliStatus{
-		OK:         false,
-		ConfigPath: *cfgPath,
-		Mode:       "foreground",
-		Managed:    false,
-		Message:    "CLI 使用前台连接模式；可运行 mingsui connect 保持连接，或用 mingsui exec -connect 执行单个命令",
-	}
 	cfg, err := loadClientOrDefault(*cfgPath)
 	if err != nil {
-		status.Message = fmt.Sprintf("加载配置失败: %v", err)
-		return writeCLIStatus(status, *jsonOutput)
-	}
-	status.RelayProfiles = len(cfg.Profiles)
-	status.ProxyProfiles = len(cfg.ProxyProfiles)
-	if proxy, ok := resolveClientProxyProfile(cfg, true); ok && *profileName == "" && *relayAddr == "" && *token == "" {
-		status.OK = true
-		status.Mode = "proxy"
-		status.SelectedType = "proxy"
-		status.SelectedProxy = proxy.Name
-		status.ProxyProtocol = proxy.Protocol
-		status.LocalAddr = cfg.LocalAddr
-		status.HTTPAddr = cfg.HTTPAddr
-		status.Message = "当前选择的是机场节点；运行 mingsui connect 会启动 Mihomo，也可以用 mingsui exec -connect 执行单个命令"
-		return writeCLIStatus(status, *jsonOutput)
-	}
-	if *profileName == "" && *relayAddr == "" && *token == "" && hasProxyModeWithoutAutoSelectableSelection(cfg) {
-		status.Mode = "proxy"
-		status.SelectedType = "proxy"
-		status.LocalAddr = cfg.LocalAddr
-		status.HTTPAddr = cfg.HTTPAddr
-		status.Message = "当前机场订阅中没有可自动选择的国外节点；使用 mingsui config proxy list 查看支持情况"
-		return writeCLIStatus(status, *jsonOutput)
-	}
-	var selectedProfile string
-	cfg, selectedProfile, err = resolveClientProfile(cfg, *profileName, *autoProfile)
-	if err != nil {
-		status.Message = fmt.Sprintf("选择 profile 失败: %v", err)
-		return writeCLIStatus(status, *jsonOutput)
-	}
-	applyClientOverrides(&cfg, *localAddr, *httpAddr, *relayAddr, *token, *authEnabled, *authUser, *authPass)
-	if err := cfg.Validate(); err != nil {
-		status.Message = fmt.Sprintf("配置不正确: %v", err)
+		status := cliStatus{
+			OK:         false,
+			ConfigPath: *cfgPath,
+			Mode:       "unknown",
+			Readiness:  "blocked",
+			Message:    fmt.Sprintf("加载配置失败: %v", err),
+		}
 		return writeCLIStatus(status, *jsonOutput)
 	}
 
-	status.OK = true
-	status.SelectedType = "relay"
-	status.SelectedProfile = selectedProfile
-	status.RelayProfiles = len(cfg.Profiles)
-	status.ProxyProfiles = len(cfg.ProxyProfiles)
-	status.LocalAddr = cfg.LocalAddr
-	status.HTTPAddr = cfg.HTTPAddr
-	status.RelayAddr = cfg.RelayAddr
-	status.AuthEnabled = cfg.LocalAuth.Enabled
-	status.TLSEnabled = cfg.TLS.Enabled
+	status := productstatus.Evaluate(cfg, productstatus.Options{
+		ConfigPath:  *cfgPath,
+		Managed:     false,
+		AutoProfile: *autoProfile,
+		ForceRelay:  *profileName != "" || *relayAddr != "" || *token != "",
+		ProfileName: *profileName,
+		Overrides: productstatus.Overrides{
+			LocalAddr:   *localAddr,
+			HTTPAddr:    *httpAddr,
+			RelayAddr:   *relayAddr,
+			Token:       *token,
+			AuthEnabled: *authEnabled,
+			AuthUser:    *authUser,
+			AuthPass:    *authPass,
+		},
+	})
 	return writeCLIStatus(status, *jsonOutput)
 }
 
@@ -608,6 +565,19 @@ func writeCLIStatus(status cliStatus, jsonOutput bool) int {
 		}
 	} else if status.OK {
 		fmt.Fprintln(os.Stdout, status.Message)
+		if status.Readiness != "" {
+			fmt.Fprintf(os.Stdout, "状态: %s\n", status.Readiness)
+		}
+		if status.SelectedProxy != "" {
+			fmt.Fprintf(os.Stdout, "机场节点: %s", status.SelectedProxy)
+			if status.ProxyProtocol != "" {
+				fmt.Fprintf(os.Stdout, " (%s)", status.ProxyProtocol)
+			}
+			fmt.Fprintln(os.Stdout)
+		}
+		if status.SelectedProfile != "" {
+			fmt.Fprintf(os.Stdout, "relay profile: %s\n", status.SelectedProfile)
+		}
 		if status.RelayAddr != "" {
 			fmt.Fprintf(os.Stdout, "relay: %s\n", status.RelayAddr)
 		}
@@ -617,13 +587,37 @@ func writeCLIStatus(status cliStatus, jsonOutput bool) int {
 		if status.HTTPAddr != "" {
 			fmt.Fprintf(os.Stdout, "HTTP: %s\n", status.HTTPAddr)
 		}
+		printStatusWarnings(os.Stdout, status)
+		printStatusActions(os.Stdout, status)
 	} else {
 		fmt.Fprintln(os.Stderr, status.Message)
+		printStatusWarnings(os.Stderr, status)
+		printStatusActions(os.Stderr, status)
 	}
 	if status.OK {
 		return 0
 	}
 	return 1
+}
+
+func printStatusWarnings(w io.Writer, status cliStatus) {
+	for _, warning := range status.Warnings {
+		fmt.Fprintf(w, "警告: %s\n", warning)
+	}
+}
+
+func printStatusActions(w io.Writer, status cliStatus) {
+	if len(status.Actions) == 0 {
+		return
+	}
+	fmt.Fprintln(w, "建议:")
+	for _, action := range status.Actions {
+		if action.Command != "" {
+			fmt.Fprintf(w, "  - %s: %s\n", action.Label, action.Command)
+			continue
+		}
+		fmt.Fprintf(w, "  - %s\n", action.Label)
+	}
 }
 
 type proxyEnvVar struct {

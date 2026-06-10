@@ -21,6 +21,39 @@ export interface SystemProxyStatus {
   message: string
 }
 
+export interface ReadinessAction {
+  id: string
+  label: string
+  command?: string
+  description?: string
+  severity: 'info' | 'warning' | 'error'
+}
+
+export interface ReadinessStatus {
+  ok: boolean
+  config_path?: string
+  mode: string
+  readiness: string
+  managed: boolean
+  selected_type?: string
+  selected_profile?: string
+  selected_proxy?: string
+  proxy_protocol?: string
+  relay_profiles: number
+  proxy_profiles: number
+  subscriptions: number
+  local_addr?: string
+  http_addr?: string
+  relay_addr?: string
+  auth_enabled: boolean
+  tls_enabled: boolean
+  default_token?: boolean
+  local_proxy_exposed?: boolean
+  message: string
+  warnings?: string[]
+  actions?: ReadinessAction[]
+}
+
 export interface ProxyCapability {
   name: string
   exportable: boolean
@@ -80,6 +113,7 @@ export interface AppState {
   status: RuntimeStatus
   system_proxy: SystemProxyStatus
   proxy_capabilities: ProxyCapability[]
+  readiness?: ReadinessStatus
 }
 
 declare global {

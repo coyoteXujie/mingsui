@@ -42,8 +42,11 @@ mingsui version
 ```bash
 mingsui import -source "https://example.com/api/v1/client/subscribe?token=..." -check
 mingsui status
+mingsui status -json=false
 mingsui config proxy check -select-best
 ```
+
+`mingsui status` 默认输出 JSON，里面包含 `readiness`、`warnings` 和 `actions`，桌面端也读取同一份状态来显示下一步建议。人直接看终端时可以用 `mingsui status -json=false`，它会打印当前模式、监听地址、警告和推荐命令。
 
 连接：
 
@@ -168,6 +171,7 @@ mingsui config show -path ./client.json
 mingsui import -source <机场订阅地址>
 mingsui import -source <机场订阅地址> -subscription airport -check
 mingsui status
+mingsui status -json=false
 mingsui config proxy list
 mingsui config proxy check -select-best
 mingsui config proxy select <节点名称>
@@ -177,6 +181,12 @@ mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 
 导入或同步机场时加 `-check` 会临时启动 Mihomo，对可自动选择的国外节点做连通性测速，并把最快可用节点保存为当前选择；看起来是国内/回国线路的节点会被跳过。已经导入后，也可以随时运行 `mingsui config proxy check -select-best` 重新选优。
+
+状态就绪度：
+
+- `ready`: 当前配置可以连接。
+- `needs_setup`: 配置文件可用，但仍建议先导入机场订阅或配置 relay profile，例如还在使用默认 token。
+- `blocked`: 当前选择无法直接连接，按 `actions` 里的建议修复。
 
 订阅 URL 可能包含访问密钥，不要把完整 URL、导出的 Mihomo 配置或节点链接发到日志和工单里。
 

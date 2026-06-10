@@ -65,6 +65,8 @@ export function Overview() {
   const metrics = status.metrics || {active_connections: 0, total_connections: 0, upload_bytes: 0, download_bytes: 0}
   const httpProxy = `http://${status.http_addr || config.http_addr || '-'}`
   const socksProxy = `socks5://${status.local_addr || config.local_addr || '-'}`
+  const readiness = state?.readiness
+  const readinessActions = readiness?.actions?.slice(0, 3) || []
 
   if (loading) {
     return <div className="flex h-64 items-center justify-center text-subtle">加载中...</div>
@@ -120,15 +122,64 @@ export function Overview() {
           ))}
         </div>
 
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={systemProxy.enabled ? disableSystemProxy : enableSystemProxy}
-            className="secondary-button px-4 py-2"
-          >
-            <ShieldIcon className="h-4 w-4" />
-            {systemProxy.enabled ? '关闭系统代理' : '开启系统代理'}
-          </button>
-        </div>
+        {readiness && (
+          <div className="panel-soft mt-6 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs ${
+                    readiness.ok
+                      ? readiness.readiness === 'needs_setup'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-emerald-50 text-emerald-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}>
+                    {readiness.readiness}
+                  </span>
+                  <span className="text-sm font-medium text-main">{readiness.mode === 'proxy' ? '机场节点模式' : 'Relay 模式'}</span>
+                </div>
+                <p className="mt-2 text-sm text-subtle">{readiness.message}</p>
+              </div>
+              <button
+                onClick={systemProxy.enabled ? disableSystemProxy : enableSystemProxy}
+                className="secondary-button px-4 py-2"
+              >
+                <ShieldIcon className="h-4 w-4" />
+                {systemProxy.enabled ? '关闭系统代理' : '开启系统代理'}
+              </button>
+            </div>
+            {readiness.warnings && readiness.warnings.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {readiness.warnings.map(warning => (
+                  <div key={warning} className="text-sm text-amber-700">{warning}</div>
+                ))}
+              </div>
+            )}
+            {readinessActions.length > 0 && (
+              <div className="mt-4 grid gap-2 lg:grid-cols-3">
+                {readinessActions.map(action => (
+                  <div key={action.id} className="row-surface p-3">
+                    <div className="text-sm font-medium text-main">{action.label}</div>
+                    {action.command && <div className="mt-2 truncate font-mono text-xs text-subtle">{action.command}</div>}
+                    {action.description && <div className="mt-2 text-xs text-faint">{action.description}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!readiness && (
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={systemProxy.enabled ? disableSystemProxy : enableSystemProxy}
+              className="secondary-button px-4 py-2"
+            >
+              <ShieldIcon className="h-4 w-4" />
+              {systemProxy.enabled ? '关闭系统代理' : '开启系统代理'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">

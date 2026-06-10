@@ -12,6 +12,7 @@ import (
 	"github.com/coyoteXujie/mingsui/internal/config"
 	"github.com/coyoteXujie/mingsui/internal/desktop"
 	"github.com/coyoteXujie/mingsui/internal/mihomo"
+	"github.com/coyoteXujie/mingsui/internal/productstatus"
 	"github.com/coyoteXujie/mingsui/internal/proxycheck"
 	"github.com/coyoteXujie/mingsui/internal/systemproxy"
 )
@@ -68,6 +69,11 @@ func (a *App) GetState() (map[string]interface{}, error) {
 		"status":             app.Status(),
 		"system_proxy":       app.SystemProxyStatus(context.Background()),
 		"proxy_capabilities": proxyCapabilities(cfg.ProxyProfiles),
+		"readiness": productstatus.Evaluate(cfg, productstatus.Options{
+			ConfigPath:  app.ConfigPath(),
+			Managed:     true,
+			AutoProfile: true,
+		}),
 	}, nil
 }
 
