@@ -1,5 +1,7 @@
 APP_VERSION ?= dev
 GO ?= go
+WAILS ?= wails
+WAILS_GO_ENV ?= GOCACHE=/tmp/mingsui-gocache GOMODCACHE=/tmp/mingsui-gomod
 DIST_DIR ?= dist
 DIST_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 NPM_PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
@@ -7,11 +9,12 @@ NPM_PACKAGE_NAME ?= mingsui
 MIHOMO_ASSETS_DIR ?= packaging/mihomo
 REQUIRE_MIHOMO ?= 0
 DEB_ARCHS ?= amd64 arm64
+WAILS_DESKTOP_DIR ?= desktop/mingsui-desktop
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=$(APP_VERSION) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=$(COMMIT) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=$(DATE)
 
-.PHONY: build test smoke dist desktop-deb npm-package checksums clean
+.PHONY: build test smoke dist desktop-deb wails-desktop wails-dev npm-package checksums clean
 
 build:
 	mkdir -p bin
@@ -30,6 +33,12 @@ dist:
 
 desktop-deb:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-deb.sh
+
+wails-desktop:
+	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) build -clean -ldflags "$(LDFLAGS)"
+
+wails-dev:
+	cd $(WAILS_DESKTOP_DIR) && env $(WAILS_GO_ENV) $(WAILS) dev
 
 npm-package:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-npm.sh

@@ -17,8 +17,7 @@ go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 原生桌面端工程在 `desktop/mingsui-desktop`，使用 Wails + React。运行桌面客户端时应从这个目录启动：
 
 ```bash
-cd desktop/mingsui-desktop
-wails dev
+make wails-dev
 ```
 
 `wails dev` 会打开独立桌面窗口，并启动前端热更新服务。浏览器里打开 Vite 地址只适合调试 DOM 和样式，不代表用户看到的桌面客户端。
@@ -29,7 +28,7 @@ wails dev
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-Linux 本机还需要 Wails 对应的 GTK/WebKit 开发依赖；依赖缺失时，先用下面的前端构建命令验证界面代码：
+Linux 本机还需要 Wails 对应的系统依赖，包括 C 编译器和 GTK/WebKit 开发包。Debian/Ubuntu 通常至少需要 `build-essential`、`pkg-config`、`libgtk-3-dev`、`libwebkit2gtk-4.0-dev`；依赖缺失时，先用下面的前端构建命令验证界面代码：
 
 ```bash
 cd desktop/mingsui-desktop/frontend
@@ -40,9 +39,10 @@ npm run build
 构建原生桌面端发布产物：
 
 ```bash
-cd desktop/mingsui-desktop
-wails build
+make wails-desktop
 ```
+
+如果不想通过 Makefile，也可以在 `desktop/mingsui-desktop` 目录直接运行 `wails dev` 或 `wails build`。
 
 根目录兼容入口仍可用于脚本或只验证本机服务：
 

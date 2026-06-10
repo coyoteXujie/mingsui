@@ -104,6 +104,12 @@ mingsui system-proxy disable
 源码运行原生桌面端：
 
 ```bash
+make wails-dev
+```
+
+没有 `make` 时：
+
+```bash
 cd desktop/mingsui-desktop
 wails dev
 ```
@@ -111,6 +117,12 @@ wails dev
 `wails dev` 会打开独立桌面窗口，同时为前端提供热更新。这个窗口才是桌面客户端；不要把 Vite 或浏览器预览页当成桌面端成品。
 
 构建原生桌面端发布包：
+
+```bash
+make wails-desktop
+```
+
+没有 `make` 时：
 
 ```bash
 cd desktop/mingsui-desktop

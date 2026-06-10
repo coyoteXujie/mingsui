@@ -12,6 +12,12 @@
 wails dev
 ```
 
+从仓库根目录也可以运行：
+
+```bash
+make wails-dev
+```
+
 `wails dev` 会启动 Wails 应用窗口，并为前端提供热更新。浏览器调试地址只用于开发排查，不是产品入口。
 
 只验证前端构建：
@@ -30,7 +36,13 @@ npm run build
 wails build
 ```
 
-Linux 上如果 Wails 报 GTK/WebKit 相关错误，需要先安装 Wails 官方要求的系统依赖。
+从仓库根目录也可以运行：
+
+```bash
+make wails-desktop
+```
+
+Linux 上如果 Wails 报 `gcc`、GTK 或 WebKit 相关错误，需要先安装 Wails 官方要求的系统依赖。Debian/Ubuntu 通常至少需要 `build-essential`、`pkg-config`、`libgtk-3-dev`、`libwebkit2gtk-4.0-dev`。
 
 ## 和根目录入口的区别
 

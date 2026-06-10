@@ -28,8 +28,7 @@ make desktop-deb APP_VERSION=v0.1.0
 注意：根目录 `make desktop-deb` 当前打包的是 `cmd/mingsui-desktop` 兼容调试入口。Wails 原生桌面端在 `desktop/mingsui-desktop` 单独构建：
 
 ```bash
-cd desktop/mingsui-desktop
-wails build
+make wails-desktop
 ```
 
 后续发布收敛目标是让 `.deb`、Windows 安装包和 Wails 原生桌面端使用同一条发布流水线。
