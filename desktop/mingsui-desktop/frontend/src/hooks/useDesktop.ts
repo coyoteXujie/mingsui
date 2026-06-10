@@ -225,6 +225,27 @@ export function useDesktop() {
     await refresh()
   }, [refresh])
 
+  const saveRelayProfile = useCallback(async (req: {name: string; relay_addr: string; token: string; tls: any; replace: boolean}) => {
+    await window.go.main.App.SaveRelayProfile(req)
+    await refresh()
+  }, [refresh])
+
+  const deleteRelayProfile = useCallback(async (name: string) => {
+    await window.go.main.App.DeleteRelayProfile(name)
+    await refresh()
+  }, [refresh])
+
+  const selectRelayProfile = useCallback(async (name: string) => {
+    await window.go.main.App.SelectRelayProfile(name)
+    await refresh()
+  }, [refresh])
+
+  const checkRelayProfile = useCallback(async (name: string) => {
+    const result = await window.go.main.App.CheckRelayProfile(name)
+    await refresh()
+    return result
+  }, [refresh])
+
   const saveSubscription = useCallback(async (req: {name: string; url: string; replace: boolean}) => {
     await window.go.main.App.SaveSubscription(req)
     await refresh()
@@ -256,6 +277,10 @@ export function useDesktop() {
     enableSystemProxy,
     disableSystemProxy,
     saveConfig,
+    saveRelayProfile,
+    deleteRelayProfile,
+    selectRelayProfile,
+    checkRelayProfile,
     saveSubscription,
     deleteSubscription,
     syncSubscription,
