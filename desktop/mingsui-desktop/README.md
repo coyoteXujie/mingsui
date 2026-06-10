@@ -1,19 +1,39 @@
-# README
+# 明隧桌面端
 
-## About
+这里是 MingSui 的原生桌面客户端工程，使用 Wails + React。用户看到的桌面窗口来自这个工程，不是普通网页预览。
 
-This is the official Wails React-TS template.
+桌面端和 CLI 共用同一份客户端配置，配置路径与 `mingsui config path` 一致。桌面端负责日常连接、订阅、节点、设置和诊断；CLI 负责终端、脚本和 AI Agent 场景。
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+## 本地开发
 
-## Live Development
+在这个目录启动原生桌面窗口：
 
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
+```bash
+wails dev
+```
 
-## Building
+`wails dev` 会启动 Wails 应用窗口，并为前端提供热更新。浏览器调试地址只用于开发排查，不是产品入口。
 
-To build a redistributable, production mode package, use `wails build`.
+只验证前端构建：
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+## 构建
+
+生成本机平台的桌面端发布产物：
+
+```bash
+wails build
+```
+
+Linux 上如果 Wails 报 GTK/WebKit 相关错误，需要先安装 Wails 官方要求的系统依赖。
+
+## 和根目录入口的区别
+
+仓库根目录的 `cmd/mingsui-desktop` 是兼容调试入口：它会启动本机 HTTP 服务，并尝试用 Chrome/Chromium/Edge 的应用窗口模式打开界面。它适合脚本、冒烟测试或 Wails 环境不可用时临时使用。
+
+桌面端成品体验应优先以本目录的 Wails 应用为准。

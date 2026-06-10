@@ -99,13 +99,31 @@ mingsui system-proxy disable
 
 桌面端总览页会显示和 `mingsui status` 同源的就绪状态、警告和建议命令；订阅页同步后默认执行测速选优。如果同步的是自建 relay profile 订阅，可以关闭“同步后测速选优”。
 
-当前开发版桌面客户端启动方式：
+当前桌面端有两条入口，日常体验应优先使用原生 Wails 桌面端。
+
+源码运行原生桌面端：
+
+```bash
+cd desktop/mingsui-desktop
+wails dev
+```
+
+`wails dev` 会打开独立桌面窗口，同时为前端提供热更新。这个窗口才是桌面客户端；不要把 Vite 或浏览器预览页当成桌面端成品。
+
+构建原生桌面端发布包：
+
+```bash
+cd desktop/mingsui-desktop
+wails build
+```
+
+正式安装后直接启动：
 
 ```bash
 mingsui-desktop
 ```
 
-命令会自动打开独立桌面窗口，并打印一个只监听本机的本地服务地址。关闭窗口后，本机服务也会退出。重复启动时会复用已经运行的本机服务。脚本或测试环境可以使用 `mingsui-desktop -open=false` 只启动本机服务；开发调试可以使用 `mingsui-desktop -web` 打开浏览器调试界面。
+仓库根目录下的 `go build -o bin/mingsui-desktop ./cmd/mingsui-desktop` 是旧的本机服务/兼容调试入口：它会启动本机 HTTP 服务，并尝试用 Chrome/Chromium/Edge 的应用窗口模式承载界面。只有脚本、冒烟测试或 Wails 环境不可用时才优先使用它；`-web` 明确是浏览器调试模式，不是桌面端成品。
 
 ## 能力边界
 

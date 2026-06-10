@@ -25,6 +25,15 @@ Linux 桌面端也可以单独生成 `.deb`：
 make desktop-deb APP_VERSION=v0.1.0
 ```
 
+注意：根目录 `make desktop-deb` 当前打包的是 `cmd/mingsui-desktop` 兼容调试入口。Wails 原生桌面端在 `desktop/mingsui-desktop` 单独构建：
+
+```bash
+cd desktop/mingsui-desktop
+wails build
+```
+
+后续发布收敛目标是让 `.deb`、Windows 安装包和 Wails 原生桌面端使用同一条发布流水线。
+
 CLI 也可以单独生成 npm 安装包，方便 AI Agent 或自动化环境用 npm 安装：
 
 ```bash
@@ -71,7 +80,7 @@ Linux `.deb` 安装：
 - `/usr/share/applications/mingsui-desktop.desktop`
 - `/usr/share/doc/mingsui-desktop/README.md`
 
-`.deb` 中的 CLI 和 GUI 默认使用同一个客户端配置路径，和 `mingsui config path` 一致。Windows zip 中的桌面端产物是 `mingsui-desktop.exe`。
+`.deb` 中的 CLI 和 GUI 默认使用同一个客户端配置路径，和 `mingsui config path` 一致。Windows zip 中的兼容桌面端产物是 `mingsui-desktop.exe`；Wails 原生 Windows 产物由 `desktop/mingsui-desktop` 的 `wails build` 生成。
 
 npm 包只包含 `mingsui` CLI 和 Mihomo 内核，不包含 `mingsui-desktop` 和 `mingsui-relay`。默认会内置 `linux/amd64`、`linux/arm64`、`darwin/amd64`、`darwin/arm64`、`windows/amd64` 和 `windows/arm64` 六个平台的 CLI 二进制；安装后会提供全局 `mingsui` 命令。
 

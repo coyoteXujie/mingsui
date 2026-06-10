@@ -10,6 +10,50 @@ go build -o bin/mingsui-relay ./cmd/mingsui-relay
 go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ```
 
+上面的 `cmd/mingsui-desktop` 是兼容调试入口，会启动本机服务并尝试用浏览器应用窗口承载界面。它不是当前桌面端的主开发入口。
+
+## 原生桌面端开发
+
+原生桌面端工程在 `desktop/mingsui-desktop`，使用 Wails + React。运行桌面客户端时应从这个目录启动：
+
+```bash
+cd desktop/mingsui-desktop
+wails dev
+```
+
+`wails dev` 会打开独立桌面窗口，并启动前端热更新服务。浏览器里打开 Vite 地址只适合调试 DOM 和样式，不代表用户看到的桌面客户端。
+
+如果本机还没有 Wails CLI：
+
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+Linux 本机还需要 Wails 对应的 GTK/WebKit 开发依赖；依赖缺失时，先用下面的前端构建命令验证界面代码：
+
+```bash
+cd desktop/mingsui-desktop/frontend
+npm install
+npm run build
+```
+
+构建原生桌面端发布产物：
+
+```bash
+cd desktop/mingsui-desktop
+wails build
+```
+
+根目录兼容入口仍可用于脚本或只验证本机服务：
+
+```bash
+go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
+./bin/mingsui-desktop -open=false
+./bin/mingsui-desktop -web
+```
+
+`-web` 明确是浏览器调试模式，不应在演示或验收时当作桌面客户端。
+
 如果本机安装了 `make`：
 
 ```bash

@@ -1,10 +1,15 @@
 # 桌面端
 
-当前仓库已经提供 `mingsui-desktop` 桌面客户端入口。它会启动本机应用服务，并默认打开独立桌面窗口；窗口复用 `internal/desktop.App`，可以启动/停止客户端、检测 relay、管理 profile，并导入或同步节点订阅。
+当前仓库已经提供两类桌面相关入口：
+
+- `desktop/mingsui-desktop`: Wails 原生桌面客户端，是当前产品体验的主入口。
+- `cmd/mingsui-desktop`: 兼容调试入口，会启动本机 HTTP 服务，并尝试用浏览器应用窗口承载界面。
+
+Wails 桌面端复用 `internal/desktop.App`，可以启动/停止客户端、检测 relay、管理 profile，并导入或同步节点订阅。
 
 `mingsui-desktop` 默认读取 `mingsui config path` 指向的同一个客户端配置文件，因此 CLI 和桌面端会天然共享节点、订阅、本地监听和认证设置。
 
-当前实现优先使用系统已安装的 Chrome/Chromium/Edge 应用窗口模式，避免把用户带到普通浏览器标签页。后续接入 Wails 时继续复用同一套 Go core 和 `internal/desktop.App`，用户入口保持 `mingsui-desktop` 不变。
+当前产品主方向是 Wails 原生窗口。Chrome/Chromium/Edge 应用窗口只保留给 `cmd/mingsui-desktop` 兼容调试，不应作为桌面端成品体验。
 
 第一阶段桌面端功能：
 
@@ -19,14 +24,28 @@
 
 当前仓库先实现 CLI、relay 和核心代理逻辑。桌面端接入时应避免重新实现网络层，只调用 `internal/client` 暴露的服务接口。
 
-启动桌面客户端：
+启动 Wails 原生桌面客户端：
+
+```bash
+cd desktop/mingsui-desktop
+wails dev
+```
+
+构建 Wails 桌面端：
+
+```bash
+cd desktop/mingsui-desktop
+wails build
+```
+
+启动兼容调试入口：
 
 ```bash
 go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ./bin/mingsui-desktop -config ./client.json
 ```
 
-默认会自动打开独立桌面窗口；关闭窗口后，本机服务也会退出。重复启动时会复用已经运行的本机服务。脚本或测试环境可以加 `-open=false` 只启动本机服务；开发调试时可以加 `-web` 用默认浏览器打开调试界面。
+兼容调试入口默认会自动打开应用窗口；关闭窗口后，本机服务也会退出。重复启动时会复用已经运行的本机服务。脚本或测试环境可以加 `-open=false` 只启动本机服务；开发调试时可以加 `-web` 用默认浏览器打开调试界面。
 
 Linux 桌面发布包使用 Debian 包：
 
@@ -35,7 +54,7 @@ sh scripts/build-deb.sh
 sudo apt install ./dist/mingsui-desktop_0.0.0-dev_amd64.deb
 ```
 
-Windows 发布包会包含 `mingsui-desktop.exe`，双击会自动打开桌面客户端，命令行运行也使用同一套客户端配置。
+当前根目录 Windows 发布包会包含兼容入口 `mingsui-desktop.exe`，命令行运行也使用同一套客户端配置。Wails 原生 Windows 桌面端由 `desktop/mingsui-desktop` 的 `wails build` 生成，后续需要收敛到同一条发布流水线。
 
 CLI 诊断命令支持 `-json`。桌面端如果需要展示安装前诊断、端口占用、relay 健康状态或 TLS 证书状态，可以直接复用 JSON 报告结构。
 
