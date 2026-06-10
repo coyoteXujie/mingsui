@@ -373,12 +373,12 @@ func handleImportProfiles(app *App) http.HandlerFunc {
 			writeErrorMessage(w, http.StatusBadRequest, "订阅内容不能为空")
 			return
 		}
-		count, err := app.ImportRelayProfiles([]byte(req.Content), req.Replace, req.Select)
+		report, err := app.ImportRelayProfilesReport([]byte(req.Content), req.Replace, req.Select)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: "节点已导入", Count: count})
+		writeJSON(w, http.StatusOK, messageResponse{OK: true, Message: report.Message, Count: report.Imported, SyncReport: &report})
 	}
 }
 

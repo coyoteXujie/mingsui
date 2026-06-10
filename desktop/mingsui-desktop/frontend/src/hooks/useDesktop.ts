@@ -1,4 +1,5 @@
-import {useState, useEffect, useCallback} from 'react'
+import {createContext, createElement, useCallback, useContext, useEffect, useState} from 'react'
+import type {ReactNode} from 'react'
 
 export interface RuntimeStatus {
   running: boolean
@@ -243,7 +244,7 @@ declare global {
           Stop: () => Promise<string>
           GetConfig: () => Promise<ClientConfig>
           SaveConfig: (cfg: ClientConfig) => Promise<string>
-          ImportProfiles: (content: string, replace: boolean, selectName: string) => Promise<[number, string]>
+          ImportProfiles: (content: string, replace: boolean, selectName: string) => Promise<SubscriptionSyncResult>
           SelectProxy: (name: string) => Promise<string>
           DeleteProxy: (name: string) => Promise<string>
           CheckProxy: (name: string, timeoutSeconds: number) => Promise<any>
@@ -265,7 +266,7 @@ declare global {
   }
 }
 
-export function useDesktop() {
+function useDesktopStore() {
   const [state, setState] = useState<AppState | null>(cachedState)
   const [loading, setLoading] = useState(!cachedState)
   const [error, setError] = useState<string | null>(null)
@@ -326,9 +327,9 @@ export function useDesktop() {
   }, [refresh])
 
   const importProfiles = useCallback(async (content: string, replace: boolean = true, selectName: string = '') => {
-    const [count] = await window.go.main.App.ImportProfiles(content, replace, selectName)
+    const result = await window.go.main.App.ImportProfiles(content, replace, selectName)
     await refresh()
-    return count
+    return result
   }, [refresh])
 
   const enableSystemProxy = useCallback(async () => {
@@ -406,4 +407,21 @@ export function useDesktop() {
     deleteSubscription,
     syncSubscription,
   }
+}
+
+type DesktopContextValue = ReturnType<typeof useDesktopStore>
+
+const DesktopContext = createContext<DesktopContextValue | null>(null)
+
+export function DesktopProvider({children}: {children: ReactNode}) {
+  const value = useDesktopStore()
+  return createElement(DesktopContext.Provider, {value}, children)
+}
+
+export function useDesktop() {
+  const value = useContext(DesktopContext)
+  if (!value) {
+    throw new Error('useDesktop must be used inside DesktopProvider')
+  }
+  return value
 }

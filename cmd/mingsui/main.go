@@ -1837,7 +1837,6 @@ func printUsage() {
   mingsui config proxy list
   mingsui config proxy select tokyo
   mingsui config proxy check -select-best
-  mingsui config proxy check -select-best
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
   mingsui config profile export -output ./nodes.json -secrets

@@ -148,6 +148,14 @@ func (a *App) RenameRelayProfile(oldName, newName string) error {
 }
 
 func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) (int, error) {
+	report, err := a.ImportRelayProfilesReport(data, replace, selectName)
+	if err != nil {
+		return 0, err
+	}
+	return report.Imported, nil
+}
+
+func (a *App) ImportRelayProfilesReport(data []byte, replace bool, selectName string) (SubscriptionSyncReport, error) {
 	content := strings.TrimSpace(string(data))
 	sourceURL := ""
 	if strings.HasPrefix(content, "http://") || strings.HasPrefix(content, "https://") {
@@ -155,43 +163,50 @@ func (a *App) ImportRelayProfiles(data []byte, replace bool, selectName string) 
 		sourceURL = content
 		data, err = subscription.LoadSource(context.Background(), content, nil)
 		if err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
 	}
 
 	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil {
-		return a.importProxyProfiles(data, replace, selectName, sourceURL, err)
+		return a.importProxyProfilesReport(data, replace, selectName, sourceURL, err)
 	}
 	cfg := a.Config()
 	if err := cfg.ImportRelayProfiles(profiles, replace); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
 		selectName = profiles[0].Name
 	}
 	if selectName != "" {
 		if err := cfg.SelectRelayProfile(selectName); err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
 	}
 	if err := saveImportedSubscription(&cfg, sourceURL); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if err := a.SaveConfig(cfg); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
-	return len(profiles), nil
+	return subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  importedReportName(sourceURL, a.Config()),
+		Kind:                  subscription.SyncKindRelay,
+		Message:               "节点已导入",
+		Imported:              len(profiles),
+		ImportedRelayProfiles: profiles,
+		Config:                a.Config(),
+	}), nil
 }
 
-func (a *App) importProxyProfiles(data []byte, replace bool, selectName, sourceURL string, relayErr error) (int, error) {
+func (a *App) importProxyProfilesReport(data []byte, replace bool, selectName, sourceURL string, relayErr error) (SubscriptionSyncReport, error) {
 	profiles, err := subscription.ParseProxyProfiles(data)
 	if err != nil {
-		return 0, relayErr
+		return SubscriptionSyncReport{}, relayErr
 	}
 	cfg := a.Config()
 	if err := cfg.ImportProxyProfiles(profiles, replace); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if strings.TrimSpace(selectName) == "" && len(profiles) > 0 {
 		if name, ok := mihomo.FirstAutoSelectableProfileName(profiles); ok {
@@ -200,16 +215,23 @@ func (a *App) importProxyProfiles(data []byte, replace bool, selectName, sourceU
 	}
 	if selectName != "" {
 		if err := selectExportableProxyProfile(&cfg, selectName); err != nil {
-			return 0, err
+			return SubscriptionSyncReport{}, err
 		}
 	}
 	if err := saveImportedSubscription(&cfg, sourceURL); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
 	if err := a.SaveConfig(cfg); err != nil {
-		return 0, err
+		return SubscriptionSyncReport{}, err
 	}
-	return len(profiles), nil
+	return subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  importedReportName(sourceURL, a.Config()),
+		Kind:                  subscription.SyncKindProxy,
+		Message:               "机场节点已导入",
+		Imported:              len(profiles),
+		ImportedProxyProfiles: profiles,
+		Config:                a.Config(),
+	}), nil
 }
 
 func (a *App) UpsertRelaySubscription(sub config.RelaySubscription, replace bool) error {
@@ -313,6 +335,19 @@ func saveImportedSubscription(cfg *config.ClientConfig, sourceURL string) error 
 		}
 	}
 	return cfg.UpsertRelaySubscription(config.RelaySubscription{Name: name, URL: sourceURL}, true)
+}
+
+func importedReportName(sourceURL string, cfg config.ClientConfig) string {
+	sourceURL = strings.TrimSpace(sourceURL)
+	if sourceURL == "" {
+		return "import"
+	}
+	for _, sub := range cfg.Subscriptions {
+		if strings.TrimSpace(sub.URL) == sourceURL && strings.TrimSpace(sub.Name) != "" {
+			return strings.TrimSpace(sub.Name)
+		}
+	}
+	return "airport"
 }
 
 func (a *App) Start(ctx context.Context) error {

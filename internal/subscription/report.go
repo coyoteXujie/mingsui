@@ -32,6 +32,7 @@ type SyncReport struct {
 type SyncReportInput struct {
 	Name                  string
 	Kind                  string
+	Message               string
 	Imported              int
 	ImportedRelayProfiles []config.RelayProfile
 	ImportedProxyProfiles []config.ProxyProfile
@@ -96,7 +97,11 @@ func BuildSyncReport(input SyncReportInput) SyncReport {
 	default:
 		report.Warnings = append(report.Warnings, "未知订阅类型")
 	}
-	report.Message = syncReportMessage(report)
+	if strings.TrimSpace(input.Message) != "" {
+		report.Message = strings.TrimSpace(input.Message)
+	} else {
+		report.Message = syncReportMessage(report)
+	}
 	return report
 }
 

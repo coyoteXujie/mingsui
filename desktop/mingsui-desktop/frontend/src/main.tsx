@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {ThemeProvider} from './lib/theme-provider'
 import './index.css'
 import App from './App'
+import {DesktopProvider} from './hooks/useDesktop'
 
 class AppErrorBoundary extends React.Component<{children: React.ReactNode}, {error: Error | null}> {
   state = {error: null}
@@ -55,7 +56,9 @@ root.render(
     <React.StrictMode>
         <ThemeProvider>
             <AppErrorBoundary>
-                <App/>
+                <DesktopProvider>
+                    <App/>
+                </DesktopProvider>
             </AppErrorBoundary>
         </ThemeProvider>
     </React.StrictMode>

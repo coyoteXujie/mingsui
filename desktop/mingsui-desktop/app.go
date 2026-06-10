@@ -133,16 +133,16 @@ func (a *App) SaveConfig(cfg config.ClientConfig) (string, error) {
 	return "配置已保存", nil
 }
 
-func (a *App) ImportProfiles(content string, replace bool, selectName string) ([]interface{}, error) {
+func (a *App) ImportProfiles(content string, replace bool, selectName string) (desktop.SubscriptionSyncReport, error) {
 	app, err := a.ensureDesktopApp()
 	if err != nil {
-		return nil, err
+		return desktop.SubscriptionSyncReport{}, err
 	}
-	count, err := app.ImportRelayProfiles([]byte(content), replace, selectName)
+	report, err := app.ImportRelayProfilesReport([]byte(content), replace, selectName)
 	if err != nil {
-		return nil, err
+		return desktop.SubscriptionSyncReport{}, err
 	}
-	return []interface{}{count, "节点已导入"}, nil
+	return report, nil
 }
 
 func (a *App) SelectProxy(name string) (string, error) {

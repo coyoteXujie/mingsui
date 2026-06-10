@@ -3,8 +3,8 @@
 import {config} from '../models';
 import {client} from '../models';
 import {systemproxy} from '../models';
-import {main} from '../models';
 import {subscription} from '../models';
+import {main} from '../models';
 
 export function CheckBestProxy(arg1:number):Promise<Record<string, any>>;
 
@@ -32,7 +32,7 @@ export function GetState():Promise<Record<string, any>>;
 
 export function GetSystemProxyStatus():Promise<systemproxy.Status>;
 
-export function ImportProfiles(arg1:string,arg2:boolean,arg3:string):Promise<Array<any>>;
+export function ImportProfiles(arg1:string,arg2:boolean,arg3:string):Promise<subscription.SyncReport>;
 
 export function SaveConfig(arg1:config.ClientConfig):Promise<string>;
 

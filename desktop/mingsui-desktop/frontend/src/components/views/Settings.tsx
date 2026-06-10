@@ -188,7 +188,7 @@ export function Settings() {
     }
 
     if (!relayAddr.trim()) {
-      next.push({id: 'relay-empty', severity: 'info', title: '默认 Relay 未设置', detail: '只使用机场节点时可以为空；Relay 模式需要补充默认地址。'})
+      next.push({id: 'relay-empty', severity: 'error', title: '默认 Relay 地址不能为空', detail: '机场节点模式不会使用它，但共用配置仍需要保留一个有效的 Relay 地址作为回退。'})
     } else if (!looksLikeHostPort(relayAddr)) {
       next.push({id: 'relay-format', severity: 'warning', title: 'Relay 地址格式可疑', detail: '推荐使用 relay.example.com:443 这类 host:port 格式。'})
     }
@@ -251,8 +251,8 @@ export function Settings() {
     },
     {
       label: 'Relay 默认连接',
-      value: relayAddr ? '已配置' : '可选',
-      detail: relayAddr || '机场节点模式可先留空',
+      value: relayAddr ? '已配置' : '需填写',
+      detail: relayAddr || '保留默认地址作为 relay 模式回退',
       tone: relayTone,
       icon: <ServerIcon className="h-4 w-4" />,
     },

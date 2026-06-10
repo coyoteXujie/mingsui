@@ -89,6 +89,14 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个 profile\n", len(profiles))
+	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  importedSubscriptionReportName(strings.TrimSpace(*subscriptionName)),
+		Kind:                  subscription.SyncKindRelay,
+		Message:               "节点已导入",
+		Imported:              len(profiles),
+		ImportedRelayProfiles: profiles,
+		Config:                cfg,
+	}))
 	return 0
 }
 
@@ -162,10 +170,26 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, s
 		return 1
 	}
 	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
+	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+		Name:                  importedSubscriptionReportName(subscriptionName),
+		Kind:                  subscription.SyncKindProxy,
+		Message:               "机场节点已导入",
+		Imported:              len(profiles),
+		ImportedProxyProfiles: profiles,
+		Config:                cfg,
+	}))
 	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
 		return code
 	}
 	return 0
+}
+
+func importedSubscriptionReportName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "import"
+	}
+	return name
 }
 
 func checkAndPersistBestProxyProfile(cfgPath string, cfg *config.ClientConfig, check proxyCheckSettings) int {

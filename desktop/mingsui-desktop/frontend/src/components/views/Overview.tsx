@@ -23,7 +23,7 @@ import {
 } from 'react-icons/fi'
 import {ClipboardSetText} from '../../../wailsjs/runtime/runtime'
 import {useDesktop} from '../../hooks/useDesktop'
-import type {ClientConfig, ReadinessAction, ReadinessStatus, RuntimeStatus} from '../../hooks/useDesktop'
+import type {ClientConfig, ReadinessAction, ReadinessStatus, RuntimeStatus, SubscriptionSyncResult} from '../../hooks/useDesktop'
 
 const ActivityIcon = FiActivity as ComponentType<{className?: string}>
 const AlertIcon = FiAlertCircle as ComponentType<{className?: string}>
@@ -118,6 +118,36 @@ function modeLabel(readiness: ReadinessStatus | undefined, hasProxy: boolean, ha
   if (hasProxy) return '机场节点模式'
   if (hasRelay) return 'Relay 模式'
   return '未选择模式'
+}
+
+function importResultTitle(result: SubscriptionSyncResult): string {
+  if (result.kind === 'proxy') return `${result.imported} 个机场节点`
+  if (result.kind === 'relay') return `${result.imported} 个 relay profile`
+  return `${result.imported} 个节点`
+}
+
+function importResultDetail(result: SubscriptionSyncResult): string {
+  const parts: string[] = []
+  if (result.kind === 'proxy') {
+    const exportable = result.imported_exportable_proxy_profiles ?? result.exportable_proxy_profiles
+    const autoSelectable = result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles
+    parts.push(`${exportable} 可连接`)
+    parts.push(`${autoSelectable} 自动候选`)
+  } else if (result.kind === 'relay') {
+    parts.push(`${result.relay_profiles} 个 relay profile`)
+  }
+  if (result.selected) {
+    parts.push(`当前 ${result.selected}`)
+  }
+  if (result.warnings?.length) {
+    parts.push(result.warnings.join('；'))
+  }
+  return parts.join(' · ')
+}
+
+function shouldCheckImport(result: SubscriptionSyncResult, importCheck: boolean, importSelect: string): boolean {
+  const autoSelectable = result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles
+  return importCheck && !importSelect.trim() && result.kind === 'proxy' && autoSelectable > 0
 }
 
 function StatCard({item}: {item: StatItem}) {
@@ -314,19 +344,20 @@ export function Overview() {
     }
     try {
       setImporting(true)
-      const shouldCheck = importCheck && !importSelect.trim()
-      const count = await importProfiles(importContent, importReplace, importSelect)
+      const result = await importProfiles(importContent, importReplace, importSelect)
       setImportContent('')
-      if (!shouldCheck) {
-        setMessage(`已导入 ${count} 个节点`)
+      const summary = importResultDetail(result)
+      const prefix = `已导入 ${importResultTitle(result)}${summary ? `；${summary}` : ''}`
+      if (!shouldCheckImport(result, importCheck, importSelect)) {
+        setMessage(prefix)
         return
       }
       try {
         setCheckingBest(true)
-        const result = await checkBestProxy(10)
-        setMessage(`已导入 ${count} 个节点；${result?.message || '测速选优完成'}`)
+        const checkResult = await checkBestProxy(10)
+        setMessage(`${prefix}；${checkResult?.message || '测速选优完成'}`)
       } catch (checkErr: any) {
-        setMessage(`已导入 ${count} 个节点；测速选优失败：${checkErr.message}`)
+        setMessage(`${prefix}；测速选优失败：${checkErr.message}`)
       } finally {
         setCheckingBest(false)
       }
