@@ -11,10 +11,11 @@ const SaveIcon = FiSave as ComponentType<{className?: string}>
 const TrashIcon = FiTrash2 as ComponentType<{className?: string}>
 
 export function Subscriptions() {
-  const {state, loading, saveSubscription, syncSubscription, deleteSubscription} = useDesktop()
+  const {state, loading, saveSubscription, syncSubscription, checkBestProxy, deleteSubscription} = useDesktop()
   const [name, setName] = useState('')
   const [url, setURL] = useState('')
   const [replace, setReplace] = useState(true)
+  const [syncCheck, setSyncCheck] = useState(true)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -48,7 +49,16 @@ export function Subscriptions() {
     try {
       setBusy(`sync:${subName}`)
       const count = await syncSubscription(subName, replace)
-      setMessage(`订阅已同步：${count} 个节点`)
+      if (!syncCheck) {
+        setMessage(`订阅已同步：${count} 个节点`)
+        return
+      }
+      try {
+        const result = await checkBestProxy(10)
+        setMessage(`订阅已同步：${count} 个节点；${result?.message || '测速选优完成'}`)
+      } catch (checkErr: any) {
+        setMessage(`订阅已同步：${count} 个节点；测速选优失败：${checkErr.message}`)
+      }
     } catch (err: any) {
       setMessage(err.message)
     } finally {
@@ -84,7 +94,7 @@ export function Subscriptions() {
         </div>
         <div className="panel p-4">
           <div className="text-xs text-faint">同步策略</div>
-          <div className="mt-2 text-sm font-medium text-main">{replace ? '覆盖同名节点' : '保留已有节点'}</div>
+          <div className="mt-2 text-sm font-medium text-main">{replace ? '覆盖同名节点' : '保留已有节点'} · {syncCheck ? '测速选优' : '不测速'}</div>
         </div>
         <div className="panel p-4">
           <div className="text-xs text-faint">配置文件</div>
@@ -121,10 +131,16 @@ export function Subscriptions() {
           </label>
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm text-subtle">
-            <input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} />
-            覆盖同名节点
-          </label>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm text-subtle">
+              <input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} />
+              覆盖同名节点
+            </label>
+            <label className="flex items-center gap-2 text-sm text-subtle">
+              <input type="checkbox" checked={syncCheck} onChange={e => setSyncCheck(e.target.checked)} />
+              同步后测速选优
+            </label>
+          </div>
           <div className="flex gap-3">
             <button
               onClick={handleSave}

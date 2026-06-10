@@ -17,10 +17,11 @@ function formatBytes(bytes: number): string {
 }
 
 export function Overview() {
-  const {state, loading, start, stop, importProfiles, enableSystemProxy, disableSystemProxy} = useDesktop()
+  const {state, loading, start, stop, importProfiles, checkBestProxy, enableSystemProxy, disableSystemProxy} = useDesktop()
   const [importContent, setImportContent] = useState('')
   const [importSelect, setImportSelect] = useState('')
   const [importReplace, setImportReplace] = useState(true)
+  const [importCheck, setImportCheck] = useState(true)
   const [message, setMessage] = useState('')
 
   const status: RuntimeStatus = state?.status || {running: false, local_addr: '', http_addr: '', relay_addr: '', started_at: '', last_error: ''}
@@ -52,9 +53,19 @@ export function Overview() {
       return
     }
     try {
+      const shouldCheck = importCheck && !importSelect.trim()
       const count = await importProfiles(importContent, importReplace, importSelect)
-      setMessage(`已导入 ${count} 个节点`)
       setImportContent('')
+      if (!shouldCheck) {
+        setMessage(`已导入 ${count} 个节点`)
+        return
+      }
+      try {
+        const result = await checkBestProxy(10)
+        setMessage(`已导入 ${count} 个节点；${result?.message || '测速选优完成'}`)
+      } catch (checkErr: any) {
+        setMessage(`已导入 ${count} 个节点；测速选优失败：${checkErr.message}`)
+      }
     } catch (err: any) {
       setMessage(err.message)
     }
@@ -206,6 +217,15 @@ export function Overview() {
               覆盖同名
             </label>
           </div>
+          <label className="mb-4 flex items-center gap-2 text-sm text-subtle">
+            <input
+              type="checkbox"
+              checked={importCheck && !importSelect.trim()}
+              disabled={Boolean(importSelect.trim())}
+              onChange={e => setImportCheck(e.target.checked)}
+            />
+            导入后测速选优
+          </label>
           <button
             onClick={handleImport}
             className="primary-button px-4 py-2"
