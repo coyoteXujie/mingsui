@@ -35,21 +35,21 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111315] text-white">
+    <div className="app-shell">
       <div className="flex min-h-screen">
         <Sidebar activeView={activeView} onViewChange={(view) => setActiveView(view as ViewType)} state={state} />
         <main className="min-w-0 flex-1 overflow-auto">
-          <header className="sticky top-0 z-10 border-b border-white/10 bg-[#111315]/90 px-6 py-4 backdrop-blur">
+          <header className="topbar sticky top-0 z-10 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h1 className="text-xl font-semibold text-white">{view.title}</h1>
-                <p className="mt-1 text-sm text-[#8b949e]">{view.detail}</p>
+                <h1 className="text-xl font-semibold text-main">{view.title}</h1>
+                <p className="mt-1 text-sm text-subtle">{view.detail}</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className={`rounded-full border px-3 py-1 text-sm ${
                   state?.status?.running
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                    : 'border-white/10 bg-white/5 text-[#8b949e]'
+                    ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-white/60 text-subtle'
                 }`}>
                   {state?.status?.running ? '已连接' : '未连接'}
                 </div>

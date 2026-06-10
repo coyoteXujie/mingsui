@@ -88,7 +88,7 @@ export function Nodes() {
     unsupported: profiles.filter(p => capabilityMap.get(p.name)?.exportable === false).length,
   }
 
-  if (loading) return <div className="flex h-64 items-center justify-center text-[#8b949e]">加载中...</div>
+  if (loading) return <div className="flex h-64 items-center justify-center text-subtle">加载中...</div>
 
   return (
     <div className="space-y-6">
@@ -99,37 +99,37 @@ export function Nodes() {
           ['当前', counts.current],
           ['不支持', counts.unsupported],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-white/10 bg-[#17191c] p-4">
-            <div className="text-xs text-[#6e7681]">{label}</div>
-            <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+          <div key={label} className="panel p-4">
+            <div className="text-xs text-faint">{label}</div>
+            <div className="mt-2 text-2xl font-semibold text-main">{value}</div>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#17191c] p-4">
+      <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-white">节点列表</div>
-          <div className="mt-1 text-xs text-[#8b949e]">当前选择：{config?.active_proxy_profile || '未选择'}</div>
+          <div className="text-sm font-medium text-main">节点列表</div>
+          <div className="mt-1 text-xs text-subtle">当前选择：{config?.active_proxy_profile || '未选择'}</div>
         </div>
         <button
           onClick={handleCheckBest}
           disabled={checkingName !== null}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#0b6f65] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a5f57] disabled:bg-white/10 disabled:text-[#6e7681]"
+          className="primary-button px-4 py-2 text-sm font-medium disabled:bg-slate-200 disabled:text-slate-400"
         >
           <ZapIcon className="h-4 w-4" />
           {checkingName === '__best__' ? '测速中...' : '测速选优'}
         </button>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-[#17191c] p-4">
+      <div className="panel p-4">
         <div className="flex flex-wrap items-center gap-3">
           <label className="relative min-w-64 flex-1 md:flex-none">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6e7681]" />
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <input
               placeholder="搜索节点或协议"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-sm text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+              className="form-control w-full py-2 pl-9 pr-3 text-sm"
             />
           </label>
           {[
@@ -144,8 +144,8 @@ export function Nodes() {
               onClick={() => setFilter(f.id)}
               className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
                 filter === f.id
-                  ? 'border-[#0b6f65] bg-[#0b6f65] text-white'
-                  : 'border-white/10 bg-white/5 text-[#c9d1d9] hover:bg-white/10 hover:text-white'
+                  ? 'border-[#0b8a7e] bg-[#0b8a7e] text-white'
+                  : 'pill hover:bg-white/90'
               }`}
             >
               {f.label}
@@ -156,7 +156,7 @@ export function Nodes() {
 
       <div className="space-y-3">
         {filteredProfiles.length === 0 ? (
-          <div className="rounded-lg border border-white/10 bg-[#17191c] p-8 text-center text-[#8b949e]">没有匹配的机场节点</div>
+          <div className="panel p-8 text-center text-subtle">没有匹配的机场节点</div>
         ) : (
           filteredProfiles.map(profile => {
             const cap = capabilityMap.get(profile.name)
@@ -174,24 +174,24 @@ export function Nodes() {
                 key={profile.name}
                 className={`rounded-lg border p-4 transition-colors ${
                   isCurrent
-                    ? 'border-[#0b6f65]/60 bg-[#10211f]'
-                    : 'border-white/10 bg-[#17191c] hover:border-white/20'
+                    ? 'border-[#0b8a7e]/45 bg-emerald-50/80'
+                    : 'row-surface hover:border-[#0b8a7e]/30'
                 }`}
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-3">
                       <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${
-                        exportable ? 'border-[#0b6f65]/30 bg-[#0b6f65]/10 text-[#3fb950]' : 'border-white/10 bg-white/5 text-[#6e7681]'
+                        exportable ? 'border-[#0b8a7e]/25 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white/60 text-faint'
                       }`}>
                         <WifiIcon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-white">
+                        <p className="truncate font-medium text-main">
                           {profile.name}
-                          {isCurrent && <span className="ml-2 rounded-full bg-[#0b6f65] px-2 py-0.5 text-xs text-white">当前</span>}
+                          {isCurrent && <span className="ml-2 rounded-full bg-[#0b8a7e] px-2 py-0.5 text-xs text-white">当前</span>}
                         </p>
-                        <p className={`mt-1 text-sm ${exportable && autoSelectable ? 'text-[#8b949e]' : 'text-amber-300'}`}>
+                        <p className={`mt-1 text-sm ${exportable && autoSelectable ? 'text-subtle' : 'text-amber-700'}`}>
                           {(profile.protocol || '-').toUpperCase()} · {compatibility}
                         </p>
                       </div>
@@ -202,7 +202,7 @@ export function Nodes() {
                       onClick={() => handleSelect(profile.name)}
                       disabled={!exportable}
                       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                        exportable ? 'bg-[#0b6f65] text-white hover:bg-[#0a5f57]' : 'cursor-not-allowed bg-white/10 text-[#6e7681]'
+                        exportable ? 'primary-button' : 'cursor-not-allowed bg-slate-100 text-slate-400'
                       }`}
                     >
                       <CheckIcon className="h-4 w-4" />
@@ -213,8 +213,8 @@ export function Nodes() {
                       disabled={!exportable || checkingName !== null}
                       className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                         exportable
-                          ? 'border-white/10 bg-white/5 text-white hover:bg-white/10 disabled:bg-white/10 disabled:text-[#6e7681]'
-                          : 'cursor-not-allowed border-white/10 bg-white/10 text-[#6e7681]'
+                          ? 'secondary-button disabled:bg-slate-100 disabled:text-slate-400'
+                          : 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                       }`}
                     >
                       <ZapIcon className="h-4 w-4" />
@@ -222,7 +222,7 @@ export function Nodes() {
                     </button>
                     <button
                       onClick={() => handleDelete(profile.name)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm text-red-200 transition-colors hover:bg-red-500/20"
+                      className="danger-button px-3 py-1.5 text-sm"
                     >
                       <TrashIcon className="h-4 w-4" />
                       删除
@@ -235,7 +235,7 @@ export function Nodes() {
         )}
       </div>
 
-      {message && <div className="fixed bottom-4 right-4 rounded-lg border border-white/10 bg-[#17191c] px-4 py-2 text-white shadow-2xl shadow-black/30">{message}</div>}
+      {message && <div className="toast fixed bottom-4 right-4 px-4 py-2">{message}</div>}
     </div>
   )
 }

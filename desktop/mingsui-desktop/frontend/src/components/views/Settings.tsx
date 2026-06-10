@@ -89,7 +89,7 @@ export function Settings() {
     }
   }
 
-  if (loading) return <div className="flex h-64 items-center justify-center text-[#8b949e]">加载中...</div>
+  if (loading) return <div className="flex h-64 items-center justify-center text-subtle">加载中...</div>
 
   return (
     <div className="space-y-6">
@@ -100,71 +100,71 @@ export function Settings() {
           ['认证', authEnabled ? '已启用' : '未启用'],
           ['TLS', tlsEnabled ? '已启用' : '未启用'],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-white/10 bg-[#17191c] p-4">
-            <div className="text-xs text-[#6e7681]">{label}</div>
-            <div className="mt-2 truncate text-sm font-medium text-white">{value}</div>
+          <div key={label} className="panel p-4">
+            <div className="text-xs text-faint">{label}</div>
+            <div className="mt-2 truncate text-sm font-medium text-main">{value}</div>
           </div>
         ))}
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-[#17191c] p-5">
+      <div className="panel p-5">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <SlidersIcon className="h-4 w-4 text-[#0b6f65]" />
-            <h3 className="text-base font-semibold text-white">客户端配置</h3>
+            <span className="icon-tile h-8 w-8"><SlidersIcon className="h-4 w-4" /></span>
+            <h3 className="text-base font-semibold text-main">客户端配置</h3>
           </div>
-          {dirty && <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200">未保存</span>}
+          {dirty && <span className="rounded-full border border-amber-500/25 bg-amber-50 px-2.5 py-1 text-xs text-amber-700">未保存</span>}
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <label className="block">
-            <span className="mb-1 block text-sm text-[#8b949e]">SOCKS5 监听</span>
+            <span className="mb-1 block text-sm text-subtle">SOCKS5 监听</span>
             <input
               placeholder="127.0.0.1:1080"
               value={localAddr}
               onChange={e => update(setLocalAddr, e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+              className="form-control w-full px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-[#8b949e]">HTTP 监听</span>
+            <span className="mb-1 block text-sm text-subtle">HTTP 监听</span>
             <input
               placeholder="127.0.0.1:8080"
               value={httpAddr}
               onChange={e => update(setHttpAddr, e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+              className="form-control w-full px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-[#8b949e]">默认 relay</span>
+            <span className="mb-1 block text-sm text-subtle">默认 relay</span>
             <input
               placeholder="relay.example.com:443"
               value={relayAddr}
               onChange={e => update(setRelayAddr, e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+              className="form-control w-full px-3 py-2"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-[#8b949e]">Token</span>
+            <span className="mb-1 block text-sm text-subtle">Token</span>
             <div className="relative">
-              <LockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6e7681]" />
+              <LockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
               <input
                 type="password"
                 value={token}
                 onChange={e => update(setToken, e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+                className="form-control w-full py-2 pl-9 pr-3"
               />
             </div>
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-[#8b949e]">超时秒数</span>
+            <span className="mb-1 block text-sm text-subtle">超时秒数</span>
             <div className="relative">
-              <ClockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6e7681]" />
+              <ClockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
               <input
                 type="number"
                 value={timeoutSeconds}
                 onChange={e => update(setTimeoutSeconds, parseInt(e.target.value) || 10)}
-                className="w-full rounded-lg border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-white focus:border-[#0b6f65] focus:outline-none"
+                className="form-control w-full py-2 pl-9 pr-3"
               />
             </div>
           </label>
@@ -172,12 +172,12 @@ export function Settings() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-white/10 bg-[#17191c] p-5">
+        <div className="panel p-5">
           <div className="mb-4 flex items-center gap-2">
-            <ShieldIcon className="h-4 w-4 text-[#3fb950]" />
-            <h3 className="text-base font-semibold text-white">本地代理认证</h3>
+            <span className="icon-tile h-8 w-8 text-emerald-700"><ShieldIcon className="h-4 w-4" /></span>
+            <h3 className="text-base font-semibold text-main">本地代理认证</h3>
           </div>
-          <label className="mb-4 flex items-center gap-2 text-sm text-[#c9d1d9]">
+          <label className="mb-4 flex items-center gap-2 text-sm text-subtle">
             <input type="checkbox" checked={authEnabled} onChange={e => update(setAuthEnabled, e.target.checked)} />
             启用本地代理认证
           </label>
@@ -187,27 +187,27 @@ export function Settings() {
                 placeholder="认证用户名"
                 value={authUser}
                 onChange={e => update(setAuthUser, e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+                className="form-control px-3 py-2"
               />
               <input
                 type="password"
                 placeholder="认证密码"
                 value={authPass}
                 onChange={e => update(setAuthPass, e.target.value)}
-                className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+                className="form-control px-3 py-2"
               />
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-[#8b949e]">本机 HTTP/SOCKS5 代理当前无需用户名密码。</div>
+            <div className="rounded-lg border border-dashed border-[#ded8f5] p-4 text-sm text-subtle">本机 HTTP/SOCKS5 代理当前无需用户名密码。</div>
           )}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#17191c] p-5">
+        <div className="panel p-5">
           <div className="mb-4 flex items-center gap-2">
-            <ServerIcon className="h-4 w-4 text-[#3fb950]" />
-            <h3 className="text-base font-semibold text-white">Relay TLS</h3>
+            <span className="icon-tile h-8 w-8 text-emerald-700"><ServerIcon className="h-4 w-4" /></span>
+            <h3 className="text-base font-semibold text-main">Relay TLS</h3>
           </div>
-          <label className="mb-4 flex items-center gap-2 text-sm text-[#c9d1d9]">
+          <label className="mb-4 flex items-center gap-2 text-sm text-subtle">
             <input type="checkbox" checked={tlsEnabled} onChange={e => update(setTlsEnabled, e.target.checked)} />
             启用 relay TLS
           </label>
@@ -217,21 +217,21 @@ export function Settings() {
                 placeholder="TLS ServerName"
                 value={tlsServerName}
                 onChange={e => update(setTlsServerName, e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+                className="form-control w-full px-3 py-2"
               />
               <input
                 placeholder="TLS CA 文件"
                 value={tlsCAFile}
                 onChange={e => update(setTlsCAFile, e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+                className="form-control w-full px-3 py-2"
               />
-              <label className="flex items-center gap-2 text-sm text-[#c9d1d9]">
+              <label className="flex items-center gap-2 text-sm text-subtle">
                 <input type="checkbox" checked={tlsInsecure} onChange={e => update(setTlsInsecure, e.target.checked)} />
                 跳过证书校验
               </label>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-white/10 p-4 text-sm text-[#8b949e]">默认使用明文 relay 连接；需要公网 TLS 时再启用。</div>
+            <div className="rounded-lg border border-dashed border-[#ded8f5] p-4 text-sm text-subtle">默认使用明文 relay 连接；需要公网 TLS 时再启用。</div>
           )}
         </div>
       </div>
@@ -240,14 +240,14 @@ export function Settings() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#0b6f65] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0a5f57] disabled:bg-white/10 disabled:text-[#6e7681]"
+          className="primary-button px-5 py-2.5 text-sm font-medium disabled:bg-slate-200 disabled:text-slate-400"
         >
           <SaveIcon className="h-4 w-4" />
           {saving ? '保存中...' : '保存配置'}
         </button>
       </div>
 
-      {message && <div className="fixed bottom-4 right-4 rounded-lg border border-white/10 bg-[#17191c] px-4 py-2 text-white shadow-2xl shadow-black/30">{message}</div>}
+      {message && <div className="toast fixed bottom-4 right-4 px-4 py-2">{message}</div>}
     </div>
   )
 }
