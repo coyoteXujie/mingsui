@@ -116,6 +116,104 @@ export interface AppState {
   readiness?: ReadinessStatus
 }
 
+const defaultMetrics = {
+  active_connections: 0,
+  total_connections: 0,
+  upload_bytes: 0,
+  download_bytes: 0,
+}
+
+const defaultLocalAuth = {
+  enabled: false,
+  username: '',
+  password: '',
+}
+
+const defaultTLS = {
+  enabled: false,
+  server_name: '',
+  ca_file: '',
+  insecure_skip_verify: false,
+}
+
+const defaultConfig: ClientConfig = {
+  local_addr: '',
+  http_addr: '',
+  relay_addr: '',
+  token: '',
+  dial_timeout_seconds: 10,
+  local_auth: defaultLocalAuth,
+  tls: defaultTLS,
+  profiles: [],
+  proxy_profiles: [],
+  subscriptions: [],
+  active_profile: '',
+  active_proxy_profile: '',
+}
+
+const defaultStatus: RuntimeStatus = {
+  running: false,
+  local_addr: '',
+  http_addr: '',
+  relay_addr: '',
+  started_at: '',
+  last_error: '',
+  metrics: defaultMetrics,
+}
+
+const defaultSystemProxy: SystemProxyStatus = {
+  supported: false,
+  enabled: false,
+  message: '',
+}
+
+function normalizeConfig(config?: Partial<ClientConfig> | null): ClientConfig {
+  const profiles = config?.profiles
+  const proxyProfiles = config?.proxy_profiles
+  const subscriptions = config?.subscriptions
+
+  return {
+    ...defaultConfig,
+    ...config,
+    local_auth: {
+      ...defaultLocalAuth,
+      ...(config?.local_auth || {}),
+    },
+    tls: {
+      ...defaultTLS,
+      ...(config?.tls || {}),
+    },
+    profiles: Array.isArray(profiles) ? profiles : [],
+    proxy_profiles: Array.isArray(proxyProfiles) ? proxyProfiles : [],
+    subscriptions: Array.isArray(subscriptions) ? subscriptions : [],
+  }
+}
+
+function normalizeStatus(status?: Partial<RuntimeStatus> | null): RuntimeStatus {
+  return {
+    ...defaultStatus,
+    ...status,
+    metrics: {
+      ...defaultMetrics,
+      ...(status?.metrics || {}),
+    },
+  }
+}
+
+function normalizeAppState(state: Partial<AppState>): AppState {
+  return {
+    config_path: state.config_path || '',
+    config: normalizeConfig(state.config),
+    status: normalizeStatus(state.status),
+    system_proxy: {
+      ...defaultSystemProxy,
+      ...(state.system_proxy || {}),
+    },
+    proxy_capabilities: Array.isArray(state.proxy_capabilities) ? state.proxy_capabilities : [],
+    readiness: state.readiness,
+  }
+}
+
 declare global {
   interface Window {
     go: {
@@ -157,7 +255,7 @@ export function useDesktop() {
     try {
       setLoading(true)
       const data = await window.go.main.App.GetState()
-      setState(data)
+      setState(normalizeAppState(data))
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to fetch state')
