@@ -1,5 +1,13 @@
 import {useState} from 'react'
+import type {ComponentType} from 'react'
+import {FiCheck, FiSearch, FiTrash2, FiWifi, FiZap} from 'react-icons/fi'
 import {useDesktop, ProxyProfile} from '../../hooks/useDesktop'
+
+const CheckIcon = FiCheck as ComponentType<{className?: string}>
+const SearchIcon = FiSearch as ComponentType<{className?: string}>
+const TrashIcon = FiTrash2 as ComponentType<{className?: string}>
+const WifiIcon = FiWifi as ComponentType<{className?: string}>
+const ZapIcon = FiZap as ComponentType<{className?: string}>
 
 export function Nodes() {
   const {state, loading, selectProxy, deleteProxy, checkProxy, checkBestProxy} = useDesktop()
@@ -80,54 +88,75 @@ export function Nodes() {
     unsupported: profiles.filter(p => capabilityMap.get(p.name)?.exportable === false).length,
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="text-gray-400">加载中...</div></div>
+  if (loading) return <div className="flex h-64 items-center justify-center text-[#8b949e]">加载中...</div>
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">节点</h2>
+      <div className="grid gap-3 md:grid-cols-4">
+        {[
+          ['全部节点', counts.all],
+          ['可连接', counts.usable],
+          ['当前', counts.current],
+          ['不支持', counts.unsupported],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-white/10 bg-[#17191c] p-4">
+            <div className="text-xs text-[#6e7681]">{label}</div>
+            <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-[#17191c] p-4">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-white">节点列表</div>
+          <div className="mt-1 text-xs text-[#8b949e]">当前选择：{config?.active_proxy_profile || '未选择'}</div>
+        </div>
         <button
           onClick={handleCheckBest}
           disabled={checkingName !== null}
-          className="px-4 py-2 bg-[#0b6f65] hover:bg-[#0a5f57] disabled:bg-[#333] disabled:text-gray-500 text-white rounded-lg"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0b6f65] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0a5f57] disabled:bg-white/10 disabled:text-[#6e7681]"
         >
+          <ZapIcon className="h-4 w-4" />
           {checkingName === '__best__' ? '测速中...' : '测速选优'}
         </button>
       </div>
 
-      <div className="bg-[#252525] border border-[#333] rounded-lg p-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          <input
-            placeholder="搜索节点"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-64 bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white"
-          />
-          <div className="flex gap-2">
-            {[
-              {id: 'all', label: `全部 ${counts.all}`},
-              {id: 'usable', label: `可连接 ${counts.usable}`},
-              {id: 'current', label: `当前 ${counts.current}`},
-              {id: 'domestic', label: `国内 ${counts.domestic}`},
-              {id: 'unsupported', label: `不支持 ${counts.unsupported}`},
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  filter === f.id ? 'bg-[#0b6f65] text-white' : 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+      <div className="rounded-lg border border-white/10 bg-[#17191c] p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative min-w-64 flex-1 md:flex-none">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6e7681]" />
+            <input
+              placeholder="搜索节点或协议"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-black/20 py-2 pl-9 pr-3 text-sm text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
+            />
+          </label>
+          {[
+            {id: 'all', label: `全部 ${counts.all}`},
+            {id: 'usable', label: `可连接 ${counts.usable}`},
+            {id: 'current', label: `当前 ${counts.current}`},
+            {id: 'domestic', label: `国内 ${counts.domestic}`},
+            {id: 'unsupported', label: `不支持 ${counts.unsupported}`},
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                filter === f.id
+                  ? 'border-[#0b6f65] bg-[#0b6f65] text-white'
+                  : 'border-white/10 bg-white/5 text-[#c9d1d9] hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="space-y-3">
         {filteredProfiles.length === 0 ? (
-          <div className="bg-[#252525] border border-[#333] rounded-lg p-4 text-center text-gray-400">没有匹配的机场节点</div>
+          <div className="rounded-lg border border-white/10 bg-[#17191c] p-8 text-center text-[#8b949e]">没有匹配的机场节点</div>
         ) : (
           filteredProfiles.map(profile => {
             const cap = capabilityMap.get(profile.name)
@@ -141,40 +170,61 @@ export function Nodes() {
                 : '可连接，国内节点不自动选择'
 
             return (
-              <div key={profile.name} className="bg-[#252525] border border-[#333] rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-medium">
-                      {profile.name}
-                      {isCurrent && <span className="ml-2 px-2 py-0.5 bg-[#0b6f65] text-white text-xs rounded-full">当前</span>}
-                    </p>
-                    <p className={`text-sm mt-1 ${exportable && autoSelectable ? 'text-gray-400' : 'text-amber-400'}`}>
-                      {(profile.protocol || '-').toUpperCase()} · {compatibility}
-                    </p>
+              <div
+                key={profile.name}
+                className={`rounded-lg border p-4 transition-colors ${
+                  isCurrent
+                    ? 'border-[#0b6f65]/60 bg-[#10211f]'
+                    : 'border-white/10 bg-[#17191c] hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${
+                        exportable ? 'border-[#0b6f65]/30 bg-[#0b6f65]/10 text-[#3fb950]' : 'border-white/10 bg-white/5 text-[#6e7681]'
+                      }`}>
+                        <WifiIcon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-white">
+                          {profile.name}
+                          {isCurrent && <span className="ml-2 rounded-full bg-[#0b6f65] px-2 py-0.5 text-xs text-white">当前</span>}
+                        </p>
+                        <p className={`mt-1 text-sm ${exportable && autoSelectable ? 'text-[#8b949e]' : 'text-amber-300'}`}>
+                          {(profile.protocol || '-').toUpperCase()} · {compatibility}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-2">
                     <button
                       onClick={() => handleSelect(profile.name)}
                       disabled={!exportable}
-                      className={`px-3 py-1.5 rounded-lg text-sm ${
-                        exportable ? 'bg-[#0b6f65] hover:bg-[#0a5f57] text-white' : 'bg-[#333] text-gray-500 cursor-not-allowed'
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        exportable ? 'bg-[#0b6f65] text-white hover:bg-[#0a5f57]' : 'cursor-not-allowed bg-white/10 text-[#6e7681]'
                       }`}
                     >
+                      <CheckIcon className="h-4 w-4" />
                       选择
                     </button>
                     <button
                       onClick={() => handleCheck(profile.name)}
                       disabled={!exportable || checkingName !== null}
-                      className={`px-3 py-1.5 rounded-lg text-sm ${
-                        exportable ? 'bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:bg-[#333] disabled:text-gray-500 text-white' : 'bg-[#333] text-gray-500 cursor-not-allowed'
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                        exportable
+                          ? 'border-white/10 bg-white/5 text-white hover:bg-white/10 disabled:bg-white/10 disabled:text-[#6e7681]'
+                          : 'cursor-not-allowed border-white/10 bg-white/10 text-[#6e7681]'
                       }`}
                     >
+                      <ZapIcon className="h-4 w-4" />
                       {checkingName === profile.name ? '检测中...' : '检测'}
                     </button>
                     <button
                       onClick={() => handleDelete(profile.name)}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-sm text-red-200 transition-colors hover:bg-red-500/20"
                     >
+                      <TrashIcon className="h-4 w-4" />
                       删除
                     </button>
                   </div>
@@ -185,7 +235,7 @@ export function Nodes() {
         )}
       </div>
 
-      {message && <div className="fixed bottom-4 right-4 bg-[#333] text-white px-4 py-2 rounded-lg">{message}</div>}
+      {message && <div className="fixed bottom-4 right-4 rounded-lg border border-white/10 bg-[#17191c] px-4 py-2 text-white shadow-2xl shadow-black/30">{message}</div>}
     </div>
   )
 }

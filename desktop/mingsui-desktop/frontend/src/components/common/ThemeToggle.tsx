@@ -1,5 +1,10 @@
 import {useState, useEffect} from 'react'
+import type {ComponentType} from 'react'
 import {useTheme} from 'next-themes'
+import {FiMoon, FiSun} from 'react-icons/fi'
+
+const MoonIcon = FiMoon as ComponentType<{className?: string}>
+const SunIcon = FiSun as ComponentType<{className?: string}>
 
 function ThemeToggle() {
   const {theme, setTheme} = useTheme()
@@ -11,10 +16,10 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      className="w-10 h-10 rounded-lg bg-[#2a2a2a] hover:bg-[#3a3a3a] flex items-center justify-center transition-colors text-white text-lg"
+      className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition-colors hover:bg-white/10"
       title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
     >
-      {theme === 'dark' ? '☀️' : '🌙'}
+      {theme === 'dark' ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
     </button>
   )
 }

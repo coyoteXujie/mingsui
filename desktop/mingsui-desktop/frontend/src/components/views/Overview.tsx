@@ -1,10 +1,14 @@
 import {useState} from 'react'
 import type {ComponentType} from 'react'
-import {FiCheckCircle, FiXCircle} from 'react-icons/fi'
+import {FiCheckCircle, FiCpu, FiShield, FiTerminal, FiUploadCloud, FiXCircle} from 'react-icons/fi'
 import {useDesktop, RuntimeStatus, ClientConfig} from '../../hooks/useDesktop'
 
 const CheckIcon = FiCheckCircle as ComponentType<{className?: string}>
 const XIcon = FiXCircle as ComponentType<{className?: string}>
+const ShieldIcon = FiShield as ComponentType<{className?: string}>
+const ImportIcon = FiUploadCloud as ComponentType<{className?: string}>
+const TerminalIcon = FiTerminal as ComponentType<{className?: string}>
+const CpuIcon = FiCpu as ComponentType<{className?: string}>
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -59,6 +63,8 @@ export function Overview() {
   const activeProxy = config.proxy_profiles.find(p => p.name === config.active_proxy_profile)
   const nodeLabel = activeProxy ? activeProxy.name : config.active_profile || '未选择'
   const metrics = status.metrics || {active_connections: 0, total_connections: 0, upload_bytes: 0, download_bytes: 0}
+  const httpProxy = `http://${status.http_addr || config.http_addr || '-'}`
+  const socksProxy = `socks5://${status.local_addr || config.local_addr || '-'}`
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="text-gray-400">加载中...</div></div>
@@ -66,21 +72,29 @@ export function Overview() {
 
   return (
     <div className="space-y-6">
-      {/* 连接状态卡片 */}
-      <div className="bg-[#252525] border border-[#333] rounded-lg p-6">
+      <div className="rounded-lg border border-white/10 bg-[#17191c] p-6 shadow-2xl shadow-black/20">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className={status.running ? 'text-green-500' : 'text-gray-500'}>
+            <div className={`grid h-14 w-14 place-items-center rounded-xl border ${
+              status.running
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                : 'border-white/10 bg-white/5 text-[#6e7681]'
+            }`}>
               {status.running ? <CheckIcon className="h-10 w-10" /> : <XIcon className="h-10 w-10" />}
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">{status.running ? '已连接' : '未连接'}</h2>
-              <p className="text-gray-400 mt-1">{nodeLabel} · {status.relay_addr || '未选择节点'}</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-3xl font-semibold text-white">{status.running ? '已连接' : '未连接'}</h2>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-[#c9d1d9]">
+                  {activeProxy ? activeProxy.protocol.toUpperCase() : config.active_profile ? 'RELAY' : 'IDLE'}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-[#8b949e]">{nodeLabel} · {status.relay_addr || '未选择节点'}</p>
             </div>
           </div>
           <button
             onClick={handleConnect}
-            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+            className={`min-w-28 rounded-lg px-6 py-2.5 font-medium transition-colors ${
               status.running
                 ? 'bg-red-600 hover:bg-red-700 text-white'
                 : 'bg-[#0b6f65] hover:bg-[#0a5f57] text-white'
@@ -90,67 +104,87 @@ export function Overview() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mt-6 pt-6 border-t border-[#333]">
-          <div><p className="text-gray-500 text-sm">当前节点</p><p className="text-white">{nodeLabel}</p></div>
-          <div><p className="text-gray-500 text-sm">SOCKS5</p><p className="text-white">{status.local_addr || '-'}</p></div>
-          <div><p className="text-gray-500 text-sm">HTTP</p><p className="text-white">{status.http_addr || '-'}</p></div>
-          <div><p className="text-gray-500 text-sm">系统代理</p><p className="text-white">{systemProxy.supported ? (systemProxy.enabled ? '已开启' : '未开启') : <span className="text-gray-500">不支持</span>}</p></div>
-          <div><p className="text-gray-500 text-sm">活跃连接</p><p className="text-white">{metrics.active_connections}</p></div>
-          <div><p className="text-gray-500 text-sm">流量</p><p className="text-white">{formatBytes(metrics.upload_bytes)} / {formatBytes(metrics.download_bytes)}</p></div>
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/10 pt-6 md:grid-cols-3 xl:grid-cols-6">
+          {[
+            ['当前节点', nodeLabel],
+            ['SOCKS5', status.local_addr || '-'],
+            ['HTTP', status.http_addr || '-'],
+            ['系统代理', systemProxy.supported ? (systemProxy.enabled ? '已开启' : '未开启') : '不支持'],
+            ['活跃连接', String(metrics.active_connections)],
+            ['流量', `${formatBytes(metrics.upload_bytes)} / ${formatBytes(metrics.download_bytes)}`],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <p className="text-xs text-[#6e7681]">{label}</p>
+              <p className="mt-1 truncate text-sm font-medium text-white">{value}</p>
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-3 mt-6">
           <button
             onClick={systemProxy.enabled ? disableSystemProxy : enableSystemProxy}
-            className="px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-white transition-colors hover:bg-white/10"
           >
+            <ShieldIcon className="h-4 w-4" />
             {systemProxy.enabled ? '关闭系统代理' : '开启系统代理'}
           </button>
         </div>
       </div>
 
-      {/* 快速导入和账号 */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-[#252525] border border-[#333] rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">快速导入</h3>
+        <div className="rounded-lg border border-white/10 bg-[#17191c] p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <ImportIcon className="h-4 w-4 text-[#0b6f65]" />
+            <h3 className="text-lg font-semibold text-white">快速导入</h3>
+          </div>
           <textarea
             placeholder="粘贴机场订阅 URL 或节点内容"
             value={importContent}
             onChange={e => setImportContent(e.target.value)}
-            className="w-full h-24 bg-[#1a1a1a] border border-[#333] rounded-lg p-3 text-white mb-3 resize-none"
+            className="mb-3 h-28 w-full resize-none rounded-lg border border-white/10 bg-black/20 p-3 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
           />
           <div className="flex gap-3 mb-3">
             <input
               placeholder="默认节点名称（可选）"
               value={importSelect}
               onChange={e => setImportSelect(e.target.value)}
-              className="flex-1 bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white"
+              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white placeholder:text-[#6e7681] focus:border-[#0b6f65] focus:outline-none"
             />
-            <label className="flex items-center gap-2 text-gray-400 text-sm">
+            <label className="flex items-center gap-2 text-sm text-[#c9d1d9]">
               <input type="checkbox" checked={importReplace} onChange={e => setImportReplace(e.target.checked)} />
               覆盖同名
             </label>
           </div>
           <button
             onClick={handleImport}
-            className="px-4 py-2 bg-[#0b6f65] hover:bg-[#0a5f57] text-white rounded-lg"
+            className="rounded-lg bg-[#0b6f65] px-4 py-2 text-white hover:bg-[#0a5f57]"
           >
             导入并选择
           </button>
         </div>
 
-        <div className="bg-[#252525] border border-[#333] rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-white mb-4">明隧账号</h3>
-          <input
-            placeholder="邮箱"
-            className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white mb-3"
-          />
-          <input
-            type="password"
-            placeholder="访问令牌"
-            className="w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2 text-white mb-3"
-          />
-          <button className="px-4 py-2 bg-[#0b6f65] hover:bg-[#0a5f57] text-white rounded-lg">登录</button>
+        <div className="rounded-lg border border-white/10 bg-[#17191c] p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TerminalIcon className="h-4 w-4 text-[#3fb950]" />
+              <h3 className="text-lg font-semibold text-white">终端 / AI Agent</h3>
+            </div>
+            <CpuIcon className="h-4 w-4 text-[#8b949e]" />
+          </div>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="text-xs text-[#6e7681]">HTTP_PROXY / HTTPS_PROXY</div>
+              <div className="mt-1 break-all font-mono text-sm text-[#c9d1d9]">{httpProxy}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="text-xs text-[#6e7681]">ALL_PROXY</div>
+              <div className="mt-1 break-all font-mono text-sm text-[#c9d1d9]">{socksProxy}</div>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="text-xs text-[#6e7681]">配置共享</div>
+              <div className="mt-1 break-all text-sm text-[#c9d1d9]">{state?.config_path || '未加载'}</div>
+            </div>
+          </div>
         </div>
       </div>
 
