@@ -14,7 +14,7 @@ const viewTitles: Record<ViewType, {title: string; detail: string}> = {
   overview: {title: '总览', detail: '连接状态、系统代理和快速导入'},
   nodes: {title: '节点', detail: '机场节点、Relay profile 和测速选优'},
   subscriptions: {title: '订阅', detail: '保存、同步和维护节点来源'},
-  logs: {title: '日志', detail: '桌面端运行日志和内核输出'},
+  logs: {title: '诊断', detail: '运行状态、日志和 CLI 排障命令'},
   settings: {title: '设置', detail: '本地监听、认证、TLS 和默认 relay'},
 }
 

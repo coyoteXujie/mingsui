@@ -13,7 +13,7 @@ function Sidebar({activeView, onViewChange, state}: {activeView: string; onViewC
     {id: 'overview', label: '总览', icon: asIcon(FiHome)},
     {id: 'nodes', label: '节点', icon: asIcon(FiGlobe)},
     {id: 'subscriptions', label: '订阅', icon: asIcon(FiCloud)},
-    {id: 'logs', label: '日志', icon: asIcon(FiTerminal)},
+    {id: 'logs', label: '诊断', icon: asIcon(FiTerminal)},
     {id: 'settings', label: '设置', icon: asIcon(FiSettings)},
   ]
 
