@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/coyoteXujie/mingsui/internal/config"
+	"github.com/coyoteXujie/mingsui/internal/mihomo"
 )
 
 func TestParseRelayProfilesDocument(t *testing.T) {
@@ -106,6 +109,70 @@ func TestParseProxyProfilesSkipsAirportInfoNodes(t *testing.T) {
 	}
 	if len(profiles) != 1 || profiles[0].Name != "[1x] 日本 1" {
 		t.Fatalf("profiles = %+v, want only real node", profiles)
+	}
+}
+
+func TestParseProxyProfilesClashMihomoYAML(t *testing.T) {
+	data := []byte(`
+mixed-port: 7890
+proxies:
+  - name: "日本 SS"
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: "p#ass"
+  - name: "香港 VLESS"
+    type: vless
+    server: vless.example.com
+    port: 443
+    uuid: 00000000-0000-0000-0000-000000000000
+    tls: true
+    servername: edge.example.com
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: ws.example.com
+  - {name: "新加坡 Trojan", type: trojan, server: trojan.example.com, port: 443, password: pass, sni: trojan.example.com}
+proxy-groups:
+  - name: Auto
+    type: select
+    proxies:
+      - "日本 SS"
+`)
+
+	profiles, err := ParseProxyProfiles(data)
+	if err != nil {
+		t.Fatalf("ParseProxyProfiles() error = %v", err)
+	}
+	if len(profiles) != 3 {
+		t.Fatalf("profiles length = %d, want 3: %+v", len(profiles), profiles)
+	}
+	wants := []struct {
+		name     string
+		protocol string
+		contains []string
+	}{
+		{name: "日本 SS", protocol: "ss", contains: []string{"ss://", "#%E6%97%A5%E6%9C%AC+SS"}},
+		{name: "香港 VLESS", protocol: "vless", contains: []string{"security=tls", "sni=edge.example.com", "type=ws", "host=ws.example.com", "path=%2Fws"}},
+		{name: "新加坡 Trojan", protocol: "trojan", contains: []string{"trojan://pass@trojan.example.com:443", "sni=trojan.example.com"}},
+	}
+	for i, want := range wants {
+		if profiles[i].Name != want.name || profiles[i].Protocol != want.protocol {
+			t.Fatalf("profiles[%d] = %+v, want %s/%s", i, profiles[i], want.name, want.protocol)
+		}
+		for _, part := range want.contains {
+			if !strings.Contains(profiles[i].URL, part) {
+				t.Fatalf("profiles[%d].URL = %q, want contains %q", i, profiles[i].URL, part)
+			}
+		}
+	}
+
+	cfg := config.DefaultClient()
+	cfg.ProxyProfiles = profiles
+	if _, err := mihomo.Generate(cfg, mihomo.Options{}); err != nil {
+		t.Fatalf("Generate(parsed Clash profiles) error = %v", err)
 	}
 }
 
