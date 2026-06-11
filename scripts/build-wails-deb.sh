@@ -59,9 +59,9 @@ esac
 mkdir -p "$DIST_DIR"
 
 if [ -n "$WAILS_TAGS" ]; then
-	(cd "$WAILS_DESKTOP_DIR" && env $WAILS_GO_ENV "$WAILS" build -tags "$WAILS_TAGS" -clean -ldflags "$LDFLAGS")
+	(cd "$WAILS_DESKTOP_DIR" && env $WAILS_GO_ENV GO="$GO" "$WAILS" build -tags "$WAILS_TAGS" -clean -ldflags "$LDFLAGS")
 else
-	(cd "$WAILS_DESKTOP_DIR" && env $WAILS_GO_ENV "$WAILS" build -clean -ldflags "$LDFLAGS")
+	(cd "$WAILS_DESKTOP_DIR" && env $WAILS_GO_ENV GO="$GO" "$WAILS" build -clean -ldflags "$LDFLAGS")
 fi
 
 case "$WAILS_TAGS" in

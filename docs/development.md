@@ -22,6 +22,12 @@ make wails-dev
 
 `wails dev` 会打开独立桌面窗口，并启动前端热更新服务。浏览器里打开 Vite 地址只适合调试 DOM 和样式，不代表用户看到的桌面客户端。
 
+如果本机 Go 或 Wails 不在 `PATH` 中，显式指定路径：
+
+```bash
+make wails-dev GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
+```
+
 如果本机还没有 Wails CLI：
 
 ```bash
@@ -53,7 +59,7 @@ make wails-desktop
 生成面向本机架构的 Linux 原生桌面 `.deb` 安装包：
 
 ```bash
-make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+make desktop-deb APP_VERSION=v0.1.0 GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 ```
 
 如果不想通过 Makefile，也可以在 `desktop/mingsui-desktop` 目录直接运行 `wails dev -tags webkit2_41` 或 `wails build -tags webkit2_41`。如果系统安装的是 `libwebkit2gtk-4.0-dev`，不要加 `webkit2_41` 标签。
@@ -132,7 +138,7 @@ sh scripts/fetch-mihomo.sh
 APP_VERSION=v0.1.0 sh scripts/build-npm.sh
 APP_VERSION=v0.1.0 sh scripts/build-dist.sh
 make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
-make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+make desktop-deb APP_VERSION=v0.1.0 GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 make checksums
 ```
 

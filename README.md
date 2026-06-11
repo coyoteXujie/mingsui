@@ -110,6 +110,12 @@ mingsui system-proxy disable
 make wails-dev
 ```
 
+如果 Go 或 Wails 不在 `PATH` 中：
+
+```bash
+make wails-dev GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
+```
+
 Linux 如果报 `gcc`、GTK 或 WebKit 相关错误，先安装原生桌面构建依赖。Ubuntu 26.04 等新系统使用 WebKitGTK 4.1：
 
 ```bash
@@ -138,7 +144,7 @@ make wails-desktop
 构建 Linux 原生桌面 `.deb` 安装包：
 
 ```bash
-make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+make desktop-deb APP_VERSION=v0.1.0 GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 ```
 
 没有 `make` 时：

@@ -22,7 +22,7 @@ make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
 上面的命令生成跨平台 CLI、relay、兼容桌面入口压缩包和 npm 包。Linux 原生桌面端单独生成 `.deb`：
 
 ```bash
-make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+make desktop-deb APP_VERSION=v0.1.0 GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 make checksums
 ```
 
@@ -35,7 +35,7 @@ make compat-desktop-deb APP_VERSION=v0.1.0
 Wails 原生桌面端也可以只构建二进制，不生成 `.deb`：
 
 ```bash
-make wails-desktop WAILS=/home/jie/env/gopath/bin/wails
+make wails-desktop GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 ```
 
 CLI 也可以单独生成 npm 安装包，方便 AI Agent 或自动化环境用 npm 安装：
