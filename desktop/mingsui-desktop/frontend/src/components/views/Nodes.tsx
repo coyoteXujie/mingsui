@@ -18,6 +18,7 @@ const WifiIcon = FiWifi as ComponentType<{className?: string}>
 const ZapIcon = FiZap as ComponentType<{className?: string}>
 
 type NodeFilter = 'all' | 'usable' | 'current' | 'domestic' | 'unsupported'
+type StrategyTone = 'success' | 'warning' | 'neutral'
 
 function protocolTone(protocol: string) {
   const key = protocol.toLowerCase()
@@ -25,6 +26,12 @@ function protocolTone(protocol: string) {
   if (key.includes('trojan')) return 'bg-purple-50 text-purple-700 border-purple-200'
   if (key.includes('tuic') || key.includes('hysteria')) return 'bg-amber-50 text-amber-700 border-amber-200'
   return 'bg-slate-50 text-slate-700 border-slate-200'
+}
+
+const strategyToneClasses: Record<StrategyTone, string> = {
+  success: 'border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200',
+  warning: 'border-amber-500/25 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200',
+  neutral: 'border-slate-200 bg-white/60 text-subtle dark:border-white/10 dark:bg-white/5',
 }
 
 export function Nodes() {
@@ -133,6 +140,7 @@ export function Nodes() {
   const activeProfile = profiles.find(p => p.name === config?.active_proxy_profile)
   const activeRelayProfile = relayProfiles.find(p => p.name === config?.active_profile)
   const selectedRelayProfile = relayProfiles.find(p => p.name === relayName)
+  const running = Boolean(state?.status?.running)
   const canSaveRelay = Boolean(relayName.trim() && relayAddr.trim() && relayToken.trim() && relayBusy === null)
   const protocolCounts = profiles.reduce<Record<string, number>>((acc, profile) => {
     const protocol = (profile.protocol || 'unknown').toUpperCase()
@@ -142,6 +150,28 @@ export function Nodes() {
   const protocolSummary = Object.entries(protocolCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
+  const autoCandidateRatio = profiles.length > 0 ? Math.round((autoCandidateCount / profiles.length) * 100) : 0
+  const usableRatio = profiles.length > 0 ? Math.round((counts.usable / profiles.length) * 100) : 0
+  const strategyCards: Array<{label: string; value: string; detail: string; tone: StrategyTone}> = [
+    {
+      label: '当前策略',
+      value: activeProfile?.name || activeRelayProfile?.name || '未选择',
+      detail: activeProfile?.protocol ? activeProfile.protocol.toUpperCase() : activeRelayProfile ? 'RELAY' : '等待选择节点',
+      tone: activeProfile || activeRelayProfile ? 'success' : 'warning',
+    },
+    {
+      label: '自动候选',
+      value: `${autoCandidateCount} / ${profiles.length}`,
+      detail: profiles.length > 0 ? `${autoCandidateRatio}% 节点参与测速选优` : '同步订阅后生成候选',
+      tone: autoCandidateCount > 0 ? 'success' : profiles.length > 0 ? 'warning' : 'neutral',
+    },
+    {
+      label: '连接能力',
+      value: `${counts.usable} / ${profiles.length}`,
+      detail: profiles.length > 0 ? `${usableRatio}% 可导出到 Mihomo` : '等待节点库存',
+      tone: counts.usable > 0 ? 'success' : profiles.length > 0 ? 'warning' : 'neutral',
+    },
+  ]
   const emptyNodeTitle = profiles.length === 0 ? '还没有机场节点' : '没有匹配的机场节点'
   const emptyNodeDetail = profiles.length === 0
     ? '先到订阅页保存并同步机场订阅，或在总览页粘贴 Clash/Mihomo 订阅内容。同步成功后节点会出现在这里。'
@@ -253,16 +283,33 @@ export function Nodes() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_1.9fr]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(25rem,0.95fr)_minmax(0,1.45fr)]">
         <div className="panel p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="icon-tile h-8 w-8 text-emerald-700"><CpuIcon className="h-4 w-4" /></span>
-              <h3 className="text-base font-semibold text-main">代理模式</h3>
+              <div>
+                <h3 className="text-base font-semibold text-main">策略组</h3>
+                <p className="mt-1 text-xs text-subtle">当前路由、自动候选和兼容性</p>
+              </div>
             </div>
-            <span className="pill px-2.5 py-1 text-xs">{autoCandidateCount} 个候选</span>
+            <span className={`rounded-full border px-2.5 py-1 text-xs ${running ? strategyToneClasses.success : strategyToneClasses.neutral}`}>
+              {running ? '运行中' : '未运行'}
+            </span>
           </div>
-          <div className="space-y-2">
+          <div className="grid gap-2">
+            {strategyCards.map(card => (
+              <div key={card.label} className={`rounded-lg border p-3 ${strategyToneClasses[card.tone]}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs opacity-75">{card.label}</div>
+                    <div className="mt-1 truncate text-sm font-semibold">{card.value}</div>
+                    <div className="mt-1 truncate text-xs opacity-80">{card.detail}</div>
+                  </div>
+                  <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 opacity-70" />
+                </div>
+              </div>
+            ))}
             <div className="row-surface flex items-center justify-between gap-3 p-3">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-main">自动选择</div>
@@ -276,22 +323,6 @@ export function Nodes() {
                 <ZapIcon className="h-4 w-4" />
                 {checkingName === '__best__' ? '测速中' : '测速'}
               </button>
-            </div>
-            <div className="row-surface flex items-center justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-main">手动选择</div>
-                <div className="mt-1 truncate text-xs text-subtle">{activeProfile?.name || config?.active_proxy_profile || '未选择节点'}</div>
-              </div>
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
-                {activeProfile?.protocol ? activeProfile.protocol.toUpperCase() : 'IDLE'}
-              </span>
-            </div>
-            <div className="row-surface flex items-center justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-main">兼容性</div>
-                <div className="mt-1 text-xs text-subtle">{counts.usable} 可连接 · {counts.unsupported} 不支持</div>
-              </div>
-              <ShieldIcon className="h-4 w-4 text-faint" />
             </div>
           </div>
         </div>
@@ -326,6 +357,26 @@ export function Nodes() {
                 {protocol} {count}
               </span>
             ))}
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <div className="row-surface p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-subtle">可连接覆盖率</span>
+                <span className="font-semibold text-main">{usableRatio}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-white/10">
+                <div className="h-full rounded-full bg-[#0b8a7e]" style={{width: `${usableRatio}%`}} />
+              </div>
+            </div>
+            <div className="row-surface p-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-subtle">自动候选覆盖率</span>
+                <span className="font-semibold text-main">{autoCandidateRatio}%</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-white/10">
+                <div className="h-full rounded-full bg-emerald-500" style={{width: `${autoCandidateRatio}%`}} />
+              </div>
+            </div>
           </div>
         </div>
       </div>

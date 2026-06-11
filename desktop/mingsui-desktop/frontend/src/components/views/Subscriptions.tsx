@@ -46,6 +46,7 @@ interface StatCard {
 }
 
 interface SyncResult {
+  name?: string
   title: string
   detail: string
   tone: Tone
@@ -71,6 +72,25 @@ function sourceType(rawURL: string) {
   if (rawURL.startsWith('file:')) return '本地文件'
   if (rawURL.startsWith('http://') || rawURL.startsWith('https://')) return '远程订阅'
   return '自定义来源'
+}
+
+function redactSourceURL(rawURL: string) {
+  try {
+    const parsed = new URL(rawURL)
+    if (parsed.username || parsed.password) {
+      parsed.username = '***'
+      parsed.password = ''
+    }
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      const normalized = key.toLowerCase()
+      if (['token', 'key', 'access_token', 'apikey', 'api_key', 'password', 'passwd'].includes(normalized)) {
+        parsed.searchParams.set(key, '***')
+      }
+    }
+    return parsed.toString()
+  } catch {
+    return rawURL.length > 96 ? `${rawURL.slice(0, 56)}...${rawURL.slice(-24)}` : rawURL
+  }
 }
 
 function shellQuote(value: string) {
@@ -242,10 +262,10 @@ export function Subscriptions() {
       const summary = syncResultDetail(result)
       const prefix = `订阅已保存并同步：${syncResultTitle(result)}；${summary}`
       const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
-      setLastResult({title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
+      setLastResult({name: target, title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
       setMessage(text)
     } catch (err: any) {
-      setLastResult({title: '保存或同步失败', detail: err.message, tone: 'danger'})
+      setLastResult({name: target, title: '保存或同步失败', detail: err.message, tone: 'danger'})
       setMessage(err.message)
     } finally {
       setBusy(null)
@@ -274,10 +294,10 @@ export function Subscriptions() {
       const summary = syncResultDetail(result)
       const prefix = `订阅已同步：${syncResultTitle(result)}；${summary}`
       const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
-      setLastResult({title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
+      setLastResult({name: target, title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
       setMessage(text)
     } catch (err: any) {
-      setLastResult({title: '同步失败', detail: err.message, tone: 'danger'})
+      setLastResult({name: target, title: '同步失败', detail: err.message, tone: 'danger'})
       setMessage(err.message)
     } finally {
       setBusy(null)
@@ -305,10 +325,10 @@ export function Subscriptions() {
       const summary = warnings.length ? warnings.join('；') : `${subscriptions.length} 个来源`
       const prefix = `已同步 ${subscriptions.length} 个订阅，共 ${total} 个项目`
       const text = syncCheck && autoSelectable > 0 ? await runBestCheck(prefix) : `${prefix}；${summary}`
-      setLastResult({title: `${total} 个项目`, detail: summary, tone: warnings.length ? 'warning' : 'success'})
+      setLastResult({name: '__all__', title: `${total} 个项目`, detail: summary, tone: warnings.length ? 'warning' : 'success'})
       setMessage(text)
     } catch (err: any) {
-      setLastResult({title: '同步失败', detail: err.message, tone: 'danger'})
+      setLastResult({name: '__all__', title: '同步失败', detail: err.message, tone: 'danger'})
       setMessage(err.message)
     } finally {
       setBusy(null)
@@ -324,10 +344,10 @@ export function Subscriptions() {
         setName('')
         setURL('')
       }
-      setLastResult({title: '已删除', detail: subName, tone: 'neutral'})
+      setLastResult({name: subName, title: '已删除', detail: subName, tone: 'neutral'})
       setMessage('订阅已删除')
     } catch (err: any) {
-      setLastResult({title: '删除失败', detail: err.message, tone: 'danger'})
+      setLastResult({name: subName, title: '删除失败', detail: err.message, tone: 'danger'})
       setMessage(err.message)
     } finally {
       setBusy(null)
@@ -499,7 +519,7 @@ export function Subscriptions() {
 
             {subscriptions.length === 0 ? (
               <div className="rounded-lg border border-dashed border-[#cfd6e3] p-8 text-center text-subtle dark:border-white/10">
-                没有节点订阅。先在左侧保存一个订阅来源。
+                没有节点订阅。先在左侧保存一个订阅来源，支持常见分享链接和 Clash/Mihomo YAML。
               </div>
             ) : (
               <div className="space-y-3">
@@ -507,6 +527,9 @@ export function Subscriptions() {
                   const isSelected = sub.name === name
                   const host = sourceHost(sub.url)
                   const source = sourceType(sub.url)
+                  const command = `mingsui config subscription sync ${shellQuote(sub.name)}${syncCheck ? ' -check' : ''} -json`
+                  const recent = lastResult?.name === sub.name || lastResult?.name === '__all__' ? lastResult : null
+                  const cardTone = recent ? recent.tone : 'neutral'
                   return (
                     <div key={sub.name} className={`row-surface p-3 ${isSelected ? 'ring-2 ring-[#0b8a7e]/20' : ''}`}>
                       <div className="flex items-start justify-between gap-4">
@@ -519,12 +542,25 @@ export function Subscriptions() {
                               <p className="truncate font-semibold text-main">{sub.name}</p>
                               <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-subtle dark:border-white/10 dark:bg-white/5">{source}</span>
                               <span className="max-w-52 truncate rounded-full border border-emerald-500/20 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200">{host}</span>
+                              <span className={`rounded-full border px-2 py-0.5 text-xs ${toneClasses[cardTone]}`}>
+                                {recent ? recent.title : '待同步'}
+                              </span>
                             </div>
-                            <p className="mt-2 truncate text-sm text-subtle">{sub.url}</p>
+                            <p className="mt-2 truncate text-sm text-subtle">{redactSourceURL(sub.url)}</p>
+                            <div className="mt-2 line-clamp-2 text-xs leading-5 text-faint">
+                              {recent?.detail || '同步后会导入节点并更新自动候选，CLI 和桌面端共用这份配置。'}
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <button
+                          onClick={() => copyText(`${sub.name} 同步命令`, command)}
+                          className="secondary-button px-3 py-1.5 text-sm"
+                        >
+                          <CopyIcon className="h-4 w-4" />
+                          CLI
+                        </button>
                         <button
                           onClick={() => editSubscription(sub)}
                           className="secondary-button px-3 py-1.5 text-sm"
