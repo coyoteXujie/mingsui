@@ -3,6 +3,7 @@ import type {ComponentType, ReactNode} from 'react'
 import {
   FiAlertTriangle,
   FiCheckCircle,
+  FiCopy,
   FiClock,
   FiFileText,
   FiGlobe,
@@ -14,11 +15,14 @@ import {
   FiServer,
   FiShield,
   FiSliders,
+  FiTerminal,
 } from 'react-icons/fi'
+import {ClipboardSetText} from '../../../wailsjs/runtime/runtime'
 import {useDesktop} from '../../hooks/useDesktop'
 
 const AlertIcon = FiAlertTriangle as ComponentType<{className?: string}>
 const CheckCircleIcon = FiCheckCircle as ComponentType<{className?: string}>
+const CopyIcon = FiCopy as ComponentType<{className?: string}>
 const ClockIcon = FiClock as ComponentType<{className?: string}>
 const FileIcon = FiFileText as ComponentType<{className?: string}>
 const GlobeIcon = FiGlobe as ComponentType<{className?: string}>
@@ -30,6 +34,7 @@ const SaveIcon = FiSave as ComponentType<{className?: string}>
 const ServerIcon = FiServer as ComponentType<{className?: string}>
 const ShieldIcon = FiShield as ComponentType<{className?: string}>
 const SlidersIcon = FiSliders as ComponentType<{className?: string}>
+const TerminalIcon = FiTerminal as ComponentType<{className?: string}>
 
 type IssueSeverity = 'error' | 'warning' | 'info'
 type StatusTone = 'ready' | 'warning' | 'danger' | 'muted'
@@ -57,6 +62,12 @@ interface CatalogItem {
   icon: ReactNode
 }
 
+interface CommandItem {
+  label: string
+  detail: string
+  command: string
+}
+
 const toneClasses: Record<StatusTone, string> = {
   ready: 'border-emerald-500/20 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-200',
   warning: 'border-amber-500/25 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200',
@@ -79,6 +90,10 @@ function maskSecret(value: string): string {
   if (!trimmed) return '未设置'
   if (trimmed.length <= 6) return '已设置'
   return `${trimmed.slice(0, 2)}...${trimmed.slice(-2)}`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function sectionTone(hasError: boolean, hasWarning: boolean): StatusTone {
@@ -225,6 +240,8 @@ export function Settings() {
   const infoCount = issues.filter(issue => issue.severity === 'info').length
   const canSave = Boolean(config) && dirty && errorCount === 0 && !saving
   const configPath = state?.config_path || '未加载'
+  const topLevelConfigFlag = state?.config_path ? ` -config ${shellQuote(state.config_path)}` : ''
+  const configCommandFlag = state?.config_path ? ` -path ${shellQuote(state.config_path)}` : ''
   const issueMatches = (issue: SettingIssue, prefixes: string[]) => prefixes.some(prefix => issue.id.startsWith(prefix))
 
   const localPrefixes = ['local', 'http', 'timeout']
@@ -271,6 +288,47 @@ export function Settings() {
       icon: <LockIcon className="h-4 w-4" />,
     },
   ]
+  const commandItems: CommandItem[] = [
+    {
+      label: '查看状态',
+      detail: '确认 CLI 读取的是桌面端同一份配置',
+      command: `mingsui status${topLevelConfigFlag} -json`,
+    },
+    {
+      label: '运行诊断',
+      detail: '输出结构化配置和连接诊断',
+      command: `mingsui doctor${topLevelConfigFlag} -json`,
+    },
+    {
+      label: '查看配置',
+      detail: '在终端检查完整客户端配置',
+      command: `mingsui config show${configCommandFlag}`,
+    },
+    {
+      label: '导出环境',
+      detail: '让当前终端使用桌面端本地代理',
+      command: `eval "$(mingsui env${topLevelConfigFlag})"`,
+    },
+  ]
+
+  const copyText = async (label: string, text: string) => {
+    if (!text.trim()) {
+      setMessage(`${label} 暂不可复制`)
+      return
+    }
+    try {
+      let ok = false
+      if ((window as any).runtime?.ClipboardSetText) {
+        ok = await ClipboardSetText(text)
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+        ok = true
+      }
+      setMessage(ok ? `已复制 ${label}` : `复制 ${label} 失败`)
+    } catch (err: any) {
+      setMessage(err.message || `复制 ${label} 失败`)
+    }
+  }
 
   const handleSave = async () => {
     if (!config) {
@@ -412,6 +470,30 @@ export function Settings() {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="panel p-5">
+            <SectionTitle
+              icon={<TerminalIcon className="h-4 w-4" />}
+              title="CLI 等价入口"
+              detail="复制命令验证桌面端正在使用的同一份配置"
+            />
+            <div className="space-y-2">
+              {commandItems.map(item => (
+                <button
+                  key={item.label}
+                  onClick={() => copyText(item.label, item.command)}
+                  className="row-surface group flex w-full items-start justify-between gap-3 p-3 text-left transition hover:border-[#0b8a7e]/30"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-main">{item.label}</div>
+                    <div className="mt-1 text-xs text-subtle">{item.detail}</div>
+                    <div className="mt-2 truncate font-mono text-xs text-faint">{item.command}</div>
+                  </div>
+                  <CopyIcon className="mt-0.5 h-4 w-4 shrink-0 text-faint group-hover:text-emerald-700" />
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
 

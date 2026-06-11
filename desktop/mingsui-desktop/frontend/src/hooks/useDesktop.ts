@@ -401,6 +401,10 @@ function useDesktopStore() {
     return result
   }, [refresh])
 
+  const getLogs = useCallback(async () => {
+    return await desktopAPI().GetLogs()
+  }, [])
+
   return {
     state,
     loading,
@@ -423,6 +427,7 @@ function useDesktopStore() {
     saveSubscription,
     deleteSubscription,
     syncSubscription,
+    getLogs,
   }
 }
 

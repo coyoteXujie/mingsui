@@ -136,7 +136,7 @@ function StatusTile({item}: {item: StatusCard}) {
 }
 
 export function Logs() {
-  const {state} = useDesktop()
+  const {state, getLogs} = useDesktop()
   const [logs, setLogs] = useState<string[]>([])
   const [clearedCount, setClearedCount] = useState(0)
   const [search, setSearch] = useState('')
@@ -146,7 +146,7 @@ export function Logs() {
 
   const refreshLogs = async () => {
     try {
-      const lines = await window.go.main.App.GetLogs()
+      const lines = await getLogs()
       const next = lines || []
       setLogs(next)
       setClearedCount(current => current > next.length ? 0 : current)
@@ -191,6 +191,7 @@ export function Logs() {
     {label: '诊断 JSON', detail: '给 issue 或 AI 分析使用的结构化报告', command: `mingsui doctor${configArg} -json`},
     {label: '系统代理', detail: '确认系统代理是否被 MingSui 接管', command: 'mingsui system-proxy status -json'},
   ]
+  const readinessActions = readiness?.actions || []
   const cards: StatusCard[] = [
     {
       label: '运行健康',
@@ -303,6 +304,29 @@ export function Logs() {
               </div>
             ))}
           </div>
+
+          {readinessActions.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-medium text-faint">建议动作</div>
+              <div className="grid gap-2 lg:grid-cols-2">
+                {readinessActions.slice(0, 4).map(action => (
+                  <button
+                    key={action.id}
+                    onClick={() => copyText(action.label, action.command || '')}
+                    disabled={!action.command}
+                    className="row-surface group flex min-h-24 items-start justify-between gap-3 p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-main">{action.label}</div>
+                      <div className="mt-1 text-xs leading-5 text-subtle">{action.description || '来自 readiness 的建议动作'}</div>
+                      {action.command && <div className="mt-2 truncate font-mono text-xs text-faint">{action.command}</div>}
+                    </div>
+                    <CopyIcon className="mt-0.5 h-4 w-4 shrink-0 text-faint group-hover:text-emerald-700" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 rounded-lg border border-[#dbe1eb] bg-white/58 p-4 dark:border-white/10 dark:bg-white/5">
             <div className="flex items-start gap-3">
