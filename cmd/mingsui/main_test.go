@@ -795,6 +795,47 @@ func TestConfigSubscriptionAddAndRemove(t *testing.T) {
 	}
 }
 
+func TestConfigSubscriptionAddAndRemoveJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"config", "subscription", "add", "team", "-path", path, "-url", "https://example.com/nodes.json?token=secret", "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config subscription add -json) = %d, want 0, output = %s", code, output)
+	}
+	var result subscriptionMutationResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !result.OK || result.Action != "add" || result.Name != "team" {
+		t.Fatalf("result = %+v, want successful add mutation", result)
+	}
+	if strings.Contains(output, "secret") {
+		t.Fatalf("add JSON leaked subscription token: %s", output)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "subscription", "remove", "team", "-path", path, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config subscription remove -json) = %d, want 0, output = %s", code, output)
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !result.OK || result.Action != "remove" || result.Name != "team" {
+		t.Fatalf("result = %+v, want successful remove mutation", result)
+	}
+	cfg, err := config.LoadClient(path)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if len(cfg.Subscriptions) != 0 {
+		t.Fatalf("Subscriptions = %+v, want empty after remove", cfg.Subscriptions)
+	}
+}
+
 func TestConfigSubscriptionListJSON(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "client.json")
 	cfg := config.DefaultClient()

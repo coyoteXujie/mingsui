@@ -1866,7 +1866,7 @@ func printUsage() {
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
   mingsui config profile export -output ./nodes.json -secrets
-  mingsui config subscription add team -url https://example.com/mingsui/nodes.json
+  mingsui config subscription add team -url https://example.com/mingsui/nodes.json -json
   mingsui config subscription sync team -json
   mingsui config profile rename tokyo jp-tokyo
   mingsui run -profile tokyo -config %s

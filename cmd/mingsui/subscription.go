@@ -451,6 +451,13 @@ type subscriptionItem struct {
 	URL  string `json:"url"`
 }
 
+type subscriptionMutationResult struct {
+	OK      bool   `json:"ok"`
+	Action  string `json:"action"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+}
+
 func subscriptionItems(subscriptions []config.RelaySubscription) []subscriptionItem {
 	items := make([]subscriptionItem, 0, len(subscriptions))
 	for _, sub := range subscriptions {
@@ -470,6 +477,7 @@ func addClientSubscription(args []string) int {
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	url := fs.String("url", "", "订阅 URL")
 	force := fs.Bool("force", false, "覆盖同名订阅")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出写入结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -487,6 +495,14 @@ func addClientSubscription(args []string) int {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
+	if *jsonOutput {
+		return writeJSONOrError(subscriptionMutationResult{
+			OK:      true,
+			Action:  "add",
+			Name:    name,
+			Message: "订阅已写入",
+		})
+	}
 	fmt.Fprintf(os.Stdout, "已写入订阅 %s\n", name)
 	return 0
 }
@@ -500,6 +516,7 @@ func removeClientSubscription(args []string) int {
 
 	fs := flag.NewFlagSet("config subscription remove", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出删除结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -516,6 +533,14 @@ func removeClientSubscription(args []string) int {
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		return writeJSONOrError(subscriptionMutationResult{
+			OK:      true,
+			Action:  "remove",
+			Name:    name,
+			Message: "订阅已删除",
+		})
 	}
 	fmt.Fprintf(os.Stdout, "已删除订阅 %s\n", name)
 	return 0
@@ -712,7 +737,7 @@ func loadSourceData(source string, stdin io.Reader) ([]byte, error) {
 func printConfigSubscriptionUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config subscription list [-json] [-secrets] [flags]
-  mingsui config subscription add <name> -url <url> [flags]
-  mingsui config subscription remove <name> [flags]
+  mingsui config subscription add <name> -url <url> [-json] [flags]
+  mingsui config subscription remove <name> [-json] [flags]
   mingsui config subscription sync <name> [-select <node>|-check] [-json] [flags]`)
 }
