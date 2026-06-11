@@ -233,6 +233,11 @@ function normalizeAppState(state: Partial<AppState>): AppState {
 }
 
 let cachedState: AppState | null = null
+let cachedStateSignature = ''
+
+function stateSignature(state: AppState) {
+  return JSON.stringify(state)
+}
 
 declare global {
   interface Window {
@@ -278,8 +283,12 @@ function useDesktopStore() {
       }
       const data = await window.go.main.App.GetState()
       const nextState = normalizeAppState(data)
+      const nextSignature = stateSignature(nextState)
       cachedState = nextState
-      setState(nextState)
+      if (nextSignature !== cachedStateSignature) {
+        cachedStateSignature = nextSignature
+        setState(nextState)
+      }
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to fetch state')
