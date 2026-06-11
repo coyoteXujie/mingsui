@@ -79,6 +79,7 @@ go build -o bin/mingsui-desktop ./cmd/mingsui-desktop
 ```bash
 make build
 make test
+make release-check GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 ```
 
 完整测试：
@@ -94,6 +95,8 @@ sh scripts/smoke-test.sh
 ```
 
 这组测试会构建 CLI、导入一份本地测试订阅、检查共享配置、代理环境变量、relay/机场节点的 `mingsui exec -connect`、Mihomo 配置导出，以及 `mingsui connect` 是否会调用 Mihomo 内核。
+
+发布前建议跑 `make release-check`，它会额外覆盖脚本语法、前端构建和主要发布命令干跑。
 
 ## 本地安装 CLI
 

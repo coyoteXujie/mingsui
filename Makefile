@@ -17,7 +17,7 @@ COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=$(APP_VERSION) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=$(COMMIT) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=$(DATE)
 
-.PHONY: build test smoke dist desktop-deb compat-desktop-deb wails-desktop-deb wails-desktop wails-dev npm-package checksums clean
+.PHONY: build test smoke frontend-build script-check release-check dist desktop-deb compat-desktop-deb wails-desktop-deb wails-desktop wails-dev npm-package checksums clean
 
 build:
 	mkdir -p bin
@@ -30,6 +30,23 @@ test:
 
 smoke:
 	GO=$(GO) sh scripts/smoke-test.sh
+
+frontend-build:
+	cd $(WAILS_DESKTOP_DIR)/frontend && npm run build
+
+script-check:
+	sh -n scripts/build-deb.sh
+	sh -n scripts/build-dist.sh
+	sh -n scripts/build-npm.sh
+	sh -n scripts/build-wails-deb.sh
+	sh -n scripts/fetch-mihomo.sh
+	sh -n scripts/install-local-cli.sh
+	sh -n scripts/smoke-test.sh
+
+release-check: script-check test frontend-build smoke
+	$(MAKE) -n dist APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) REQUIRE_MIHOMO=$(REQUIRE_MIHOMO)
+	$(MAKE) -n desktop-deb APP_VERSION=$(APP_VERSION) GO=$(GO) WAILS=$(WAILS) DIST_DIR=$(DIST_DIR) REQUIRE_MIHOMO=$(REQUIRE_MIHOMO)
+	$(MAKE) -n npm-package APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) REQUIRE_MIHOMO=$(REQUIRE_MIHOMO)
 
 dist:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DIST_PLATFORMS="$(DIST_PLATFORMS)" DEB_ARCHS="$(DEB_ARCHS)" BUILD_COMPAT_DEB="$(BUILD_COMPAT_DEB)" NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-dist.sh

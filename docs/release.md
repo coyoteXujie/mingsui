@@ -3,8 +3,10 @@
 明隧可以用 shell 脚本或 Makefile 生成发布包。发布前先确认工作区干净，并跑完整测试：
 
 ```bash
-make test
+make release-check GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 ```
+
+`release-check` 会执行脚本语法检查、`go test ./...`、Wails 前端构建、CLI 冒烟测试，并干跑主要发布命令，确认 CLI、桌面端和发布脚本的基本链路一致。
 
 生成发布产物：
 
@@ -102,6 +104,7 @@ sha256sum -c SHA256SUMS
 
 ```bash
 GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1 sh scripts/build-dist.sh
+make release-check GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails
 make dist GO=/home/jie/env/go/bin/go APP_VERSION=v0.1.0
 make desktop-deb GO=/home/jie/env/go/bin/go WAILS=/home/jie/env/gopath/bin/wails APP_VERSION=v0.1.0
 make checksums
