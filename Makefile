@@ -11,12 +11,13 @@ NPM_PACKAGE_NAME ?= mingsui
 MIHOMO_ASSETS_DIR ?= packaging/mihomo
 REQUIRE_MIHOMO ?= 0
 DEB_ARCHS ?= amd64 arm64
+BUILD_COMPAT_DEB ?= 0
 WAILS_DESKTOP_DIR ?= desktop/mingsui-desktop
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w -X github.com/coyoteXujie/mingsui/internal/buildinfo.Version=$(APP_VERSION) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Commit=$(COMMIT) -X github.com/coyoteXujie/mingsui/internal/buildinfo.Date=$(DATE)
 
-.PHONY: build test smoke dist desktop-deb wails-desktop wails-dev npm-package checksums clean
+.PHONY: build test smoke dist desktop-deb compat-desktop-deb wails-desktop-deb wails-desktop wails-dev npm-package checksums clean
 
 build:
 	mkdir -p bin
@@ -31,9 +32,14 @@ smoke:
 	GO=$(GO) sh scripts/smoke-test.sh
 
 dist:
-	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DIST_PLATFORMS="$(DIST_PLATFORMS)" DEB_ARCHS="$(DEB_ARCHS)" NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-dist.sh
+	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DIST_PLATFORMS="$(DIST_PLATFORMS)" DEB_ARCHS="$(DEB_ARCHS)" BUILD_COMPAT_DEB="$(BUILD_COMPAT_DEB)" NPM_PACKAGE_NAME="$(NPM_PACKAGE_NAME)" NPM_PLATFORMS="$(NPM_PLATFORMS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-dist.sh
 
 desktop-deb:
+	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) WAILS=$(WAILS) WAILS_DESKTOP_DIR=$(WAILS_DESKTOP_DIR) WAILS_GO_ENV="$(WAILS_GO_ENV)" WAILS_TAGS="$(WAILS_TAGS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-wails-deb.sh
+
+wails-desktop-deb: desktop-deb
+
+compat-desktop-deb:
 	APP_VERSION=$(APP_VERSION) GO=$(GO) DIST_DIR=$(DIST_DIR) DEB_ARCHS="$(DEB_ARCHS)" MIHOMO_ASSETS_DIR="$(MIHOMO_ASSETS_DIR)" REQUIRE_MIHOMO="$(REQUIRE_MIHOMO)" sh scripts/build-deb.sh
 
 wails-desktop:

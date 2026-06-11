@@ -50,6 +50,12 @@ npm run build
 make wails-desktop
 ```
 
+生成面向本机架构的 Linux 原生桌面 `.deb` 安装包：
+
+```bash
+make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+```
+
 如果不想通过 Makefile，也可以在 `desktop/mingsui-desktop` 目录直接运行 `wails dev -tags webkit2_41` 或 `wails build -tags webkit2_41`。如果系统安装的是 `libwebkit2gtk-4.0-dev`，不要加 `webkit2_41` 标签。
 
 根目录兼容入口仍可用于脚本或只验证本机服务：
@@ -126,9 +132,17 @@ sh scripts/fetch-mihomo.sh
 APP_VERSION=v0.1.0 sh scripts/build-npm.sh
 APP_VERSION=v0.1.0 sh scripts/build-dist.sh
 make dist APP_VERSION=v0.1.0 REQUIRE_MIHOMO=1
+make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+make checksums
 ```
 
 `scripts/build-dist.sh` 和 `make dist` 等价；没有 `make` 时直接用脚本。
+
+`make desktop-deb` 会先构建 Wails 原生桌面端，再把 GUI 和 CLI 一起安装进 `.deb`。旧的 `cmd/mingsui-desktop` 兼容入口只在需要本机服务或浏览器壳调试时使用：
+
+```bash
+make compat-desktop-deb APP_VERSION=v0.1.0
+```
 
 详细发布流程见 [release.md](release.md)。
 

@@ -10,7 +10,7 @@ NPM_PACKAGE_NAME=${NPM_PACKAGE_NAME:-mingsui}
 MIHOMO_ASSETS_DIR=${MIHOMO_ASSETS_DIR:-packaging/mihomo}
 REQUIRE_MIHOMO=${REQUIRE_MIHOMO:-0}
 DEB_ARCHS=${DEB_ARCHS:-amd64 arm64}
-BUILD_DEB=${BUILD_DEB:-1}
+BUILD_COMPAT_DEB=${BUILD_COMPAT_DEB:-${BUILD_DEB:-0}}
 BUILD_NPM=${BUILD_NPM:-1}
 WRITE_CHECKSUMS=${WRITE_CHECKSUMS:-1}
 COMMIT=${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo none)}
@@ -77,7 +77,7 @@ for platform in $DIST_PLATFORMS; do
 	rm -rf "$work"
 done
 
-if [ "$BUILD_DEB" = "1" ]; then
+if [ "$BUILD_COMPAT_DEB" = "1" ]; then
 	APP_VERSION=$APP_VERSION GO=$GO DIST_DIR=$DIST_DIR DEB_ARCHS="$DEB_ARCHS" MIHOMO_ASSETS_DIR="$MIHOMO_ASSETS_DIR" REQUIRE_MIHOMO=$REQUIRE_MIHOMO sh scripts/build-deb.sh
 fi
 
@@ -101,4 +101,3 @@ if [ "$WRITE_CHECKSUMS" = "1" ]; then
 	fi
 	echo "checksums written to $DIST_DIR/SHA256SUMS"
 fi
-

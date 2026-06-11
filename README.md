@@ -135,6 +135,12 @@ wails dev -tags webkit2_41
 make wails-desktop
 ```
 
+构建 Linux 原生桌面 `.deb` 安装包：
+
+```bash
+make desktop-deb APP_VERSION=v0.1.0 WAILS=/home/jie/env/gopath/bin/wails
+```
+
 没有 `make` 时：
 
 ```bash
@@ -151,6 +157,12 @@ mingsui-desktop
 ```
 
 仓库根目录下的 `go build -o bin/mingsui-desktop ./cmd/mingsui-desktop` 是旧的本机服务/兼容调试入口：它会启动本机 HTTP 服务，并尝试用 Chrome/Chromium/Edge 的应用窗口模式承载界面。只有脚本、冒烟测试或 Wails 环境不可用时才优先使用它；`-web` 明确是浏览器调试模式，不是桌面端成品。
+
+需要单独打这个兼容入口的 `.deb` 时，显式运行：
+
+```bash
+make compat-desktop-deb APP_VERSION=v0.1.0
+```
 
 ## 能力边界
 
