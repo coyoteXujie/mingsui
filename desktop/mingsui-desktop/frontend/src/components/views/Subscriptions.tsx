@@ -50,6 +50,9 @@ interface SyncResult {
   title: string
   detail: string
   tone: Tone
+  kind?: string
+  imported?: number
+  autoSelectable?: number
 }
 
 const toneClasses: Record<Tone, string> = {
@@ -133,6 +136,18 @@ function shouldCheckAfterSync(result: SubscriptionSyncResult, syncCheck: boolean
   return syncCheck && result.kind === 'proxy' && autoSelectable > 0
 }
 
+function toSyncResult(result: SubscriptionSyncResult, name: string): SyncResult {
+  return {
+    name,
+    title: syncResultTitle(result),
+    detail: syncResultDetail(result),
+    tone: syncResultTone(result),
+    kind: result.kind,
+    imported: result.imported,
+    autoSelectable: result.imported_auto_selectable_proxy_profiles ?? result.auto_selectable_proxy_profiles,
+  }
+}
+
 function StatTile({item}: {item: StatCard}) {
   return (
     <div className="panel p-4">
@@ -165,7 +180,7 @@ function SectionHeader({icon, title, detail, action}: {icon: ReactNode; title: s
   )
 }
 
-export function Subscriptions() {
+export function Subscriptions({onOpenNodes}: {onOpenNodes?: () => void}) {
   const {state, loading, saveSubscription, syncSubscription, checkBestProxy, deleteSubscription} = useDesktop()
   const [name, setName] = useState('')
   const [url, setURL] = useState('')
@@ -177,6 +192,7 @@ export function Subscriptions() {
 
   const subscriptions = state?.config?.subscriptions || []
   const proxyCount = state?.config?.proxy_profiles?.length || 0
+  const relayCount = state?.config?.profiles?.length || 0
   const activeProxy = state?.config?.active_proxy_profile || ''
   const selectedSubscription = subscriptions.find(sub => sub.name === name)
   const canSave = Boolean(name.trim() && url.trim() && busy === null)
@@ -187,6 +203,7 @@ export function Subscriptions() {
     ? `mingsui config subscription sync ${shellQuote(selectedSubscription.name)}${syncCheck ? ' -check' : ''} -json`
     : '保存订阅后可复制同步命令'
   const proxyListCommand = `mingsui config proxy list${state?.config_path ? ` -path ${shellQuote(state.config_path)}` : ''} -json`
+  const canOpenNodeWorkbench = Boolean(onOpenNodes && (proxyCount > 0 || relayCount > 0 || lastResult?.kind === 'proxy' || lastResult?.kind === 'relay'))
   const statCards: StatCard[] = [
     {
       label: '已保存订阅',
@@ -262,7 +279,7 @@ export function Subscriptions() {
       const summary = syncResultDetail(result)
       const prefix = `订阅已保存并同步：${syncResultTitle(result)}；${summary}`
       const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
-      setLastResult({name: target, title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
+      setLastResult(toSyncResult(result, target))
       setMessage(text)
     } catch (err: any) {
       setLastResult({name: target, title: '保存或同步失败', detail: err.message, tone: 'danger'})
@@ -294,7 +311,7 @@ export function Subscriptions() {
       const summary = syncResultDetail(result)
       const prefix = `订阅已同步：${syncResultTitle(result)}；${summary}`
       const text = shouldCheckAfterSync(result, syncCheck) ? await runBestCheck(prefix) : prefix
-      setLastResult({name: target, title: syncResultTitle(result), detail: summary, tone: syncResultTone(result)})
+      setLastResult(toSyncResult(result, target))
       setMessage(text)
     } catch (err: any) {
       setLastResult({name: target, title: '同步失败', detail: err.message, tone: 'danger'})
@@ -436,6 +453,25 @@ export function Subscriptions() {
                   </div>
                   <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
                 </div>
+                {lastResult && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={onOpenNodes}
+                      disabled={!canOpenNodeWorkbench}
+                      className="primary-button px-3 py-1.5 text-sm disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                    >
+                      <WifiIcon className="h-4 w-4" />
+                      查看节点
+                    </button>
+                    <button
+                      onClick={() => copyText('节点列表 JSON 命令', proxyListCommand)}
+                      className="secondary-button px-3 py-1.5 text-sm"
+                    >
+                      <CopyIcon className="h-4 w-4" />
+                      节点命令
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

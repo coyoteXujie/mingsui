@@ -62,8 +62,8 @@ function App() {
   const renderView = () => {
     switch (activeView) {
       case 'overview': return <Overview />
-      case 'nodes': return <Nodes />
-      case 'subscriptions': return <Subscriptions />
+      case 'nodes': return <Nodes onOpenSubscriptions={() => setActiveView('subscriptions')} />
+      case 'subscriptions': return <Subscriptions onOpenNodes={() => setActiveView('nodes')} />
       case 'logs': return <Logs />
       case 'settings': return <Settings />
       default: return <Overview />

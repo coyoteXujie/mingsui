@@ -1,10 +1,11 @@
 import {useState} from 'react'
 import type {ComponentType} from 'react'
-import {FiAlertCircle, FiCheck, FiCpu, FiEdit3, FiLock, FiPlus, FiSave, FiSearch, FiServer, FiShield, FiTrash2, FiWifi, FiZap} from 'react-icons/fi'
+import {FiAlertCircle, FiCheck, FiCloud, FiCpu, FiEdit3, FiLock, FiPlus, FiSave, FiSearch, FiServer, FiShield, FiTrash2, FiWifi, FiZap} from 'react-icons/fi'
 import {useDesktop, ProxyProfile, RelayProfile} from '../../hooks/useDesktop'
 
 const AlertIcon = FiAlertCircle as ComponentType<{className?: string}>
 const CheckIcon = FiCheck as ComponentType<{className?: string}>
+const CloudIcon = FiCloud as ComponentType<{className?: string}>
 const CpuIcon = FiCpu as ComponentType<{className?: string}>
 const EditIcon = FiEdit3 as ComponentType<{className?: string}>
 const LockIcon = FiLock as ComponentType<{className?: string}>
@@ -34,7 +35,7 @@ const strategyToneClasses: Record<StrategyTone, string> = {
   neutral: 'border-slate-200 bg-white/60 text-subtle dark:border-white/10 dark:bg-white/5',
 }
 
-export function Nodes() {
+export function Nodes({onOpenSubscriptions}: {onOpenSubscriptions?: () => void}) {
   const {
     state,
     loading,
@@ -440,6 +441,15 @@ export function Nodes() {
                   <div className="mt-1">自动选择可用节点</div>
                 </div>
               </div>
+              {profiles.length === 0 && onOpenSubscriptions && (
+                <button
+                  onClick={onOpenSubscriptions}
+                  className="primary-button mt-5 px-4 py-2 text-sm"
+                >
+                  <CloudIcon className="h-4 w-4" />
+                  去订阅页
+                </button>
+              )}
             </div>
           </div>
         ) : (
