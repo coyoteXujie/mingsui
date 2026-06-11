@@ -42,6 +42,10 @@ export function GetLogs() {
   return window['go']['main']['App']['GetLogs']();
 }
 
+export function GetRuntimeState() {
+  return window['go']['main']['App']['GetRuntimeState']();
+}
+
 export function GetRuntimeStatus() {
   return window['go']['main']['App']['GetRuntimeStatus']();
 }

@@ -134,6 +134,12 @@ export interface AppState {
   readiness?: ReadinessStatus
 }
 
+export interface RuntimeState {
+  status: RuntimeStatus
+  system_proxy: SystemProxyStatus
+  readiness?: ReadinessStatus
+}
+
 const defaultMetrics = {
   active_connections: 0,
   total_connections: 0,
@@ -234,6 +240,8 @@ function normalizeAppState(state: Partial<AppState>): AppState {
 
 let cachedState: AppState | null = null
 let cachedStateSignature = ''
+const runtimePollIntervalMS = 5000
+const fullSyncIntervalMS = 60000
 
 function stateSignature(state: AppState) {
   return JSON.stringify(state)
@@ -245,6 +253,7 @@ declare global {
       main: {
         App: {
           GetState: () => Promise<AppState>
+          GetRuntimeState: () => Promise<RuntimeState>
           Start: () => Promise<string>
           Stop: () => Promise<string>
           GetConfig: () => Promise<ClientConfig>
@@ -284,32 +293,58 @@ function useDesktopStore() {
   const [loading, setLoading] = useState(!cachedState)
   const [error, setError] = useState<string | null>(null)
 
+  const applyState = useCallback((nextState: AppState) => {
+    const nextSignature = stateSignature(nextState)
+    cachedState = nextState
+    if (nextSignature !== cachedStateSignature) {
+      cachedStateSignature = nextSignature
+      setState(nextState)
+    }
+  }, [])
+
   const refresh = useCallback(async (showLoading = false) => {
     try {
       if (showLoading && !cachedState) {
         setLoading(true)
       }
       const data = await desktopAPI().GetState()
-      const nextState = normalizeAppState(data)
-      const nextSignature = stateSignature(nextState)
-      cachedState = nextState
-      if (nextSignature !== cachedStateSignature) {
-        cachedStateSignature = nextSignature
-        setState(nextState)
-      }
+      applyState(normalizeAppState(data))
       setError(null)
     } catch (err: any) {
       setError(err.message || 'Failed to fetch state')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [applyState])
+
+  const refreshRuntime = useCallback(async () => {
+    try {
+      if (!cachedState) {
+        await refresh(false)
+        return
+      }
+      const data = await desktopAPI().GetRuntimeState()
+      applyState(normalizeAppState({
+        ...cachedState,
+        status: data.status,
+        system_proxy: data.system_proxy,
+        readiness: data.readiness,
+      }))
+      setError(null)
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch runtime state')
+    }
+  }, [applyState, refresh])
 
   useEffect(() => {
     refresh(true)
-    const interval = setInterval(() => refresh(false), 3000)
-    return () => clearInterval(interval)
-  }, [refresh])
+    const runtimeInterval = setInterval(() => refreshRuntime(), runtimePollIntervalMS)
+    const fullSyncInterval = setInterval(() => refresh(false), fullSyncIntervalMS)
+    return () => {
+      clearInterval(runtimeInterval)
+      clearInterval(fullSyncInterval)
+    }
+  }, [refresh, refreshRuntime])
 
   const start = useCallback(async () => {
     await desktopAPI().Start()
@@ -428,6 +463,7 @@ function useDesktopStore() {
     deleteSubscription,
     syncSubscription,
     getLogs,
+    refreshRuntime,
   }
 }
 

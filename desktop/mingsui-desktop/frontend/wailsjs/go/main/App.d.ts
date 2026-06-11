@@ -26,6 +26,8 @@ export function GetConfig():Promise<config.ClientConfig>;
 
 export function GetLogs():Promise<Array<string>>;
 
+export function GetRuntimeState():Promise<Record<string, any>>;
+
 export function GetRuntimeStatus():Promise<client.RuntimeStatus>;
 
 export function GetState():Promise<Record<string, any>>;

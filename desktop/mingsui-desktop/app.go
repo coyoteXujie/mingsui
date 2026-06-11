@@ -63,18 +63,35 @@ func (a *App) GetState() (map[string]interface{}, error) {
 	}
 
 	cfg := app.Config()
+	runtimeState := a.runtimeState(app, cfg)
 	return map[string]interface{}{
 		"config_path":        app.ConfigPath(),
 		"config":             cfg.Redacted(),
-		"status":             app.Status(),
-		"system_proxy":       app.SystemProxyStatus(context.Background()),
+		"status":             runtimeState["status"],
+		"system_proxy":       runtimeState["system_proxy"],
 		"proxy_capabilities": proxyCapabilities(cfg.ProxyProfiles),
+		"readiness":          runtimeState["readiness"],
+	}, nil
+}
+
+func (a *App) GetRuntimeState() (map[string]interface{}, error) {
+	app, err := a.ensureDesktopApp()
+	if err != nil {
+		return nil, err
+	}
+	return a.runtimeState(app, app.Config()), nil
+}
+
+func (a *App) runtimeState(app *desktop.App, cfg config.ClientConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"status":       app.Status(),
+		"system_proxy": app.SystemProxyStatus(context.Background()),
 		"readiness": productstatus.Evaluate(cfg, productstatus.Options{
 			ConfigPath:  app.ConfigPath(),
 			Managed:     true,
 			AutoProfile: true,
 		}),
-	}, nil
+	}
 }
 
 func proxyCapabilities(profiles []config.ProxyProfile) []map[string]interface{} {
