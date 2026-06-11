@@ -421,8 +421,21 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	if got.ActiveProxyProfile != "osaka" || got.ActiveProfile != "" {
 		t.Fatalf("Config() = %+v, want active proxy osaka", got)
 	}
-	if code := run([]string{"config", "proxy", "remove", "osaka", "-path", cfgPath}); code != 0 {
-		t.Fatalf("run(config proxy remove) = %d, want 0", code)
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "proxy", "remove", "osaka", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config proxy remove -json) = %d, want 0, output = %s", code, output)
+	}
+	var mutation nodeMutationResult
+	if err := json.Unmarshal([]byte(output), &mutation); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !mutation.OK || mutation.Kind != "proxy" || mutation.Action != "remove" || mutation.Name != "osaka" || mutation.ActiveProxyProfile != "" || mutation.Protocol != "vmess" {
+		t.Fatalf("mutation = %+v, want removed proxy osaka", mutation)
+	}
+	if strings.Contains(output, "vmess://") {
+		t.Fatalf("proxy remove JSON leaked proxy URL: %s", output)
 	}
 	got, err = config.LoadClient(cfgPath)
 	if err != nil {
@@ -482,6 +495,58 @@ func TestConfigProfileListJSON(t *testing.T) {
 	}
 	if got.ActiveProfile != "tokyo" || got.ActiveProxyProfile != "" {
 		t.Fatalf("Config() = %+v, want active relay tokyo and no active proxy", got)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "profile", "add", "nagoya", "-path", cfgPath, "-relay", "nagoya.example.com:9443", "-token", "nagoya-secret", "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config profile add -json) = %d, want 0, output = %s", code, output)
+	}
+	var mutation nodeMutationResult
+	if err := json.Unmarshal([]byte(output), &mutation); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !mutation.OK || mutation.Kind != "relay" || mutation.Action != "add" || mutation.Name != "nagoya" || mutation.RelayAddr != "nagoya.example.com:9443" {
+		t.Fatalf("mutation = %+v, want added relay nagoya", mutation)
+	}
+	if strings.Contains(output, "nagoya-secret") {
+		t.Fatalf("profile add JSON leaked token: %s", output)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "profile", "rename", "tokyo", "jp-tokyo", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config profile rename -json) = %d, want 0, output = %s", code, output)
+	}
+	mutation = nodeMutationResult{}
+	if err := json.Unmarshal([]byte(output), &mutation); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !mutation.OK || mutation.Kind != "relay" || mutation.Action != "rename" || mutation.Name != "tokyo" || mutation.NewName != "jp-tokyo" || mutation.ActiveProfile != "jp-tokyo" {
+		t.Fatalf("mutation = %+v, want renamed active relay profile", mutation)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "profile", "remove", "jp-tokyo", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config profile remove -json) = %d, want 0, output = %s", code, output)
+	}
+	mutation = nodeMutationResult{}
+	if err := json.Unmarshal([]byte(output), &mutation); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !mutation.OK || mutation.Kind != "relay" || mutation.Action != "remove" || mutation.Name != "jp-tokyo" || mutation.ActiveProfile != "" {
+		t.Fatalf("mutation = %+v, want removed active relay profile", mutation)
+	}
+	got, err = config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProfile != "" || len(got.Profiles) != 2 {
+		t.Fatalf("Config() = %+v, want active relay cleared and two profiles left", got)
 	}
 }
 

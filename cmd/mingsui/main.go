@@ -1325,6 +1325,22 @@ type selectionResult struct {
 	AutoSelectable     *bool  `json:"auto_selectable,omitempty"`
 }
 
+type nodeMutationResult struct {
+	OK                 bool   `json:"ok"`
+	Kind               string `json:"kind"`
+	Action             string `json:"action"`
+	Name               string `json:"name"`
+	NewName            string `json:"new_name,omitempty"`
+	Message            string `json:"message"`
+	ActiveProfile      string `json:"active_profile,omitempty"`
+	ActiveProxyProfile string `json:"active_proxy_profile,omitempty"`
+	RelayAddr          string `json:"relay_addr,omitempty"`
+	TLSEnabled         bool   `json:"tls_enabled,omitempty"`
+	Protocol           string `json:"protocol,omitempty"`
+	Exportable         *bool  `json:"exportable,omitempty"`
+	AutoSelectable     *bool  `json:"auto_selectable,omitempty"`
+}
+
 func proxyProfileItems(cfg config.ClientConfig) []proxyProfileItem {
 	items := make([]proxyProfileItem, 0, len(cfg.ProxyProfiles))
 	autoSelected := ""
@@ -1509,6 +1525,7 @@ func removeProxyProfile(args []string) int {
 
 	fs := flag.NewFlagSet("config proxy remove", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出删除结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1518,6 +1535,11 @@ func removeProxyProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
+	profile, ok := cfg.ProxyProfile(name)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "删除机场节点失败: proxy profile %q 不存在\n", name)
+		return 1
+	}
 	if err := cfg.RemoveProxyProfile(name); err != nil {
 		fmt.Fprintf(os.Stderr, "删除机场节点失败: %v\n", err)
 		return 1
@@ -1525,6 +1547,21 @@ func removeProxyProfile(args []string) int {
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		exportable := mihomo.CanExportProfile(profile)
+		autoSelectable := mihomo.CanAutoSelectProfile(profile)
+		return writeJSONOrError(nodeMutationResult{
+			OK:                 true,
+			Kind:               "proxy",
+			Action:             "remove",
+			Name:               name,
+			Message:            "机场节点已删除",
+			ActiveProxyProfile: cfg.ActiveProxyProfile,
+			Protocol:           profile.Protocol,
+			Exportable:         &exportable,
+			AutoSelectable:     &autoSelectable,
+		})
 	}
 	fmt.Printf("已删除机场节点 %s\n", name)
 	return 0
@@ -1597,6 +1634,7 @@ func addClientProfile(args []string) int {
 	tlsCAFile := fs.String("ca-file", "", "relay TLS CA 文件")
 	tlsInsecure := fs.Bool("insecure-skip-verify", false, "跳过 relay TLS 证书校验")
 	force := fs.Bool("force", false, "覆盖同名 profile")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出写入结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1606,7 +1644,7 @@ func addClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
-	if err := cfg.UpsertRelayProfile(config.RelayProfile{
+	profile := config.RelayProfile{
 		Name:      name,
 		RelayAddr: *relayAddr,
 		Token:     *token,
@@ -1616,13 +1654,25 @@ func addClientProfile(args []string) int {
 			CAFile:             *tlsCAFile,
 			InsecureSkipVerify: *tlsInsecure,
 		},
-	}, *force); err != nil {
+	}
+	if err := cfg.UpsertRelayProfile(profile, *force); err != nil {
 		fmt.Fprintf(os.Stderr, "写入 profile 失败: %v\n", err)
 		return 1
 	}
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		return writeJSONOrError(nodeMutationResult{
+			OK:         true,
+			Kind:       "relay",
+			Action:     "add",
+			Name:       name,
+			Message:    "profile 已写入",
+			RelayAddr:  profile.RelayAddr,
+			TLSEnabled: profile.TLS.Enabled,
+		})
 	}
 	fmt.Printf("已写入 profile %s\n", name)
 	return 0
@@ -1684,6 +1734,7 @@ func removeClientProfile(args []string) int {
 
 	fs := flag.NewFlagSet("config profile remove", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出删除结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1701,6 +1752,16 @@ func removeClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
+	if *jsonOutput {
+		return writeJSONOrError(nodeMutationResult{
+			OK:            true,
+			Kind:          "relay",
+			Action:        "remove",
+			Name:          name,
+			Message:       "profile 已删除",
+			ActiveProfile: cfg.ActiveProfile,
+		})
+	}
 	fmt.Printf("已删除 profile %s\n", name)
 	return 0
 }
@@ -1715,6 +1776,7 @@ func renameClientProfile(args []string) int {
 
 	fs := flag.NewFlagSet("config profile rename", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出重命名结果")
 	if err := fs.Parse(args[2:]); err != nil {
 		return 2
 	}
@@ -1731,6 +1793,17 @@ func renameClientProfile(args []string) int {
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		return writeJSONOrError(nodeMutationResult{
+			OK:            true,
+			Kind:          "relay",
+			Action:        "rename",
+			Name:          oldName,
+			NewName:       newName,
+			Message:       "profile 已重命名",
+			ActiveProfile: cfg.ActiveProfile,
+		})
 	}
 	fmt.Printf("已重命名 profile %s -> %s\n", oldName, newName)
 	return 0
@@ -1905,7 +1978,7 @@ func printUsage() {
   mingsui system-proxy enable
   mingsui kernel export -config %s -output /tmp/mingsui-mihomo.yaml
   mingsui config init -relay example.com:9443 -token "$TOKEN"
-  mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
+  mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN" -json
   mingsui config proxy list
   mingsui config proxy select tokyo -json
   mingsui config proxy check -select-best
@@ -1914,7 +1987,7 @@ func printUsage() {
   mingsui config profile export -output ./nodes.json -secrets
   mingsui config subscription add team -url https://example.com/mingsui/nodes.json -json
   mingsui config subscription sync team -json
-  mingsui config profile rename tokyo jp-tokyo
+  mingsui config profile rename tokyo jp-tokyo -json
   mingsui run -profile tokyo -config %s
   mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
   mingsui config show -path %s
@@ -1952,10 +2025,10 @@ func printConfigUsage() {
 func printConfigProfileUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config profile list [-json] [flags]
-  mingsui config profile add <name> -relay <addr> -token <token> [flags]
+  mingsui config profile add <name> -relay <addr> -token <token> [-json] [flags]
   mingsui config profile select <name> [-json] [flags]
-  mingsui config profile remove <name> [flags]
-  mingsui config profile rename <old-name> <new-name> [flags]
+  mingsui config profile remove <name> [-json] [flags]
+  mingsui config profile rename <old-name> <new-name> [-json] [flags]
   mingsui config profile check <name> [flags]
   mingsui config profile import -source <file|url|-> [-json] [flags]
   mingsui config profile export [flags] [name...]`)
@@ -1966,7 +2039,7 @@ func printConfigProxyUsage() {
   mingsui config proxy list [flags]
   mingsui config proxy select <name> [-force] [-json] [flags]
   mingsui config proxy check [-select-best] [flags]
-  mingsui config proxy remove <name> [flags]`)
+  mingsui config proxy remove <name> [-json] [flags]`)
 }
 
 func writeJSON(w io.Writer, value any) error {
