@@ -393,49 +393,24 @@ export function Overview() {
 
   return (
     <div className="space-y-6">
-      <div className="panel overflow-hidden">
-        <div className="bg-[#172033] px-6 py-5 text-white">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.22fr)_minmax(24rem,0.78fr)]">
+        <div className="panel p-5">
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="flex min-w-0 items-start gap-4">
-              <div className={`grid h-14 w-14 shrink-0 place-items-center rounded-lg border ${
-                status.running
-                  ? 'border-emerald-400/35 bg-emerald-400/15 text-emerald-200'
-                  : 'border-white/15 bg-white/10 text-slate-300'
+              <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-lg border ${
+                status.running ? 'border-emerald-500/25 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-400'
               }`}>
-                {status.running ? <CheckIcon className="h-10 w-10" /> : <XIcon className="h-10 w-10" />}
+                {status.running ? <CheckIcon className="h-7 w-7" /> : <XIcon className="h-7 w-7" />}
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-3xl font-semibold text-white">{status.running ? '已连接' : '未连接'}</h2>
-                  <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-xs text-slate-200">{protocolLabel}</span>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs ${status.running ? 'border-emerald-400/25 bg-emerald-400/15 text-emerald-100' : 'border-white/15 bg-white/10 text-slate-300'}`}>
-                    {mode}
-                  </span>
-                </div>
-                <p className="mt-2 truncate text-sm text-slate-300">{nodeLabel} · {relayAddr || '未选择 Relay'}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className={`rounded-full border px-2.5 py-1 text-xs ${status.running ? 'border-emerald-400/25 bg-emerald-400/15 text-emerald-100' : 'border-white/15 bg-white/10 text-slate-300'}`}>
-                    运行 {status.running ? formatRuntime(status.started_at) : '-'}
-                  </span>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs ${
-                    systemProxy.enabled
-                      ? 'border-emerald-400/25 bg-emerald-400/15 text-emerald-100'
-                      : 'border-white/15 bg-white/10 text-slate-300'
-                  }`}>
-                    {systemProxy.enabled ? '系统代理已开启' : '系统代理未开启'}
-                  </span>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs ${
-                    readyTone === 'success'
-                      ? 'border-emerald-400/25 bg-emerald-400/15 text-emerald-100'
-                      : readyTone === 'danger'
-                        ? 'border-red-400/30 bg-red-400/15 text-red-100'
-                        : readyTone === 'warning'
-                          ? 'border-amber-300/30 bg-amber-300/15 text-amber-100'
-                          : 'border-white/15 bg-white/10 text-slate-300'
-                  }`}>
+                  <h2 className="text-2xl font-semibold text-main">{status.running ? '代理运行中' : '代理未启动'}</h2>
+                  <span className="pill px-2.5 py-1 text-xs">{protocolLabel}</span>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs ${toneClasses[readyTone]}`}>
                     {readinessLabel(readiness)}
                   </span>
                 </div>
+                <p className="mt-2 truncate text-sm text-subtle">{nodeLabel} · {mode}</p>
               </div>
             </div>
 
@@ -443,7 +418,7 @@ export function Overview() {
               <button
                 onClick={handleSystemProxyToggle}
                 disabled={switchingProxy || !systemProxy.supported}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                className="secondary-button px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ShieldIcon className="h-4 w-4" />
                 {switchingProxy ? '切换中' : systemProxy.enabled ? '关闭系统代理' : '开启系统代理'}
@@ -451,10 +426,10 @@ export function Overview() {
               <button
                 onClick={handleConnect}
                 disabled={connecting}
-                className={`inline-flex min-w-28 items-center justify-center gap-2 rounded-lg px-5 py-2 text-sm font-medium shadow-none transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                className={`inline-flex min-w-28 items-center justify-center gap-2 rounded-lg px-5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
                   status.running
-                    ? 'border border-red-400/30 bg-red-500/15 text-red-100 hover:bg-red-500/20'
-                    : 'bg-emerald-400 text-[#0f172a] hover:bg-emerald-300'
+                    ? 'border border-red-500/20 bg-red-50 text-red-700 hover:bg-red-100'
+                    : 'bg-[#0b8a7e] text-white shadow-lg shadow-teal-700/15 hover:bg-[#08766d]'
                 }`}
               >
                 <PowerIcon className="h-4 w-4" />
@@ -462,11 +437,54 @@ export function Overview() {
               </button>
             </div>
           </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="row-surface p-3">
+              <div className="text-xs text-faint">运行时长</div>
+              <div className="mt-1 text-lg font-semibold text-main">{status.running ? formatRuntime(status.started_at) : '-'}</div>
+              <div className="mt-1 text-xs text-subtle">{status.running ? '本地监听已打开' : '等待启动'}</div>
+            </div>
+            <div className="row-surface p-3">
+              <div className="text-xs text-faint">系统代理</div>
+              <div className="mt-1 text-lg font-semibold text-main">{systemProxy.enabled ? '已接管' : '未接管'}</div>
+              <div className="mt-1 truncate text-xs text-subtle">{systemProxy.message || '桌面端一键切换'}</div>
+            </div>
+            <div className="row-surface p-3">
+              <div className="text-xs text-faint">当前策略</div>
+              <div className="mt-1 truncate text-lg font-semibold text-main">{readiness?.selected_proxy || readiness?.selected_profile || nodeLabel}</div>
+              <div className="mt-1 text-xs text-subtle">{relayAddr || httpAddr || '等待配置'}</div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-6">
-          {stats.map(item => <StatCard key={item.label} item={item} />)}
+        <div className="panel p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs text-faint">控制台摘要</div>
+              <div className="mt-1 text-base font-semibold text-main">节点、订阅和 AI 终端共用同一配置</div>
+            </div>
+            <span className={`rounded-full border px-2.5 py-1 text-xs ${status.running ? toneClasses.success : toneClasses.neutral}`}>
+              {status.running ? '在线' : '离线'}
+            </span>
+          </div>
+          <div className="mt-4 space-y-2">
+            {[
+              ['机场节点', `${config.proxy_profiles.length} 个`],
+              ['订阅来源', `${config.subscriptions.length} 个`],
+              ['Relay profile', `${config.profiles.length} 个`],
+              ['活跃连接', `${metrics.active_connections} / ${metrics.total_connections}`],
+            ].map(([label, value]) => (
+              <div key={label} className="row-surface flex items-center justify-between gap-3 px-3 py-2.5">
+                <span className="text-sm text-subtle">{label}</span>
+                <span className="font-mono text-sm font-semibold text-main">{value}</span>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        {stats.map(item => <StatCard key={item.label} item={item} />)}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.65fr)]">

@@ -142,6 +142,10 @@ export function Nodes() {
   const protocolSummary = Object.entries(protocolCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
+  const emptyNodeTitle = profiles.length === 0 ? '还没有机场节点' : '没有匹配的机场节点'
+  const emptyNodeDetail = profiles.length === 0
+    ? '先到订阅页保存并同步机场订阅，或在总览页粘贴 Clash/Mihomo 订阅内容。同步成功后节点会出现在这里。'
+    : '当前筛选条件没有结果，可以清空搜索或切换到全部节点查看。'
   const filters: Array<{id: NodeFilter; label: string; count: number}> = [
     {id: 'all', label: '全部', count: counts.all},
     {id: 'usable', label: '可连接', count: counts.usable},
@@ -364,7 +368,29 @@ export function Nodes() {
           <div className="text-right">操作</div>
         </div>
         {filteredProfiles.length === 0 ? (
-          <div className="p-8 text-center text-subtle">没有匹配的机场节点</div>
+          <div className="p-8">
+            <div className="mx-auto max-w-xl rounded-lg border border-dashed border-[#cfd6e3] bg-white/54 p-6 text-center dark:border-white/10 dark:bg-white/5">
+              <div className="mx-auto grid h-11 w-11 place-items-center rounded-lg border border-amber-500/20 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200">
+                <AlertIcon className="h-5 w-5" />
+              </div>
+              <div className="mt-3 text-base font-semibold text-main">{emptyNodeTitle}</div>
+              <div className="mt-2 text-sm leading-6 text-subtle">{emptyNodeDetail}</div>
+              <div className="mt-4 grid gap-2 text-left text-xs text-subtle sm:grid-cols-3">
+                <div className="row-surface p-3">
+                  <div className="font-medium text-main">1. 保存订阅</div>
+                  <div className="mt-1">订阅页粘贴 URL</div>
+                </div>
+                <div className="row-surface p-3">
+                  <div className="font-medium text-main">2. 同步节点</div>
+                  <div className="mt-1">支持 Clash YAML</div>
+                </div>
+                <div className="row-surface p-3">
+                  <div className="font-medium text-main">3. 测速选优</div>
+                  <div className="mt-1">自动选择可用节点</div>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           filteredProfiles.map(profile => {
             const cap = capabilityMap.get(profile.name)

@@ -53,6 +53,11 @@ function App() {
   const [activeView, setActiveView] = useState<ViewType>('overview')
   const {state, error, loading, refresh} = useDesktop()
   const view = viewTitles[activeView]
+  const status = state?.status
+  const config = state?.config
+  const currentNode = config?.active_proxy_profile || config?.active_profile || '未选择节点'
+  const nodeCount = config?.proxy_profiles?.length || 0
+  const subscriptionCount = config?.subscriptions?.length || 0
 
   const renderView = () => {
     switch (activeView) {
@@ -70,26 +75,42 @@ function App() {
       <div className="flex min-h-screen">
         <Sidebar activeView={activeView} onViewChange={(view) => setActiveView(view as ViewType)} state={state} />
         <main className="min-w-0 flex-1 overflow-auto">
-          <header className="topbar sticky top-0 z-10 px-6 py-3">
+          <header className="topbar sticky top-0 z-10 px-6 py-3.5">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                  <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
-                  <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs text-faint">
+                  <span>明隧桌面端</span>
+                  <span>/</span>
+                  <span>{view.title}</span>
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold text-main">{view.title}</h1>
-                  <p className="mt-0.5 text-xs text-subtle">{view.detail}</p>
+                  <h1 className="mt-1 text-lg font-semibold text-main">{view.title}</h1>
+                  <p className="mt-0.5 truncate text-xs text-subtle">{view.detail}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className={`rounded-full border px-3 py-1 text-sm ${
-                  state?.status?.running
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="hidden items-center gap-2 rounded-lg border border-[#dbe1eb] bg-white/60 px-3 py-2 text-xs text-subtle dark:border-white/10 dark:bg-white/5 xl:flex">
+                  <span className={`h-2 w-2 rounded-full ${status?.running ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  <span className="max-w-52 truncate text-main">{currentNode}</span>
+                </div>
+                <div className="hidden gap-2 text-xs lg:flex">
+                  <span className="rounded-lg border border-[#dbe1eb] bg-white/60 px-2.5 py-2 text-subtle dark:border-white/10 dark:bg-white/5">{nodeCount} 节点</span>
+                  <span className="rounded-lg border border-[#dbe1eb] bg-white/60 px-2.5 py-2 text-subtle dark:border-white/10 dark:bg-white/5">{subscriptionCount} 订阅</span>
+                </div>
+                <button
+                  onClick={() => refresh(true)}
+                  disabled={loading}
+                  title="刷新桌面状态"
+                  className="secondary-button h-9 w-9 p-0 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <div className={`rounded-lg border px-3 py-2 text-sm ${
+                  status?.running
                     ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700'
                     : 'border-slate-200 bg-white/60 text-subtle'
                 }`}>
-                  {state?.status?.running ? '已连接' : '未连接'}
+                  {status?.running ? '已连接' : '未连接'}
                 </div>
                 <ThemeToggle />
               </div>
