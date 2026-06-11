@@ -1311,6 +1311,20 @@ type proxyProfileItem struct {
 	AutoSelectable bool   `json:"auto_selectable"`
 }
 
+type selectionResult struct {
+	OK                 bool   `json:"ok"`
+	Kind               string `json:"kind"`
+	Name               string `json:"name"`
+	Message            string `json:"message"`
+	ActiveProfile      string `json:"active_profile,omitempty"`
+	ActiveProxyProfile string `json:"active_proxy_profile,omitempty"`
+	RelayAddr          string `json:"relay_addr,omitempty"`
+	TLSEnabled         bool   `json:"tls_enabled,omitempty"`
+	Protocol           string `json:"protocol,omitempty"`
+	Exportable         *bool  `json:"exportable,omitempty"`
+	AutoSelectable     *bool  `json:"auto_selectable,omitempty"`
+}
+
 func proxyProfileItems(cfg config.ClientConfig) []proxyProfileItem {
 	items := make([]proxyProfileItem, 0, len(cfg.ProxyProfiles))
 	autoSelected := ""
@@ -1339,6 +1353,7 @@ func selectProxyProfile(args []string) int {
 	fs := flag.NewFlagSet("config proxy select", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	force := fs.Bool("force", false, "允许选择当前暂不支持直接连接的节点")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出选择结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1364,6 +1379,20 @@ func selectProxyProfile(args []string) int {
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		exportable := mihomo.CanExportProfile(profile)
+		autoSelectable := mihomo.CanAutoSelectProfile(profile)
+		return writeJSONOrError(selectionResult{
+			OK:                 true,
+			Kind:               "proxy",
+			Name:               name,
+			Message:            "机场节点已选择",
+			ActiveProxyProfile: cfg.ActiveProxyProfile,
+			Protocol:           profile.Protocol,
+			Exportable:         &exportable,
+			AutoSelectable:     &autoSelectable,
+		})
 	}
 	fmt.Printf("已选择机场节点 %s\n", name)
 	return 0
@@ -1608,6 +1637,7 @@ func selectClientProfile(args []string) int {
 
 	fs := flag.NewFlagSet("config profile select", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出选择结果")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -1617,6 +1647,11 @@ func selectClientProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
+	resolved, err := cfg.ResolveProfile(name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
+		return 1
+	}
 	if err := cfg.SelectRelayProfile(name); err != nil {
 		fmt.Fprintf(os.Stderr, "选择 profile 失败: %v\n", err)
 		return 1
@@ -1624,6 +1659,17 @@ func selectClientProfile(args []string) int {
 	if err := config.WriteClient(*cfgPath, cfg, true); err != nil {
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
+	}
+	if *jsonOutput {
+		return writeJSONOrError(selectionResult{
+			OK:            true,
+			Kind:          "relay",
+			Name:          name,
+			Message:       "profile 已选择",
+			ActiveProfile: cfg.ActiveProfile,
+			RelayAddr:     resolved.RelayAddr,
+			TLSEnabled:    resolved.TLS.Enabled,
+		})
 	}
 	fmt.Printf("已选择 profile %s\n", name)
 	return 0
@@ -1861,7 +1907,7 @@ func printUsage() {
   mingsui config init -relay example.com:9443 -token "$TOKEN"
   mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
   mingsui config proxy list
-  mingsui config proxy select tokyo
+  mingsui config proxy select tokyo -json
   mingsui config proxy check -select-best
   mingsui config profile check tokyo
   mingsui config profile import -source ./nodes.json -force
@@ -1907,7 +1953,7 @@ func printConfigProfileUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config profile list [-json] [flags]
   mingsui config profile add <name> -relay <addr> -token <token> [flags]
-  mingsui config profile select <name> [flags]
+  mingsui config profile select <name> [-json] [flags]
   mingsui config profile remove <name> [flags]
   mingsui config profile rename <old-name> <new-name> [flags]
   mingsui config profile check <name> [flags]
@@ -1918,7 +1964,7 @@ func printConfigProfileUsage() {
 func printConfigProxyUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
   mingsui config proxy list [flags]
-  mingsui config proxy select <name> [-force] [flags]
+  mingsui config proxy select <name> [-force] [-json] [flags]
   mingsui config proxy check [-select-best] [flags]
   mingsui config proxy remove <name> [flags]`)
 }

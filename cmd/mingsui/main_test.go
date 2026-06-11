@@ -398,8 +398,21 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	if code := run([]string{"config", "proxy", "select", "future", "-path", cfgPath, "-force"}); code != 0 {
 		t.Fatalf("run(config proxy select unsupported -force) = %d, want 0", code)
 	}
-	if code := run([]string{"config", "proxy", "select", "osaka", "-path", cfgPath}); code != 0 {
-		t.Fatalf("run(config proxy select) = %d, want 0", code)
+	code, output := captureStdout(t, func() int {
+		return run([]string{"config", "proxy", "select", "osaka", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config proxy select -json) = %d, want 0, output = %s", code, output)
+	}
+	var selected selectionResult
+	if err := json.Unmarshal([]byte(output), &selected); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !selected.OK || selected.Kind != "proxy" || selected.Name != "osaka" || selected.ActiveProxyProfile != "osaka" || selected.Protocol != "vmess" {
+		t.Fatalf("selection = %+v, want selected proxy osaka", selected)
+	}
+	if selected.Exportable == nil || !*selected.Exportable {
+		t.Fatalf("selection = %+v, want exportable proxy", selected)
 	}
 	got, err := config.LoadClient(cfgPath)
 	if err != nil {
@@ -448,6 +461,27 @@ func TestConfigProfileListJSON(t *testing.T) {
 	}
 	if strings.Contains(output, "secret") {
 		t.Fatalf("profile list JSON leaked token: %s", output)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "profile", "select", "tokyo", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config profile select -json) = %d, want 0, output = %s", code, output)
+	}
+	var selected selectionResult
+	if err := json.Unmarshal([]byte(output), &selected); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !selected.OK || selected.Kind != "relay" || selected.Name != "tokyo" || selected.ActiveProfile != "tokyo" || selected.RelayAddr != "tokyo.example.com:9443" {
+		t.Fatalf("selection = %+v, want selected relay tokyo", selected)
+	}
+	got, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if got.ActiveProfile != "tokyo" || got.ActiveProxyProfile != "" {
+		t.Fatalf("Config() = %+v, want active relay tokyo and no active proxy", got)
 	}
 }
 
