@@ -19,6 +19,13 @@
     background: #f4f6fa;
   }
 
+  html,
+  #root {
+    min-width: 1040px;
+    min-height: 100vh;
+    background: inherit;
+  }
+
   button,
   input,
   textarea {
