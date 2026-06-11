@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +158,37 @@ func TestTopLevelImportStoresProxyProfiles(t *testing.T) {
 	}
 }
 
+func TestTopLevelImportJSONReportsProxyProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"import", "-path", cfgPath, "-source", sourcePath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(import -json) = %d, want 0, output = %s", code, output)
+	}
+	var result subscriptionCommandResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !result.OK || result.Report.Kind != "proxy" || result.Report.Imported != 2 || result.Report.Selected != "tokyo" {
+		t.Fatalf("result = %+v, want successful proxy import report", result)
+	}
+	if result.Report.ImportedExportableProxyProfiles != 1 || result.Report.ImportedAutoSelectableProxyProfiles != 1 {
+		t.Fatalf("report = %+v, want one exportable auto-selectable imported proxy", result.Report)
+	}
+	if result.ProxyCheck != nil {
+		t.Fatalf("ProxyCheck = %+v, want nil without -check", result.ProxyCheck)
+	}
+}
+
 func TestTopLevelImportDoesNotSelectUnsupportedProxyProfile(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "client.json")
@@ -237,6 +270,49 @@ func TestTopLevelImportCheckSelectsBestProxyProfile(t *testing.T) {
 	code := run([]string{"import", "-path", cfgPath, "-source", sourcePath, "-check"})
 	if code != 0 {
 		t.Fatalf("run(import -check) = %d, want 0", code)
+	}
+	cfg, err := config.LoadClient(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadClient() error = %v", err)
+	}
+	if cfg.ActiveProxyProfile != "osaka" {
+		t.Fatalf("ActiveProxyProfile = %q, want osaka", cfg.ActiveProxyProfile)
+	}
+}
+
+func TestTopLevelImportCheckJSONReportsProxyCheck(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	sourcePath := filepath.Join(dir, "airport.txt")
+	raw := "ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#osaka\r\n"
+	if err := os.WriteFile(sourcePath, []byte(base64.StdEncoding.EncodeToString([]byte(raw))), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	oldRunner := proxyCheckRunner
+	proxyCheckRunner = func(ctx context.Context, cfg config.ClientConfig, opts proxycheck.Options) (proxycheck.Report, error) {
+		return proxycheck.Report{Results: []proxycheck.Result{
+			{Name: "tokyo", Protocol: "ss", Tested: true, OK: true, LatencyMS: 220},
+			{Name: "osaka", Protocol: "ss", Tested: true, OK: true, LatencyMS: 90},
+		}}, nil
+	}
+	defer func() {
+		proxyCheckRunner = oldRunner
+	}()
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"import", "-path", cfgPath, "-source", sourcePath, "-check", "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(import -check -json) = %d, want 0, output = %s", code, output)
+	}
+	var result subscriptionCommandResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !result.OK || result.ProxyCheck == nil || result.ProxyCheck.Selected != "osaka" || result.Report.Selected != "osaka" {
+		t.Fatalf("result = %+v, want JSON proxy check selection osaka", result)
 	}
 	cfg, err := config.LoadClient(cfgPath)
 	if err != nil {
@@ -759,7 +835,7 @@ func TestSyncSubscriptionDataRelayProfiles(t *testing.T) {
 	cfgPath := filepath.Join(dir, "client.json")
 	cfg := config.DefaultClient()
 
-	code := syncSubscriptionData(cfg, cfgPath, "team", []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), true, "", true, proxyCheckSettings{})
+	code := syncSubscriptionData(cfg, cfgPath, "team", []byte(`[{"name":"tokyo","relay_addr":"tokyo.example.com:9443","token":"secret"}]`), true, "", true, false, proxyCheckSettings{})
 	if code != 0 {
 		t.Fatalf("syncSubscriptionData(relay) = %d, want 0", code)
 	}
@@ -779,7 +855,7 @@ func TestSyncSubscriptionDataProxyProfiles(t *testing.T) {
 	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
 		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
 
-	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, proxyCheckSettings{})
+	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, false, proxyCheckSettings{})
 	if code != 0 {
 		t.Fatalf("syncSubscriptionData(proxy) = %d, want 0", code)
 	}
@@ -789,6 +865,38 @@ func TestSyncSubscriptionDataProxyProfiles(t *testing.T) {
 	}
 	if got.ActiveProxyProfile != "tokyo" || len(got.ProxyProfiles) != 2 {
 		t.Fatalf("Config() = %+v, want synced active exportable proxy profile", got)
+	}
+}
+
+func TestConfigSubscriptionSyncJSONReportsProxyProfiles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	raw := "tuic://00000000-0000-0000-0000-000000000000:pass@example.com:443#future\r\n" +
+		"ss://YWVzLTI1Ni1nY206cGFzc0BleGFtcGxlLmNvbTo4Mzg4#tokyo\r\n"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(base64.StdEncoding.EncodeToString([]byte(raw))))
+	}))
+	defer server.Close()
+	cfg := config.DefaultClient()
+	cfg.Subscriptions = []config.RelaySubscription{
+		{Name: "airport", URL: server.URL},
+	}
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"config", "subscription", "sync", "airport", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config subscription sync -json) = %d, want 0, output = %s", code, output)
+	}
+	var result subscriptionCommandResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if !result.OK || result.Report.Name != "airport" || result.Report.Kind != "proxy" || result.Report.Imported != 2 || result.Report.Selected != "tokyo" {
+		t.Fatalf("result = %+v, want successful proxy subscription sync report", result)
 	}
 }
 
@@ -810,7 +918,7 @@ func TestSyncSubscriptionDataCheckSelectsBestProxyProfile(t *testing.T) {
 		proxyCheckRunner = oldRunner
 	}()
 
-	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, proxyCheckSettings{Enabled: true})
+	code := syncSubscriptionData(cfg, cfgPath, "airport", []byte(base64.StdEncoding.EncodeToString([]byte(raw))), true, "", true, false, proxyCheckSettings{Enabled: true})
 	if code != 0 {
 		t.Fatalf("syncSubscriptionData(proxy check) = %d, want 0", code)
 	}

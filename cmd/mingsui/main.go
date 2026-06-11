@@ -1850,6 +1850,7 @@ func printUsage() {
   TOKEN=$(mingsui token)
   mingsui import -source ./nodes.json
   mingsui import -source https://example.com/airport/sub -check
+  mingsui import -source https://example.com/airport/sub -json
   mingsui connect
   mingsui status
   eval "$(mingsui env)"
@@ -1866,7 +1867,7 @@ func printUsage() {
   mingsui config profile import -source ./nodes.json -force
   mingsui config profile export -output ./nodes.json -secrets
   mingsui config subscription add team -url https://example.com/mingsui/nodes.json
-  mingsui config subscription sync team
+  mingsui config subscription sync team -json
   mingsui config profile rename tokyo jp-tokyo
   mingsui run -profile tokyo -config %s
   mingsui config init -local 0.0.0.0:18080 -auth-user user -auth-pass pass -relay example.com:9443 -token "$TOKEN"
@@ -1910,7 +1911,7 @@ func printConfigProfileUsage() {
   mingsui config profile remove <name> [flags]
   mingsui config profile rename <old-name> <new-name> [flags]
   mingsui config profile check <name> [flags]
-  mingsui config profile import -source <file|url|-> [flags]
+  mingsui config profile import -source <file|url|-> [-json] [flags]
   mingsui config profile export [flags] [name...]`)
 }
 

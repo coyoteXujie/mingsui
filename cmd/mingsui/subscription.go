@@ -34,6 +34,7 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	selectName := fs.String("select", "", "导入后选择指定节点")
 	selectFirst := fs.Bool("select-first", selectFirstDefault, "未指定 -select 时选择导入的第一个节点")
 	subscriptionName := fs.String("subscription", "", "导入成功后把 HTTP(S) 来源保存为指定订阅名称")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出导入结果")
 	checkSettings := proxyCheckSettings{}
 	if allowProxy {
 		checkSettings.bind(fs)
@@ -60,7 +61,7 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 	profiles, err := subscription.ParseRelayProfiles(data)
 	if err != nil && allowProxy {
 		checkSettings.read()
-		return importProxyProfiles(cfg, *cfgPath, data, *source, strings.TrimSpace(*subscriptionName), *force, strings.TrimSpace(*selectName), *selectFirst, checkSettings, err)
+		return importProxyProfiles(cfg, *cfgPath, data, *source, strings.TrimSpace(*subscriptionName), *force, strings.TrimSpace(*selectName), *selectFirst, *jsonOutput, checkSettings, err)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
@@ -88,16 +89,28 @@ func importClientProfilesCommand(name string, args []string, forceDefault, selec
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stdout, "已导入 %d 个 profile\n", len(profiles))
-	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+	report := subscription.BuildSyncReport(subscription.SyncReportInput{
 		Name:                  importedSubscriptionReportName(strings.TrimSpace(*subscriptionName)),
 		Kind:                  subscription.SyncKindRelay,
 		Message:               "节点已导入",
 		Imported:              len(profiles),
 		ImportedRelayProfiles: profiles,
 		Config:                cfg,
-	}))
+	})
+	if *jsonOutput {
+		return writeSubscriptionCommandResult(report, nil, nil)
+	}
+	fmt.Fprintf(os.Stdout, "已导入 %d 个 profile\n", len(profiles))
+	printSubscriptionSyncReport(report)
 	return 0
+}
+
+type subscriptionCommandResult struct {
+	OK         bool                    `json:"ok"`
+	Message    string                  `json:"message"`
+	Report     subscription.SyncReport `json:"report"`
+	ProxyCheck *proxycheck.Report      `json:"proxy_check,omitempty"`
+	Error      string                  `json:"error,omitempty"`
 }
 
 type proxyCheckSettings struct {
@@ -136,7 +149,7 @@ func (s proxyCheckSettings) options() proxycheck.Options {
 	}
 }
 
-func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, source, subscriptionName string, force bool, selectedName string, selectFirst bool, check proxyCheckSettings, relayErr error) int {
+func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, source, subscriptionName string, force bool, selectedName string, selectFirst bool, jsonOutput bool, check proxyCheckSettings, relayErr error) int {
 	if check.Enabled && selectedName != "" {
 		fmt.Fprintln(os.Stderr, "不能同时使用 -select 和 -check；测速选优会自动选择最快国外节点")
 		return 2
@@ -169,17 +182,39 @@ func importProxyProfiles(cfg config.ClientConfig, cfgPath string, data []byte, s
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
-	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+	report := subscription.BuildSyncReport(subscription.SyncReportInput{
 		Name:                  importedSubscriptionReportName(subscriptionName),
 		Kind:                  subscription.SyncKindProxy,
 		Message:               "机场节点已导入",
 		Imported:              len(profiles),
 		ImportedProxyProfiles: profiles,
 		Config:                cfg,
-	}))
-	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
-		return code
+	})
+	checkReport, checkStage, checkErr := runAndPersistBestProxyProfile(cfgPath, &cfg, check)
+	if check.Enabled && checkErr == nil {
+		report = subscription.BuildSyncReport(subscription.SyncReportInput{
+			Name:                  importedSubscriptionReportName(subscriptionName),
+			Kind:                  subscription.SyncKindProxy,
+			Message:               "机场节点已导入",
+			Imported:              len(profiles),
+			ImportedProxyProfiles: profiles,
+			Config:                cfg,
+		})
+	}
+	if jsonOutput {
+		if check.Enabled && checkErr != nil {
+			return writeSubscriptionCommandResult(report, &checkReport, subscriptionProxyCheckError(checkStage, checkErr))
+		}
+		return writeSubscriptionCommandResult(report, optionalProxyCheckReport(check.Enabled, checkReport), nil)
+	}
+	fmt.Fprintf(os.Stdout, "已导入 %d 个机场节点\n", len(profiles))
+	printSubscriptionSyncReport(report)
+	if check.Enabled && checkErr != nil {
+		printSubscriptionProxyCheckError(checkStage, checkErr)
+		return 1
+	}
+	if check.Enabled {
+		printPersistedBestProxyProfile(checkReport)
 	}
 	return 0
 }
@@ -192,28 +227,74 @@ func importedSubscriptionReportName(name string) string {
 	return name
 }
 
-func checkAndPersistBestProxyProfile(cfgPath string, cfg *config.ClientConfig, check proxyCheckSettings) int {
+func runAndPersistBestProxyProfile(cfgPath string, cfg *config.ClientConfig, check proxyCheckSettings) (proxycheck.Report, string, error) {
 	if !check.Enabled {
-		return 0
+		return proxycheck.Report{}, "", nil
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	report, err := proxyCheckRunner(ctx, *cfg, check.options())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "机场节点已保存，但测速选优失败: %v\n", err)
-		return 1
+		return report, "测速选优失败", err
 	}
 	if err := selectBestProxyProfileFromReport(cfg, &report); err != nil {
-		fmt.Fprintf(os.Stderr, "机场节点已保存，但选择最快节点失败: %v\n", err)
-		return 1
+		report.Error = err.Error()
+		return report, "选择最快节点失败", err
 	}
 	if err := config.WriteClient(cfgPath, *cfg, true); err != nil {
-		fmt.Fprintf(os.Stderr, "写入测速选择失败: %v\n", err)
+		report.Error = err.Error()
+		return report, "写入测速选择失败", err
+	}
+	return report, "", nil
+}
+
+func optionalProxyCheckReport(enabled bool, report proxycheck.Report) *proxycheck.Report {
+	if !enabled {
+		return nil
+	}
+	return &report
+}
+
+func writeSubscriptionCommandResult(report subscription.SyncReport, checkReport *proxycheck.Report, err error) int {
+	result := subscriptionCommandResult{
+		OK:         err == nil,
+		Message:    report.Message,
+		Report:     report,
+		ProxyCheck: checkReport,
+	}
+	if err != nil {
+		result.Error = err.Error()
+		result.Message = err.Error()
+	}
+	if code := writeJSONOrError(result); code != 0 {
+		return code
+	}
+	if err != nil {
 		return 1
 	}
+	return 0
+}
+
+func subscriptionProxyCheckError(stage string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.TrimSpace(stage) == "写入测速选择失败" {
+		return fmt.Errorf("%s: %w", stage, err)
+	}
+	return fmt.Errorf("机场节点已保存，但%s: %w", stage, err)
+}
+
+func printSubscriptionProxyCheckError(stage string, err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%v\n", subscriptionProxyCheckError(stage, err))
+}
+
+func printPersistedBestProxyProfile(report proxycheck.Report) {
 	best, _ := report.Best()
 	fmt.Fprintf(os.Stdout, "已测速选择最快国外节点 %s (%d ms)\n", report.Selected, best.LatencyMS)
-	return 0
 }
 
 func saveImportedSubscription(cfg *config.ClientConfig, name, source string, force bool) error {
@@ -452,6 +533,7 @@ func syncClientSubscription(args []string) int {
 	force := fs.Bool("force", true, "覆盖同名 profile")
 	selectName := fs.String("select", "", "同步后选择指定 profile")
 	selectFirst := fs.Bool("select-first", true, "未指定 -select 且当前未选择节点时选择同步到的第一个节点")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出同步结果")
 	checkSettings := proxyCheckSettings{}
 	checkSettings.bind(fs)
 	if err := fs.Parse(args[1:]); err != nil {
@@ -475,13 +557,13 @@ func syncClientSubscription(args []string) int {
 		fmt.Fprintf(os.Stderr, "读取订阅失败: %v\n", err)
 		return 1
 	}
-	return syncSubscriptionData(cfg, *cfgPath, name, data, *force, strings.TrimSpace(*selectName), *selectFirst, checkSettings)
+	return syncSubscriptionData(cfg, *cfgPath, name, data, *force, strings.TrimSpace(*selectName), *selectFirst, *jsonOutput, checkSettings)
 }
 
-func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, check proxyCheckSettings) int {
+func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, jsonOutput bool, check proxyCheckSettings) int {
 	profiles, relayErr := subscription.ParseRelayProfiles(data)
 	if relayErr != nil {
-		return syncProxySubscription(cfg, cfgPath, subscriptionName, data, force, selectedName, selectFirst, check, relayErr)
+		return syncProxySubscription(cfg, cfgPath, subscriptionName, data, force, selectedName, selectFirst, jsonOutput, check, relayErr)
 	}
 	if err := cfg.ImportRelayProfiles(profiles, force); err != nil {
 		fmt.Fprintf(os.Stderr, "导入 profile 失败: %v\n", err)
@@ -500,18 +582,22 @@ func syncSubscriptionData(cfg config.ClientConfig, cfgPath, subscriptionName str
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个 profile\n", subscriptionName, len(profiles))
-	printSubscriptionSyncReport(subscription.BuildSyncReport(subscription.SyncReportInput{
+	report := subscription.BuildSyncReport(subscription.SyncReportInput{
 		Name:                  subscriptionName,
 		Kind:                  subscription.SyncKindRelay,
 		Imported:              len(profiles),
 		ImportedRelayProfiles: profiles,
 		Config:                cfg,
-	}))
+	})
+	if jsonOutput {
+		return writeSubscriptionCommandResult(report, nil, nil)
+	}
+	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个 profile\n", subscriptionName, len(profiles))
+	printSubscriptionSyncReport(report)
 	return 0
 }
 
-func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, check proxyCheckSettings, relayErr error) int {
+func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName string, data []byte, force bool, selectedName string, selectFirst bool, jsonOutput bool, check proxyCheckSettings, relayErr error) int {
 	if check.Enabled && selectedName != "" {
 		fmt.Fprintln(os.Stderr, "不能同时使用 -select 和 -check；测速选优会自动选择最快国外节点")
 		return 2
@@ -540,7 +626,6 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 		fmt.Fprintf(os.Stderr, "写入配置失败: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
 	report := subscription.BuildSyncReport(subscription.SyncReportInput{
 		Name:                  subscriptionName,
 		Kind:                  subscription.SyncKindProxy,
@@ -548,13 +633,30 @@ func syncProxySubscription(cfg config.ClientConfig, cfgPath, subscriptionName st
 		ImportedProxyProfiles: profiles,
 		Config:                cfg,
 	})
+	checkReport, checkStage, checkErr := runAndPersistBestProxyProfile(cfgPath, &cfg, check)
+	if check.Enabled && checkErr == nil {
+		report = subscription.BuildSyncReport(subscription.SyncReportInput{
+			Name:                  subscriptionName,
+			Kind:                  subscription.SyncKindProxy,
+			Imported:              len(profiles),
+			ImportedProxyProfiles: profiles,
+			Config:                cfg,
+		})
+	}
+	if jsonOutput {
+		if check.Enabled && checkErr != nil {
+			return writeSubscriptionCommandResult(report, &checkReport, subscriptionProxyCheckError(checkStage, checkErr))
+		}
+		return writeSubscriptionCommandResult(report, optionalProxyCheckReport(check.Enabled, checkReport), nil)
+	}
+	fmt.Fprintf(os.Stdout, "已同步订阅 %s，导入 %d 个机场节点\n", subscriptionName, len(profiles))
 	printSubscriptionSyncReport(report)
-	if check.Enabled && report.AutoSelectableProxyProfiles == 0 {
-		fmt.Fprintf(os.Stderr, "机场节点已保存，但测速选优失败: %v\n", proxycheck.ErrNoCandidates)
+	if check.Enabled && checkErr != nil {
+		printSubscriptionProxyCheckError(checkStage, checkErr)
 		return 1
 	}
-	if code := checkAndPersistBestProxyProfile(cfgPath, &cfg, check); code != 0 {
-		return code
+	if check.Enabled {
+		printPersistedBestProxyProfile(checkReport)
 	}
 	return 0
 }
@@ -612,5 +714,5 @@ func printConfigSubscriptionUsage() {
   mingsui config subscription list [-json] [-secrets] [flags]
   mingsui config subscription add <name> -url <url> [flags]
   mingsui config subscription remove <name> [flags]
-  mingsui config subscription sync <name> [-select <node>|-check] [flags]`)
+  mingsui config subscription sync <name> [-select <node>|-check] [-json] [flags]`)
 }
