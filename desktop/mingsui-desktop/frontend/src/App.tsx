@@ -7,8 +7,13 @@ import {Subscriptions} from './components/views/Subscriptions'
 import {Logs} from './components/views/Logs'
 import {Settings} from './components/views/Settings'
 import {useDesktop} from './hooks/useDesktop'
+import {FiAlertCircle, FiRefreshCw} from 'react-icons/fi'
+import type {ComponentType} from 'react'
 
 type ViewType = 'overview' | 'nodes' | 'subscriptions' | 'logs' | 'settings'
+
+const AlertIcon = FiAlertCircle as ComponentType<{className?: string}>
+const RefreshIcon = FiRefreshCw as ComponentType<{className?: string}>
 
 const viewTitles: Record<ViewType, {title: string; detail: string}> = {
   overview: {title: '总览', detail: '连接状态、系统代理和快速导入'},
@@ -18,9 +23,35 @@ const viewTitles: Record<ViewType, {title: string; detail: string}> = {
   settings: {title: '设置', detail: '本地监听、认证、TLS 和默认 relay'},
 }
 
+function BackendErrorBanner({error, loading, onRetry}: {error: string; loading: boolean; onRetry: () => void}) {
+  return (
+    <div className="mb-5 rounded-lg border border-red-500/20 bg-red-50 p-4 text-red-800 shadow-sm dark:bg-red-500/10 dark:text-red-200">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-500/25 bg-white/70 dark:bg-white/10">
+            <AlertIcon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">桌面后端连接异常</div>
+            <div className="mt-1 break-words text-sm leading-6 opacity-90">{error}</div>
+          </div>
+        </div>
+        <button
+          onClick={onRetry}
+          disabled={loading}
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-current/20 bg-white/70 px-3 py-1.5 text-sm font-medium transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white/10 dark:hover:bg-white/15"
+        >
+          <RefreshIcon className="h-4 w-4" />
+          {loading ? '重试中' : '重试'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [activeView, setActiveView] = useState<ViewType>('overview')
-  const {state} = useDesktop()
+  const {state, error, loading, refresh} = useDesktop()
   const view = viewTitles[activeView]
 
   const renderView = () => {
@@ -65,6 +96,7 @@ function App() {
             </div>
           </header>
           <div className="p-6">
+            {error && <BackendErrorBanner error={error} loading={loading} onRetry={() => refresh(true)} />}
             {renderView()}
           </div>
         </main>

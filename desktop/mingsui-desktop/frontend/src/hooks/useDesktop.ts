@@ -271,6 +271,14 @@ declare global {
   }
 }
 
+function desktopAPI() {
+  const app = window.go?.main?.App
+  if (!app) {
+    throw new Error('桌面后端未连接。请通过 Wails 桌面端启动明隧，不要直接打开 Vite 或浏览器预览页。')
+  }
+  return app
+}
+
 function useDesktopStore() {
   const [state, setState] = useState<AppState | null>(cachedState)
   const [loading, setLoading] = useState(!cachedState)
@@ -281,7 +289,7 @@ function useDesktopStore() {
       if (showLoading && !cachedState) {
         setLoading(true)
       }
-      const data = await window.go.main.App.GetState()
+      const data = await desktopAPI().GetState()
       const nextState = normalizeAppState(data)
       const nextSignature = stateSignature(nextState)
       cachedState = nextState
@@ -304,91 +312,91 @@ function useDesktopStore() {
   }, [refresh])
 
   const start = useCallback(async () => {
-    await window.go.main.App.Start()
+    await desktopAPI().Start()
     await refresh()
   }, [refresh])
 
   const stop = useCallback(async () => {
-    await window.go.main.App.Stop()
+    await desktopAPI().Stop()
     await refresh()
   }, [refresh])
 
   const selectProxy = useCallback(async (name: string) => {
-    await window.go.main.App.SelectProxy(name)
+    await desktopAPI().SelectProxy(name)
     await refresh()
   }, [refresh])
 
   const deleteProxy = useCallback(async (name: string) => {
-    await window.go.main.App.DeleteProxy(name)
+    await desktopAPI().DeleteProxy(name)
     await refresh()
   }, [refresh])
 
   const checkProxy = useCallback(async (name: string, timeoutSeconds: number = 10) => {
-    const result = await window.go.main.App.CheckProxy(name, timeoutSeconds)
+    const result = await desktopAPI().CheckProxy(name, timeoutSeconds)
     await refresh()
     return result
   }, [refresh])
 
   const checkBestProxy = useCallback(async (timeoutSeconds: number = 10) => {
-    const result = await window.go.main.App.CheckBestProxy(timeoutSeconds)
+    const result = await desktopAPI().CheckBestProxy(timeoutSeconds)
     await refresh()
     return result
   }, [refresh])
 
   const importProfiles = useCallback(async (content: string, replace: boolean = true, selectName: string = '') => {
-    const result = await window.go.main.App.ImportProfiles(content, replace, selectName)
+    const result = await desktopAPI().ImportProfiles(content, replace, selectName)
     await refresh()
     return result
   }, [refresh])
 
   const enableSystemProxy = useCallback(async () => {
-    await window.go.main.App.EnableSystemProxy()
+    await desktopAPI().EnableSystemProxy()
     await refresh()
   }, [refresh])
 
   const disableSystemProxy = useCallback(async () => {
-    await window.go.main.App.DisableSystemProxy()
+    await desktopAPI().DisableSystemProxy()
     await refresh()
   }, [refresh])
 
   const saveConfig = useCallback(async (cfg: ClientConfig) => {
-    await window.go.main.App.SaveConfig(cfg)
+    await desktopAPI().SaveConfig(cfg)
     await refresh()
   }, [refresh])
 
   const saveRelayProfile = useCallback(async (req: {name: string; relay_addr: string; token: string; tls: any; replace: boolean}) => {
-    await window.go.main.App.SaveRelayProfile(req)
+    await desktopAPI().SaveRelayProfile(req)
     await refresh()
   }, [refresh])
 
   const deleteRelayProfile = useCallback(async (name: string) => {
-    await window.go.main.App.DeleteRelayProfile(name)
+    await desktopAPI().DeleteRelayProfile(name)
     await refresh()
   }, [refresh])
 
   const selectRelayProfile = useCallback(async (name: string) => {
-    await window.go.main.App.SelectRelayProfile(name)
+    await desktopAPI().SelectRelayProfile(name)
     await refresh()
   }, [refresh])
 
   const checkRelayProfile = useCallback(async (name: string) => {
-    const result = await window.go.main.App.CheckRelayProfile(name)
+    const result = await desktopAPI().CheckRelayProfile(name)
     await refresh()
     return result
   }, [refresh])
 
   const saveSubscription = useCallback(async (req: {name: string; url: string; replace: boolean}) => {
-    await window.go.main.App.SaveSubscription(req)
+    await desktopAPI().SaveSubscription(req)
     await refresh()
   }, [refresh])
 
   const deleteSubscription = useCallback(async (name: string) => {
-    await window.go.main.App.DeleteSubscription(name)
+    await desktopAPI().DeleteSubscription(name)
     await refresh()
   }, [refresh])
 
   const syncSubscription = useCallback(async (name: string, replace: boolean = true) => {
-    const result = await window.go.main.App.SyncSubscription(name, replace)
+    const result = await desktopAPI().SyncSubscription(name, replace)
     await refresh()
     return result
   }, [refresh])
