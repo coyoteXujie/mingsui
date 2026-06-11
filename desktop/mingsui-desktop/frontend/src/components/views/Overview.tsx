@@ -225,7 +225,7 @@ export function Overview() {
   const envCommand = `eval "$(mingsui env${configFlag})"`
   const execTemplate = `mingsui exec${configFlag} -connect -- <command>`
   const testCommand = `mingsui exec${configFlag} -connect -- curl -I https://www.google.com/generate_204`
-  const doctorCommand = `mingsui doctor${configFlag}`
+  const doctorCommand = `mingsui doctor${configFlag} -json`
   const readiness = state?.readiness
   const readinessActions = readiness?.actions?.slice(0, 4) || []
   const warnings = readiness?.warnings || []

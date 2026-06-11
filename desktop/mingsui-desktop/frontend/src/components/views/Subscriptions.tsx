@@ -164,8 +164,9 @@ export function Subscriptions() {
   const canSyncAll = subscriptions.length > 0 && busy === null
   const activeSource = selectedSubscription || (name || url ? {name: name || '未命名', url} : null)
   const syncCommand = selectedSubscription
-    ? `mingsui config subscription sync ${shellQuote(selectedSubscription.name)}${syncCheck ? ' -check' : ''}`
+    ? `mingsui config subscription sync ${shellQuote(selectedSubscription.name)}${syncCheck ? ' -check' : ''} -json`
     : '保存订阅后可复制同步命令'
+  const proxyListCommand = `mingsui config proxy list${state?.config_path ? ` -path ${shellQuote(state.config_path)}` : ''} -json`
   const statCards: StatCard[] = [
     {
       label: '已保存订阅',
@@ -405,6 +406,17 @@ export function Subscriptions() {
                 </div>
                 <CopyIcon className="mt-0.5 h-4 w-4 shrink-0 text-faint group-hover:text-emerald-700" />
               </button>
+
+              <div className={`rounded-lg border p-3 ${lastResult ? toneClasses[lastResult.tone] : toneClasses.neutral}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{lastResult ? '最近同步结果' : '等待同步结果'}</div>
+                    <div className="mt-1 text-xl font-semibold">{lastResult?.title || '暂无结果'}</div>
+                    <div className="mt-1 break-words text-xs leading-5 opacity-85">{lastResult?.detail || '保存或同步订阅后会显示导入数量、候选节点和当前选择。'}</div>
+                  </div>
+                  <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -581,6 +593,16 @@ export function Subscriptions() {
                   </div>
                   <ZapIcon className="h-4 w-4 text-faint" />
                 </div>
+                <button
+                  onClick={() => copyText('节点列表 JSON 命令', proxyListCommand)}
+                  className="row-surface group flex w-full items-start justify-between gap-3 p-3 text-left transition"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-main">节点列表 JSON</div>
+                    <div className="mt-1 truncate font-mono text-xs text-subtle">{proxyListCommand}</div>
+                  </div>
+                  <CopyIcon className="mt-0.5 h-4 w-4 shrink-0 text-faint group-hover:text-emerald-700" />
+                </button>
               </div>
             </div>
           </div>
