@@ -1504,6 +1504,7 @@ func removeProxyProfile(args []string) int {
 func listClientProfiles(args []string) int {
 	fs := flag.NewFlagSet("config profile list", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出 relay profile 列表")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -1513,18 +1514,42 @@ func listClientProfiles(args []string) int {
 		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
 		return 1
 	}
+	items := relayProfileItems(cfg)
+	if *jsonOutput {
+		return writeJSONOrError(items)
+	}
 	if len(cfg.Profiles) == 0 {
 		fmt.Fprintln(os.Stdout, "没有 relay profile")
 		return 0
 	}
-	for _, profile := range cfg.Profiles {
+	for _, profile := range items {
 		marker := " "
-		if profile.Name == cfg.ActiveProfile {
+		if profile.Selected {
 			marker = "*"
 		}
 		fmt.Fprintf(os.Stdout, "%s %s %s\n", marker, profile.Name, profile.RelayAddr)
 	}
 	return 0
+}
+
+type relayProfileItem struct {
+	Name       string `json:"name"`
+	RelayAddr  string `json:"relay_addr"`
+	Selected   bool   `json:"selected"`
+	TLSEnabled bool   `json:"tls_enabled"`
+}
+
+func relayProfileItems(cfg config.ClientConfig) []relayProfileItem {
+	items := make([]relayProfileItem, 0, len(cfg.Profiles))
+	for _, profile := range cfg.Profiles {
+		items = append(items, relayProfileItem{
+			Name:       profile.Name,
+			RelayAddr:  profile.RelayAddr,
+			Selected:   profile.Name == cfg.ActiveProfile,
+			TLSEnabled: profile.TLS.Enabled,
+		})
+	}
+	return items
 }
 
 func addClientProfile(args []string) int {
@@ -1879,7 +1904,7 @@ func printConfigUsage() {
 
 func printConfigProfileUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
-  mingsui config profile list [flags]
+  mingsui config profile list [-json] [flags]
   mingsui config profile add <name> -relay <addr> -token <token> [flags]
   mingsui config profile select <name> [flags]
   mingsui config profile remove <name> [flags]

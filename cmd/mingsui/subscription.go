@@ -339,6 +339,7 @@ func listClientSubscriptions(args []string) int {
 	fs := flag.NewFlagSet("config subscription list", flag.ContinueOnError)
 	cfgPath := fs.String("path", config.DefaultClientPath(), "客户端配置文件路径")
 	showSecrets := fs.Bool("secrets", false, "显示真实订阅 URL")
+	jsonOutput := fs.Bool("json", false, "以 JSON 格式输出订阅列表")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -351,6 +352,9 @@ func listClientSubscriptions(args []string) int {
 	if !*showSecrets {
 		cfg = cfg.Redacted()
 	}
+	if *jsonOutput {
+		return writeJSONOrError(subscriptionItems(cfg.Subscriptions))
+	}
 	if len(cfg.Subscriptions) == 0 {
 		fmt.Fprintln(os.Stdout, "没有 relay 订阅")
 		return 0
@@ -359,6 +363,19 @@ func listClientSubscriptions(args []string) int {
 		fmt.Fprintf(os.Stdout, "%s %s\n", sub.Name, sub.URL)
 	}
 	return 0
+}
+
+type subscriptionItem struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+func subscriptionItems(subscriptions []config.RelaySubscription) []subscriptionItem {
+	items := make([]subscriptionItem, 0, len(subscriptions))
+	for _, sub := range subscriptions {
+		items = append(items, subscriptionItem{Name: sub.Name, URL: sub.URL})
+	}
+	return items
 }
 
 func addClientSubscription(args []string) int {
@@ -592,7 +609,7 @@ func loadSourceData(source string, stdin io.Reader) ([]byte, error) {
 
 func printConfigSubscriptionUsage() {
 	fmt.Fprintln(os.Stderr, `用法:
-  mingsui config subscription list [flags]
+  mingsui config subscription list [-json] [-secrets] [flags]
   mingsui config subscription add <name> -url <url> [flags]
   mingsui config subscription remove <name> [flags]
   mingsui config subscription sync <name> [-select <node>|-check] [flags]`)

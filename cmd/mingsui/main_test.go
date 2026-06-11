@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -342,6 +344,37 @@ func TestConfigProxyListSelectAndRemove(t *testing.T) {
 	}
 }
 
+func TestConfigProfileListJSON(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "client.json")
+	cfg := config.DefaultClient()
+	cfg.Profiles = []config.RelayProfile{
+		{Name: "tokyo", RelayAddr: "tokyo.example.com:9443", Token: "secret"},
+		{Name: "osaka", RelayAddr: "osaka.example.com:9443", Token: "osaka-secret", TLS: config.ClientTLSConfig{Enabled: true}},
+	}
+	cfg.ActiveProfile = "osaka"
+	if err := config.WriteClient(cfgPath, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"config", "profile", "list", "-path", cfgPath, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config profile list -json) = %d, want 0", code)
+	}
+	var items []relayProfileItem
+	if err := json.Unmarshal([]byte(output), &items); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if len(items) != 2 || items[1].Name != "osaka" || !items[1].Selected || !items[1].TLSEnabled {
+		t.Fatalf("items = %+v, want selected TLS osaka", items)
+	}
+	if strings.Contains(output, "secret") {
+		t.Fatalf("profile list JSON leaked token: %s", output)
+	}
+}
+
 func TestConfigProxyCheckSelectBest(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "client.json")
@@ -570,6 +603,25 @@ func assertEnvString(t *testing.T, env []string, want string) {
 	t.Fatalf("missing env item %q in %+v", want, env)
 }
 
+func captureStdout(t *testing.T, fn func() int) (int, string) {
+	t.Helper()
+	oldStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	os.Stdout = writer
+	code := fn()
+	_ = writer.Close()
+	os.Stdout = oldStdout
+	data, err := io.ReadAll(reader)
+	_ = reader.Close()
+	if err != nil {
+		t.Fatalf("ReadAll(stdout) error = %v", err)
+	}
+	return code, string(data)
+}
+
 func fakeMihomoCommand(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "mihomo")
@@ -664,6 +716,41 @@ func TestConfigSubscriptionAddAndRemove(t *testing.T) {
 	}
 	if len(cfg.Subscriptions) != 0 {
 		t.Fatalf("Subscriptions = %+v, want empty", cfg.Subscriptions)
+	}
+}
+
+func TestConfigSubscriptionListJSON(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "client.json")
+	cfg := config.DefaultClient()
+	cfg.Subscriptions = []config.RelaySubscription{
+		{Name: "airport", URL: "https://example.com/sub?token=secret"},
+	}
+	if err := config.WriteClient(path, cfg, true); err != nil {
+		t.Fatalf("WriteClient() error = %v", err)
+	}
+
+	code, output := captureStdout(t, func() int {
+		return run([]string{"config", "subscription", "list", "-path", path, "-json"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config subscription list -json) = %d, want 0", code)
+	}
+	var items []subscriptionItem
+	if err := json.Unmarshal([]byte(output), &items); err != nil {
+		t.Fatalf("Unmarshal() error = %v, output = %s", err, output)
+	}
+	if len(items) != 1 || items[0].Name != "airport" || items[0].URL != config.RedactedValue {
+		t.Fatalf("items = %+v, want redacted airport subscription", items)
+	}
+
+	code, output = captureStdout(t, func() int {
+		return run([]string{"config", "subscription", "list", "-path", path, "-json", "-secrets"})
+	})
+	if code != 0 {
+		t.Fatalf("run(config subscription list -json -secrets) = %d, want 0", code)
+	}
+	if !strings.Contains(output, "token=secret") {
+		t.Fatalf("output = %s, want real subscription URL with -secrets", output)
 	}
 }
 
