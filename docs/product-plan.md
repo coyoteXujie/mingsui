@@ -68,7 +68,7 @@ MingSui 的目标不是只做一个能跑的代理工具，而是做成一个桌
 
 - 日志支持级别过滤、关键词搜索、复制和清空视图。
 - readiness、系统代理、配置路径、当前进程状态集中展示。
-- 常见问题提供一键复制诊断命令，例如 `mingsui doctor`、`mingsui status --json`。
+- 常见问题提供一键复制诊断命令，例如 `mingsui doctor -json`、`mingsui status`、`mingsui config proxy list -json`。
 - 关键错误要能关联到配置项或页面入口。
 
 完成标准：
@@ -81,6 +81,7 @@ MingSui 的目标不是只做一个能跑的代理工具，而是做成一个桌
 成品形态要求 CLI 和桌面互相补位：
 
 - CLI 帮助文本中文优先，命令分组清晰。
+- 面向 AI 和脚本的导入、同步、列表、选择和诊断命令都有稳定 JSON 输出。
 - `mingsui env` 和 `mingsui exec` 是 AI/终端场景的主路径。
 - `mingsui import -check`、`select-best`、`doctor` 和桌面节点/诊断能力一致。
 - 发布包包含明确的安装、启动、升级、卸载路径。

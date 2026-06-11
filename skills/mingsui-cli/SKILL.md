@@ -20,7 +20,9 @@ mingsui config path
 Use JSON when another tool or script will parse the result:
 
 ```bash
-mingsui status -json
+mingsui status
+mingsui config proxy list -json
+mingsui config subscription sync <name> -check -json
 mingsui doctor -json
 ```
 
@@ -79,13 +81,13 @@ For a subscription import:
 
 ```bash
 mingsui import -source <file-or-url> -check
-mingsui import -source <subscription-url> -subscription airport -check
+mingsui import -source <subscription-url> -subscription airport -check -json
 mingsui status
-mingsui config proxy list
+mingsui config proxy list -json
 mingsui config proxy check -select-best
-mingsui config proxy select <node-name>
-mingsui config subscription add airport -url <subscription-url>
-mingsui config subscription sync airport -check
+mingsui config proxy select <node-name> -json
+mingsui config subscription add airport -url <subscription-url> -json
+mingsui config subscription sync airport -check -json
 ```
 
 Automatic airport-node selection skips nodes that look like Mainland China, domestic, or return-to-China lines. Use `mingsui config proxy list` to inspect which node is selected and which nodes are not auto-selectable.
@@ -114,9 +116,9 @@ TUN generally requires elevated permissions or a kernel backend such as Mihomo c
 
 If a command cannot access the network:
 
-1. Check `mingsui status -json`.
+1. Check `mingsui status`.
 2. Check whether the connection process is actually running.
 3. Confirm the command is launched with `mingsui exec -- ...` or from a shell where `eval "$(mingsui env)"` was run.
 4. For browser traffic, check `mingsui system-proxy status`.
-5. Use `mingsui doctor` to diagnose the active mode. It checks Mihomo for airport nodes and relay health for relay profiles.
+5. Use `mingsui doctor -json` to diagnose the active mode. It checks Mihomo for airport nodes and relay health for relay profiles.
 6. Avoid exposing private tokens or full subscription URLs while reporting the issue.

@@ -43,10 +43,13 @@ mingsui version
 mingsui import -source "https://example.com/api/v1/client/subscribe?token=..." -check
 mingsui status
 mingsui status -json=false
+mingsui config proxy list -json
 mingsui config proxy check -select-best
 ```
 
 `mingsui status` 默认输出 JSON，里面包含 `readiness`、`warnings` 和 `actions`，桌面端也读取同一份状态来显示下一步建议。人直接看终端时可以用 `mingsui status -json=false`，它会打印当前模式、监听地址、警告和推荐命令。
+
+AI Agent、脚本和桌面端复制命令时应优先使用 JSON 输出：`mingsui status`、`mingsui config proxy list -json`、`mingsui config subscription sync <name> -check -json`、`mingsui doctor -json`。这些输出不会回显订阅 token、relay token 或 proxy URL。
 
 连接：
 
@@ -218,11 +221,11 @@ mingsui import -source <机场订阅地址>
 mingsui import -source <机场订阅地址> -subscription airport -check
 mingsui status
 mingsui status -json=false
-mingsui config proxy list
+mingsui config proxy list -json
 mingsui config proxy check -select-best
-mingsui config proxy select <节点名称>
-mingsui config subscription add airport -url <机场订阅地址>
-mingsui config subscription sync airport -check
+mingsui config proxy select <节点名称> -json
+mingsui config subscription add airport -url <机场订阅地址> -json
+mingsui config subscription sync airport -check -json
 mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 ```
 
@@ -239,9 +242,9 @@ mingsui kernel export -output /tmp/mingsui-mihomo.yaml
 自建 relay profile 管理：
 
 ```bash
-mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN"
-mingsui config profile select tokyo
-mingsui config profile list
+mingsui config profile add tokyo -relay tokyo.example.com:9443 -token "$TOKEN" -json
+mingsui config profile select tokyo -json
+mingsui config profile list -json
 ```
 
 诊断命令：
